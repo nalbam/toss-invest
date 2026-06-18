@@ -9,6 +9,7 @@ import {
 } from "@/lib/client/hooks";
 import { FxRate } from "./FxRate";
 import { HoldingsTable } from "./HoldingsTable";
+import { MarketQuote } from "./MarketQuote";
 import { OrdersTable } from "./OrdersTable";
 import { PortfolioSummary } from "./PortfolioSummary";
 import page from "@/app/page.module.css";
@@ -91,6 +92,8 @@ export function Dashboard() {
       ) : orders.data ? (
         <OrdersTable orders={orders.data.orders} />
       ) : null}
+
+      <MarketQuote defaultSymbol={holdings.data?.items[0]?.symbol} />
     </div>
   );
 }

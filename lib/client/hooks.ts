@@ -3,9 +3,13 @@
 import useSWR, { type SWRConfiguration } from "swr";
 import type {
   Account,
+  CandlePageResponse,
   ExchangeRateResponse,
   HoldingsOverview,
+  OrderbookResponse,
   PaginatedOrderResponse,
+  PriceLimitResponse,
+  PriceResponse,
 } from "@/lib/client/types";
 
 /**
@@ -153,6 +157,81 @@ export function useOrders(
   }
   const { data, error, isLoading } = useSWR<
     PaginatedOrderResponse,
+    ApiClientError
+  >(key, fetcher, sharedConfig);
+  return { data, error, isLoading: isLoading && key !== null };
+}
+
+/**
+ * Loads the latest prices for one or more symbols. The request is paused (key
+ * is `null`) until at least one symbol is provided, so the caller can resolve a
+ * default symbol before fetching.
+ */
+export function usePrices(symbols: string[]): QueryResult<PriceResponse[]> {
+  const key =
+    symbols.length === 0
+      ? null
+      : `/api/prices?symbols=${encodeURIComponent(symbols.join(","))}`;
+  const { data, error, isLoading } = useSWR<PriceResponse[], ApiClientError>(
+    key,
+    fetcher,
+    sharedConfig,
+  );
+  return { data, error, isLoading: isLoading && key !== null };
+}
+
+/**
+ * Loads the daily upper/lower price limits for a symbol. The request is paused
+ * (key is `null`) until a symbol is known. For markets without limits (e.g.
+ * US) the response carries `null` limit prices.
+ */
+export function usePriceLimits(
+  symbol: string | undefined,
+): QueryResult<PriceLimitResponse> {
+  const key =
+    symbol === undefined
+      ? null
+      : `/api/price-limits?symbol=${encodeURIComponent(symbol)}`;
+  const { data, error, isLoading } = useSWR<
+    PriceLimitResponse,
+    ApiClientError
+  >(key, fetcher, sharedConfig);
+  return { data, error, isLoading: isLoading && key !== null };
+}
+
+/**
+ * Loads the orderbook (asks/bids) for a symbol. The request is paused (key is
+ * `null`) until a symbol is known.
+ */
+export function useOrderbook(
+  symbol: string | undefined,
+): QueryResult<OrderbookResponse> {
+  const key =
+    symbol === undefined
+      ? null
+      : `/api/orderbook?symbol=${encodeURIComponent(symbol)}`;
+  const { data, error, isLoading } = useSWR<OrderbookResponse, ApiClientError>(
+    key,
+    fetcher,
+    sharedConfig,
+  );
+  return { data, error, isLoading: isLoading && key !== null };
+}
+
+/**
+ * Loads a page of OHLCV candles for a symbol at the given interval. The request
+ * is paused (key is `null`) until a symbol is known.
+ */
+export function useCandles(
+  symbol: string | undefined,
+  interval: "1m" | "1d",
+): QueryResult<CandlePageResponse> {
+  const key =
+    symbol === undefined
+      ? null
+      : `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}`;
+  const { data, error, isLoading } = useSWR<
+    CandlePageResponse,
     ApiClientError
   >(key, fetcher, sharedConfig);
   return { data, error, isLoading: isLoading && key !== null };

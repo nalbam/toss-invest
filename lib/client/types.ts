@@ -146,3 +146,44 @@ export interface PaginatedOrderResponse {
   nextCursor: string | null;
   hasNext: boolean;
 }
+
+export interface PriceResponse {
+  symbol: string;
+  timestamp?: string | null;
+  lastPrice: string;
+  currency: Currency;
+}
+
+export interface PriceLimitResponse {
+  timestamp: string;
+  upperLimitPrice: string | null;
+  lowerLimitPrice: string | null;
+  currency: Currency;
+}
+
+export interface OrderbookEntry {
+  price: string;
+  volume: string;
+}
+
+export interface OrderbookResponse {
+  timestamp: string | null;
+  currency: Currency;
+  asks: OrderbookEntry[];
+  bids: OrderbookEntry[];
+}
+
+export interface Candle {
+  timestamp: string;
+  openPrice: string;
+  highPrice: string;
+  lowPrice: string;
+  closePrice: string;
+  volume: string;
+  currency: Currency;
+}
+
+export interface CandlePageResponse {
+  candles: Candle[];
+  nextBefore: string | null;
+}

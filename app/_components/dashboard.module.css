@@ -162,3 +162,16 @@
 .stacked.left {
   align-items: flex-start;
 }
+
+.quoteRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 20px;
+  margin: 16px 0;
+}
+
+.chart {
+  width: 100%;
+  min-height: 280px;
+  margin: 16px 0;
+}

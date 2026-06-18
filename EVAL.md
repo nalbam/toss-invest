@@ -129,3 +129,24 @@
 
 **최저축**: UX(4) — 목표 충족. UX 4→4(데이터 계층 이터라 의도적 정체, #7이 UI). 회로차단기 비대상.
 **다음 개선(next pick #7)**: 시세 대시보드 섹션(심볼 선택 → 현재가/상하한가/호가/캔들 차트) + SWR 훅 + 차트 컴포넌트 + 렌더 테스트.
+
+---
+
+## #7 | phase1 | 시세 대시보드 섹션(현재가·상하한가·호가·캔들 차트) + SWR 훅 + 차트
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0
+- test exit 0 → vitest **Test Files 13 passed, Tests 123 passed**(신규 13)
+- build exit 0 → ✓ Compiled + `scanned 26 ... no forbidden strings`
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — MarketQuote(현재가/상하한가/호가/캔들 차트) + usePrices/usePriceLimits/useOrderbook/useCandles + lightweight-charts. 근거: 123 tests, 대시보드 4섹션.
+- API 정합성 **5** — 클라이언트 타입이 응답 형태와 일치, decimal 문자열 유지(차트 입력 시만 숫자 변환), candle interval 1m/1d. 근거: toChartSeries 단위 테스트 + 훅.
+- Safety **5** — 주문 POST 없음. 근거: 읽기전용.
+- Security **5** — lightweight-charts 클라이언트 deps 추가에도 번들 가드 26파일 클린(시크릿 미노출). 근거: 가드 클린.
+- UX **5** — 대시보드 4개 섹션(요약·보유종목·주문내역·시세 with 호가/캔들 차트/interval 토글) 모두 렌더, jsdom 테스트 검증. **(UX 4→5)**
+- Code quality **5** — toChartSeries 순수 분리, 외과적 추가, 서버 파일 무수정. 근거: 의도 파일만.
+
+**최저축**: 없음(전 축 5). **UX 정체 완전 해소(2→4→5)**.
+**정직한 한계**: 렌더는 jsdom 컴포넌트 테스트(차트는 lib mock 스모크). **풀 브라우저 E2E(Playwright)는 #9 보류** → "브라우저 실제 동작"은 아직 미검증.
+**다음 개선(next pick #8)**: 나머지 GET 6종(stocks/warnings/market-calendar KR·US/buying-power/sellable-quantity/commissions) + 라우트 + 계약 테스트 → 종료조건 1(16/16) 완성.
