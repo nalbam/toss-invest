@@ -150,3 +150,24 @@
 **최저축**: 없음(전 축 5). **UX 정체 완전 해소(2→4→5)**.
 **정직한 한계**: 렌더는 jsdom 컴포넌트 테스트(차트는 lib mock 스모크). **풀 브라우저 E2E(Playwright)는 #9 보류** → "브라우저 실제 동작"은 아직 미검증.
 **다음 개선(next pick #8)**: 나머지 GET 6종(stocks/warnings/market-calendar KR·US/buying-power/sellable-quantity/commissions) + 라우트 + 계약 테스트 → 종료조건 1(16/16) 완성.
+
+---
+
+## #8 | phase1 | 나머지 GET 7종(stocks/warnings/calendar KR·US/buying-power/sellable-quantity/commissions) + 라우트 + 계약 → 전 GET 17/17
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0
+- test exit 0 → vitest **Test Files 13 passed, Tests 157 passed**(신규 34)
+- build exit 0 → ✓ Compiled + **API 라우트 17개** + `scanned 33 ... no forbidden strings`
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — 7 엔드포인트+라우트+34 테스트 → **종료조건 1(전 GET 17/17) 완성**. 근거: 157 tests, 17 API 라우트 빌드.
+- API 정합성 **5** — 중첩(KrMarketDetail/KR·US calendar) 포함 openapi ground truth, nullable.optional, openEnum, STOCK/ORDER_INFO 그룹·계좌헤더. 근거: 계약 테스트.
+- Safety **5** — 주문 POST 없음(ORDER_INFO도 조회). 근거: GET only.
+- Security **5** — 번들 가드 33파일 클린. 근거: 가드 클린.
+- UX **5** — UI 미변경(데이터 계층), #7 대시보드 4섹션 유지(무회귀). 근거: 컴포넌트 무변경.
+- Code quality **5** — 외과적 추가(그룹/스키마/엔드포인트/라우트), 무관 리팩토링 없음. 근거: 기존 파일 확장만.
+
+**최저축**: 없음(전 축 5). 
+**Phase 1 상태**: 종료조건 4개 중 3 완료(GET 17/17 ✅·시크릿 번들 ✅·gates ✅), 대시보드 렌더는 컴포넌트 레벨 ✅·**Playwright E2E(#9)만 남음**.
+**다음 개선(next pick #9)**: Playwright E2E(브라우저 설치 + route-mock 대시보드 렌더 스펙) → Phase 1 종료 판정 → Phase 2(수동 거래) 진입.

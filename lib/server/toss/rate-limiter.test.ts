@@ -79,6 +79,38 @@ describe("createRateLimiter", () => {
     expect(asset).toBe(0);
   });
 
+  it("bursts STOCK up to 5 tokens then throttles (5 TPS)", async () => {
+    const clock = fakeClock();
+    const limiter = createRateLimiter({ now: clock.now, sleep: clock.sleep });
+
+    const waits = [
+      await limiter.acquire("STOCK"),
+      await limiter.acquire("STOCK"),
+      await limiter.acquire("STOCK"),
+      await limiter.acquire("STOCK"),
+      await limiter.acquire("STOCK"),
+    ];
+    expect(waits).toEqual([0, 0, 0, 0, 0]);
+
+    // 5 TPS => one token every 200ms.
+    const sixth = await limiter.acquire("STOCK");
+    expect(sixth).toBe(200);
+  });
+
+  it("bursts ORDER_INFO up to 6 tokens then throttles (6 TPS)", async () => {
+    const clock = fakeClock();
+    const limiter = createRateLimiter({ now: clock.now, sleep: clock.sleep });
+
+    const waits = await Promise.all(
+      Array.from({ length: 6 }, () => limiter.acquire("ORDER_INFO")),
+    );
+    expect(waits).toEqual([0, 0, 0, 0, 0, 0]);
+
+    // 6 TPS => one token every ~166.67ms; ceil to 167ms.
+    const seventh = await limiter.acquire("ORDER_INFO");
+    expect(seventh).toBe(167);
+  });
+
   it("serves concurrent same-group acquires in order without double-spending", async () => {
     const clock = fakeClock();
     const limiter = createRateLimiter({ now: clock.now, sleep: clock.sleep });

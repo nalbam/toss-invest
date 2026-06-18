@@ -14,6 +14,13 @@ const facade = {
   getExchangeRate: vi.fn(),
   getOrders: vi.fn(),
   getOrder: vi.fn(),
+  getStocks: vi.fn(),
+  getStockWarnings: vi.fn(),
+  getKrMarketCalendar: vi.fn(),
+  getUsMarketCalendar: vi.fn(),
+  getBuyingPower: vi.fn(),
+  getSellableQuantity: vi.fn(),
+  getCommissions: vi.fn(),
 };
 
 vi.mock("@/lib/server/toss/container", () => ({
@@ -30,6 +37,13 @@ import { GET as candlesGET } from "@/app/api/candles/route";
 import { GET as exchangeRateGET } from "@/app/api/exchange-rate/route";
 import { GET as ordersGET } from "@/app/api/orders/route";
 import { GET as orderGET } from "@/app/api/orders/[orderId]/route";
+import { GET as stocksGET } from "@/app/api/stocks/route";
+import { GET as stockWarningsGET } from "@/app/api/stocks/[symbol]/warnings/route";
+import { GET as krCalendarGET } from "@/app/api/market-calendar/kr/route";
+import { GET as usCalendarGET } from "@/app/api/market-calendar/us/route";
+import { GET as buyingPowerGET } from "@/app/api/buying-power/route";
+import { GET as sellableQuantityGET } from "@/app/api/sellable-quantity/route";
+import { GET as commissionsGET } from "@/app/api/commissions/route";
 
 const SECRET = "super-secret-client-secret-value";
 
@@ -579,5 +593,286 @@ describe("GET /api/orders/[orderId]", () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error.code).toBe("order-not-found");
+  });
+});
+
+// --- stocks -----------------------------------------------------------------
+
+describe("GET /api/stocks", () => {
+  it("splits symbols into an array and returns 200", async () => {
+    const stocks = [{ symbol: "005930", name: "삼성전자" }];
+    facade.getStocks.mockResolvedValue(stocks);
+
+    const res = await stocksGET(
+      req("http://localhost/api/stocks?symbols=005930,000660"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: stocks });
+    expect(facade.getStocks).toHaveBeenCalledWith({
+      symbols: ["005930", "000660"],
+    });
+  });
+
+  it("returns 400 when symbols is missing", async () => {
+    const res = await stocksGET(req("http://localhost/api/stocks"));
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid-request");
+    expect(facade.getStocks).not.toHaveBeenCalled();
+  });
+
+  it("maps an unknown error to a generic 500 without leaking secrets", async () => {
+    facade.getStocks.mockRejectedValue(new Error(`boom containing ${SECRET}`));
+
+    const res = await stocksGET(
+      req("http://localhost/api/stocks?symbols=005930"),
+    );
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error.code).toBe("internal-error");
+    expect(JSON.stringify(body)).not.toContain(SECRET);
+  });
+});
+
+// --- stocks/{symbol}/warnings -----------------------------------------------
+
+describe("GET /api/stocks/[symbol]/warnings", () => {
+  const warnings = [{ warningType: "VI_STATIC", exchange: "KRX" }];
+
+  function warningsContext(symbol: string) {
+    return { params: Promise.resolve({ symbol }) };
+  }
+
+  it("forwards the path symbol and returns 200", async () => {
+    facade.getStockWarnings.mockResolvedValue(warnings);
+
+    const res = await stockWarningsGET(
+      req("http://localhost/api/stocks/005930/warnings"),
+      warningsContext("005930"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: warnings });
+    expect(facade.getStockWarnings).toHaveBeenCalledWith({ symbol: "005930" });
+  });
+
+  it("maps an upstream TossApiError to its status", async () => {
+    facade.getStockWarnings.mockRejectedValue(
+      new TossApiError({
+        status: 404,
+        code: "symbol-not-found",
+        message: "symbol not found",
+      }),
+    );
+
+    const res = await stockWarningsGET(
+      req("http://localhost/api/stocks/XXXX/warnings"),
+      warningsContext("XXXX"),
+    );
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error.code).toBe("symbol-not-found");
+  });
+});
+
+// --- market-calendar/KR -----------------------------------------------------
+
+describe("GET /api/market-calendar/kr", () => {
+  const calendar = { today: { date: "2026-03-25" } };
+
+  it("returns 200 and omits date when not provided", async () => {
+    facade.getKrMarketCalendar.mockResolvedValue(calendar);
+
+    const res = await krCalendarGET(
+      req("http://localhost/api/market-calendar/kr"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: calendar });
+    expect(facade.getKrMarketCalendar).toHaveBeenCalledWith({
+      date: undefined,
+    });
+  });
+
+  it("forwards the date query", async () => {
+    facade.getKrMarketCalendar.mockResolvedValue(calendar);
+
+    const res = await krCalendarGET(
+      req("http://localhost/api/market-calendar/kr?date=2026-03-21"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(facade.getKrMarketCalendar).toHaveBeenCalledWith({
+      date: "2026-03-21",
+    });
+  });
+});
+
+// --- market-calendar/US -----------------------------------------------------
+
+describe("GET /api/market-calendar/us", () => {
+  const calendar = { today: { date: "2026-03-25" } };
+
+  it("returns 200 and forwards the date query", async () => {
+    facade.getUsMarketCalendar.mockResolvedValue(calendar);
+
+    const res = await usCalendarGET(
+      req("http://localhost/api/market-calendar/us?date=2026-12-25"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: calendar });
+    expect(facade.getUsMarketCalendar).toHaveBeenCalledWith({
+      date: "2026-12-25",
+    });
+  });
+});
+
+// --- buying-power -----------------------------------------------------------
+
+describe("GET /api/buying-power", () => {
+  const power = { currency: "KRW", cashBuyingPower: "5000000" };
+
+  it("uses the provided accountSeq and forwards the currency", async () => {
+    facade.getBuyingPower.mockResolvedValue(power);
+
+    const res = await buyingPowerGET(
+      req("http://localhost/api/buying-power?accountSeq=7&currency=KRW"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: power });
+    expect(facade.getBuyingPower).toHaveBeenCalledWith({
+      accountSeq: 7,
+      currency: "KRW",
+    });
+    expect(facade.getAccounts).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the first account's accountSeq when omitted", async () => {
+    facade.getAccounts.mockResolvedValue([
+      { accountNo: "1", accountSeq: 42, accountType: "BROKERAGE" },
+    ]);
+    facade.getBuyingPower.mockResolvedValue(power);
+
+    const res = await buyingPowerGET(
+      req("http://localhost/api/buying-power?currency=USD"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(facade.getAccounts).toHaveBeenCalledOnce();
+    expect(facade.getBuyingPower).toHaveBeenCalledWith({
+      accountSeq: 42,
+      currency: "USD",
+    });
+  });
+
+  it("returns 400 when currency is missing", async () => {
+    const res = await buyingPowerGET(
+      req("http://localhost/api/buying-power?accountSeq=7"),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid-request");
+    expect(facade.getBuyingPower).not.toHaveBeenCalled();
+  });
+});
+
+// --- sellable-quantity ------------------------------------------------------
+
+describe("GET /api/sellable-quantity", () => {
+  const sellable = { sellableQuantity: "100" };
+
+  it("uses the provided accountSeq and forwards the symbol", async () => {
+    facade.getSellableQuantity.mockResolvedValue(sellable);
+
+    const res = await sellableQuantityGET(
+      req("http://localhost/api/sellable-quantity?accountSeq=3&symbol=005930"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: sellable });
+    expect(facade.getSellableQuantity).toHaveBeenCalledWith({
+      accountSeq: 3,
+      symbol: "005930",
+    });
+    expect(facade.getAccounts).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the first account's accountSeq when omitted", async () => {
+    facade.getAccounts.mockResolvedValue([
+      { accountNo: "1", accountSeq: 42, accountType: "BROKERAGE" },
+    ]);
+    facade.getSellableQuantity.mockResolvedValue(sellable);
+
+    const res = await sellableQuantityGET(
+      req("http://localhost/api/sellable-quantity?symbol=AAPL"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(facade.getAccounts).toHaveBeenCalledOnce();
+    expect(facade.getSellableQuantity).toHaveBeenCalledWith({
+      accountSeq: 42,
+      symbol: "AAPL",
+    });
+  });
+
+  it("returns 400 when symbol is missing", async () => {
+    const res = await sellableQuantityGET(
+      req("http://localhost/api/sellable-quantity?accountSeq=3"),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid-request");
+    expect(facade.getSellableQuantity).not.toHaveBeenCalled();
+  });
+});
+
+// --- commissions ------------------------------------------------------------
+
+describe("GET /api/commissions", () => {
+  const commissions = [{ marketCountry: "KR", commissionRate: "0.015" }];
+
+  it("uses the provided accountSeq and returns 200", async () => {
+    facade.getCommissions.mockResolvedValue(commissions);
+
+    const res = await commissionsGET(
+      req("http://localhost/api/commissions?accountSeq=1"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: commissions });
+    expect(facade.getCommissions).toHaveBeenCalledWith({ accountSeq: 1 });
+    expect(facade.getAccounts).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the first account's accountSeq when omitted", async () => {
+    facade.getAccounts.mockResolvedValue([
+      { accountNo: "1", accountSeq: 42, accountType: "BROKERAGE" },
+    ]);
+    facade.getCommissions.mockResolvedValue(commissions);
+
+    const res = await commissionsGET(req("http://localhost/api/commissions"));
+
+    expect(res.status).toBe(200);
+    expect(facade.getAccounts).toHaveBeenCalledOnce();
+    expect(facade.getCommissions).toHaveBeenCalledWith({ accountSeq: 42 });
+  });
+
+  it("returns 400 for a non-integer accountSeq", async () => {
+    const res = await commissionsGET(
+      req("http://localhost/api/commissions?accountSeq=abc"),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid-request");
+    expect(facade.getCommissions).not.toHaveBeenCalled();
   });
 });

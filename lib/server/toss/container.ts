@@ -5,36 +5,57 @@ import { createTossClient, type TossClient } from "@/lib/server/toss/client";
 import { createRateLimiter } from "@/lib/server/toss/rate-limiter";
 import {
   getAccounts,
+  getBuyingPower,
   getCandles,
+  getCommissions,
   getExchangeRate,
   getHoldings,
+  getKrMarketCalendar,
   getOrder,
   getOrderbook,
   getOrders,
   getPriceLimits,
   getPrices,
+  getSellableQuantity,
+  getStocks,
+  getStockWarnings,
   getTrades,
+  getUsMarketCalendar,
+  type GetBuyingPowerParams,
   type GetCandlesParams,
+  type GetCommissionsParams,
   type GetExchangeRateParams,
   type GetHoldingsParams,
+  type GetKrMarketCalendarParams,
   type GetOrderParams,
   type GetOrderbookParams,
   type GetOrdersParams,
   type GetPriceLimitsParams,
   type GetPricesParams,
+  type GetSellableQuantityParams,
+  type GetStocksParams,
+  type GetStockWarningsParams,
   type GetTradesParams,
+  type GetUsMarketCalendarParams,
 } from "@/lib/server/toss/endpoints";
 import type {
   Account,
+  BuyingPowerResponse,
   CandlePageResponse,
+  Commission,
   ExchangeRateResponse,
   HoldingsOverview,
+  KrMarketCalendarResponse,
   Order,
   OrderbookResponse,
   PaginatedOrderResponse,
   PriceLimitResponse,
   PriceResponse,
+  SellableQuantityResponse,
+  StockInfo,
+  StockWarning,
   Trade,
+  UsMarketCalendarResponse,
 } from "@/lib/server/toss/schemas";
 
 /**
@@ -55,6 +76,19 @@ export interface ServerTossClient {
   ): Promise<ExchangeRateResponse>;
   getOrders(params: GetOrdersParams): Promise<PaginatedOrderResponse>;
   getOrder(params: GetOrderParams): Promise<Order>;
+  getStocks(params: GetStocksParams): Promise<StockInfo[]>;
+  getStockWarnings(params: GetStockWarningsParams): Promise<StockWarning[]>;
+  getKrMarketCalendar(
+    params?: GetKrMarketCalendarParams,
+  ): Promise<KrMarketCalendarResponse>;
+  getUsMarketCalendar(
+    params?: GetUsMarketCalendarParams,
+  ): Promise<UsMarketCalendarResponse>;
+  getBuyingPower(params: GetBuyingPowerParams): Promise<BuyingPowerResponse>;
+  getSellableQuantity(
+    params: GetSellableQuantityParams,
+  ): Promise<SellableQuantityResponse>;
+  getCommissions(params: GetCommissionsParams): Promise<Commission[]>;
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -103,6 +137,13 @@ export function getServerTossClient(): ServerTossClient {
       getExchangeRate: (params) => getExchangeRate(client, params),
       getOrders: (params) => getOrders(client, params),
       getOrder: (params) => getOrder(client, params),
+      getStocks: (params) => getStocks(client, params),
+      getStockWarnings: (params) => getStockWarnings(client, params),
+      getKrMarketCalendar: (params) => getKrMarketCalendar(client, params),
+      getUsMarketCalendar: (params) => getUsMarketCalendar(client, params),
+      getBuyingPower: (params) => getBuyingPower(client, params),
+      getSellableQuantity: (params) => getSellableQuantity(client, params),
+      getCommissions: (params) => getCommissions(client, params),
     };
   }
   return cached;

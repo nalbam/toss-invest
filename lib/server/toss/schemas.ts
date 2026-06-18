@@ -268,3 +268,192 @@ export const paginatedOrderResponseSchema = z.object({
 export type PaginatedOrderResponse = z.infer<
   typeof paginatedOrderResponseSchema
 >;
+
+// --- stocks -----------------------------------------------------------------
+
+export const stockMarketSchema = openEnum([
+  "KOSPI",
+  "KOSDAQ",
+  "NYSE",
+  "NASDAQ",
+  "AMEX",
+  "KR_ETC",
+  "US_ETC",
+]);
+export const securityTypeSchema = openEnum([
+  "STOCK",
+  "FOREIGN_STOCK",
+  "DEPOSITARY_RECEIPT",
+  "INFRASTRUCTURE_FUND",
+  "REIT",
+  "ETF",
+  "FOREIGN_ETF",
+  "ETN",
+  "STOCK_WARRANTS",
+]);
+export const stockStatusSchema = openEnum([
+  "SCHEDULED",
+  "ACTIVE",
+  "DELISTED",
+]);
+
+export const krMarketDetailSchema = z.object({
+  liquidationTrading: z.boolean(),
+  nxtSupported: z.boolean(),
+  krxTradingSuspended: z.boolean(),
+  nxtTradingSuspended: z.boolean().nullable().optional(),
+});
+export type KrMarketDetail = z.infer<typeof krMarketDetailSchema>;
+
+export const stockInfoSchema = z.object({
+  symbol: z.string(),
+  name: z.string(),
+  englishName: z.string(),
+  isinCode: z.string(),
+  market: stockMarketSchema,
+  securityType: securityTypeSchema,
+  isCommonShare: z.boolean(),
+  status: stockStatusSchema,
+  currency: currencySchema,
+  listDate: z.string().nullable().optional(),
+  delistDate: z.string().nullable().optional(),
+  sharesOutstanding: decimal,
+  leverageFactor: decimal.nullable().optional(),
+  koreanMarketDetail: krMarketDetailSchema.nullable().optional(),
+});
+export type StockInfo = z.infer<typeof stockInfoSchema>;
+
+export const stocksResultSchema = z.array(stockInfoSchema);
+
+// --- stock warnings ---------------------------------------------------------
+
+export const warningTypeSchema = openEnum([
+  "LIQUIDATION_TRADING",
+  "OVERHEATED",
+  "INVESTMENT_WARNING",
+  "INVESTMENT_RISK",
+  "VI_STATIC_AND_DYNAMIC",
+  "VI_STATIC",
+  "VI_DYNAMIC",
+  "STOCK_WARRANTS",
+]);
+
+export const stockWarningSchema = z.object({
+  warningType: warningTypeSchema,
+  exchange: z.string().nullable().optional(),
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
+});
+export type StockWarning = z.infer<typeof stockWarningSchema>;
+
+export const stockWarningsResultSchema = z.array(stockWarningSchema);
+
+// --- market-calendar (KR) ---------------------------------------------------
+
+export const preMarketSessionSchema = z.object({
+  startTime: z.string(),
+  singlePriceAuctionStartTime: z.string().nullable().optional(),
+  endTime: z.string(),
+});
+
+export const regularMarketSessionSchema = z.object({
+  startTime: z.string(),
+  singlePriceAuctionStartTime: z.string().nullable().optional(),
+  endTime: z.string(),
+});
+
+export const afterMarketSessionSchema = z.object({
+  startTime: z.string(),
+  singlePriceAuctionEndTime: z.string().nullable().optional(),
+  endTime: z.string(),
+});
+
+export const integratedHourSchema = z.object({
+  preMarket: preMarketSessionSchema.nullable().optional(),
+  regularMarket: regularMarketSessionSchema.nullable().optional(),
+  afterMarket: afterMarketSessionSchema.nullable().optional(),
+});
+
+export const krMarketDaySchema = z.object({
+  date: z.string(),
+  integrated: integratedHourSchema.nullable().optional(),
+});
+export type KrMarketDay = z.infer<typeof krMarketDaySchema>;
+
+export const krMarketCalendarResponseSchema = z.object({
+  today: krMarketDaySchema,
+  previousBusinessDay: krMarketDaySchema,
+  nextBusinessDay: krMarketDaySchema,
+});
+export type KrMarketCalendarResponse = z.infer<
+  typeof krMarketCalendarResponseSchema
+>;
+
+// --- market-calendar (US) ---------------------------------------------------
+
+export const usDayMarketSessionSchema = z.object({
+  startTime: z.string(),
+  endTime: z.string(),
+});
+
+export const usPreMarketSessionSchema = z.object({
+  startTime: z.string(),
+  endTime: z.string(),
+});
+
+export const usRegularMarketSessionSchema = z.object({
+  startTime: z.string(),
+  endTime: z.string(),
+});
+
+export const usAfterMarketSessionSchema = z.object({
+  startTime: z.string(),
+  endTime: z.string(),
+});
+
+export const usMarketDaySchema = z.object({
+  date: z.string(),
+  dayMarket: usDayMarketSessionSchema.nullable().optional(),
+  preMarket: usPreMarketSessionSchema.nullable().optional(),
+  regularMarket: usRegularMarketSessionSchema.nullable().optional(),
+  afterMarket: usAfterMarketSessionSchema.nullable().optional(),
+});
+export type UsMarketDay = z.infer<typeof usMarketDaySchema>;
+
+export const usMarketCalendarResponseSchema = z.object({
+  today: usMarketDaySchema,
+  previousBusinessDay: usMarketDaySchema,
+  nextBusinessDay: usMarketDaySchema,
+});
+export type UsMarketCalendarResponse = z.infer<
+  typeof usMarketCalendarResponseSchema
+>;
+
+// --- buying-power -----------------------------------------------------------
+
+export const buyingPowerResponseSchema = z.object({
+  currency: currencySchema,
+  cashBuyingPower: decimal,
+});
+export type BuyingPowerResponse = z.infer<typeof buyingPowerResponseSchema>;
+
+// --- sellable-quantity ------------------------------------------------------
+
+export const sellableQuantityResponseSchema = z.object({
+  sellableQuantity: decimal,
+});
+export type SellableQuantityResponse = z.infer<
+  typeof sellableQuantityResponseSchema
+>;
+
+// --- commissions ------------------------------------------------------------
+
+export const commissionSchema = z.object({
+  marketCountry: marketCountrySchema,
+  commissionRate: decimal,
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
+});
+export type Commission = z.infer<typeof commissionSchema>;
+
+export const commissionsResultSchema = z.array(commissionSchema);

@@ -1,0 +1,28 @@
+import { z } from "zod";
+import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { getServerTossClient } from "@/lib/server/toss/container";
+
+export const dynamic = "force-dynamic";
+
+const querySchema = z.object({
+  date: z.string().min(1).optional(),
+});
+
+export async function GET(request: Request): Promise<Response> {
+  const { searchParams } = new URL(request.url);
+  const parsed = querySchema.safeParse({
+    date: searchParams.get("date") ?? undefined,
+  });
+  if (!parsed.success) {
+    return invalidRequest("Invalid date query parameter");
+  }
+
+  try {
+    const data = await getServerTossClient().getUsMarketCalendar({
+      date: parsed.data.date,
+    });
+    return ok(data);
+  } catch (error) {
+    return handleError(error);
+  }
+}
