@@ -320,3 +320,20 @@
 
 **최저축**: 없음(전 축 5).
 **다음 개선(next pick #17)**: 백테스트/시뮬레이션 하네스 — 합성/과거 캔들 시퀀스로 포지션 스냅샷 구성 → thresholdExitStrategy 결정적 실행·집계(intent·가상 PnL) + 결정적 테스트(실주문 없음).
+
+---
+
+## #17 | phase3 | 백테스트/시뮬레이션 하네스 (순수·결정적, 실주문 없음)
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0 / build exit 0(번들 가드 35파일 클린)
+- test exit 0 → vitest **292 passed (18 files)**(신규 13)
+- **확인**: backtest/에 Date.now/Math.random/new Date 없음(grep) — 결정적.
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — `runBacktest` 순수 시뮬레이터(스텝별 스냅샷→전략→가상 SELL 적용·realizedPnlKrw 집계). 근거: 292 tests(손절/익절/횡보/멀티+트림/결정성 deep-equal/fxRate없는 USD/길이불일치).
+- API 정합성 **5** — strategy 타입 재사용. Safety **5** — 순수·I/O 없음·실주문/네트워크 경로 부재. 근거: 결정성 grep + 실행기 부재.
+- Security **5** — 번들 클린. UX **5** — UI 무변경. Code quality **5** — 결정적·부수효과 없음·신규 디렉터리만.
+
+**최저축**: 없음(전 축 5). **Phase 3 종료조건 1(백테스트) 충족.**
+**다음 개선(next pick #18)**: 게이트된 자동 executor — intent→§6 `placeOrder`(confirm=AUTO_TRADE_ENABLED 사람 사전 env 승인), AUTO_TRADE_ENABLED 기본 false→전부 dry-run·createOrderRaw 미호출 증명, kill/한도 거부 증명, 감사로그. 상시 루프 없음. → Phase 3 종료조건 2·3 충족 판정.
