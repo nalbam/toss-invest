@@ -10,6 +10,7 @@ import {
   krMarketCalendarResponseSchema,
   orderbookResponseSchema,
   orderCreateResponseSchema,
+  orderOperationResponseSchema,
   orderSchema,
   paginatedOrderResponseSchema,
   priceLimitResponseSchema,
@@ -30,6 +31,8 @@ import {
   type OrderbookResponse,
   type OrderCreateRequest,
   type OrderCreateResponse,
+  type OrderModifyRequest,
+  type OrderOperationResponse,
   type PaginatedOrderResponse,
   type PriceLimitResponse,
   type PriceResponse,
@@ -256,6 +259,67 @@ export function createOrderRaw(
     accountSeq: params.accountSeq,
     body: params.body,
   });
+}
+
+export interface ModifyOrderRawParams {
+  accountSeq: number | string;
+  orderId: string;
+  body: OrderModifyRequest;
+}
+
+/**
+ * ⚠️ LOW-LEVEL, UNGATED real-money call: `POST /api/v1/orders/{orderId}/modify`
+ * (ORDER group, account header). This amends an actual live order.
+ *
+ * DO NOT call this directly from routes, UI, or other endpoints. It MUST only
+ * be reached through `lib/server/trading` (`modifyOrder`), which enforces the
+ * §6 safety gate (re-valued notional / kill switch / hard limits / high-value /
+ * DRY_RUN default / audit log) before any real POST. Bypassing the gate would
+ * defeat every trading safeguard.
+ */
+export function modifyOrderRaw(
+  client: TossClient,
+  params: ModifyOrderRawParams,
+): Promise<OrderOperationResponse> {
+  return client.post(
+    `/api/v1/orders/${encodeURIComponent(params.orderId)}/modify`,
+    orderOperationResponseSchema,
+    {
+      group: "ORDER",
+      accountSeq: params.accountSeq,
+      body: params.body,
+    },
+  );
+}
+
+export interface CancelOrderRawParams {
+  accountSeq: number | string;
+  orderId: string;
+}
+
+/**
+ * ⚠️ LOW-LEVEL, UNGATED real-money call: `POST /api/v1/orders/{orderId}/cancel`
+ * (ORDER group, account header). This cancels an actual live order. The body is
+ * an empty JSON object per the API contract.
+ *
+ * DO NOT call this directly from routes, UI, or other endpoints. It MUST only
+ * be reached through `lib/server/trading` (`cancelOrder`), which enforces the
+ * §6 safety gate (kill switch / DRY_RUN default / audit log) before any real
+ * POST. Bypassing the gate would defeat every trading safeguard.
+ */
+export function cancelOrderRaw(
+  client: TossClient,
+  params: CancelOrderRawParams,
+): Promise<OrderOperationResponse> {
+  return client.post(
+    `/api/v1/orders/${encodeURIComponent(params.orderId)}/cancel`,
+    orderOperationResponseSchema,
+    {
+      group: "ORDER",
+      accountSeq: params.accountSeq,
+      body: {},
+    },
+  );
 }
 
 export interface GetStocksParams {

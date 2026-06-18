@@ -355,6 +355,55 @@ export const orderCreateResponseSchema = z.object({
 });
 export type OrderCreateResponse = z.infer<typeof orderCreateResponseSchema>;
 
+// --- order modify (POST /api/v1/orders/{orderId}/modify) --------------------
+
+/**
+ * `OrderModifyRequest` body. The original order is identified by the path
+ * `orderId`, so this carries no `symbol`. `price` is required for LIMIT and
+ * forbidden for MARKET; `quantity` (when present) is a positive integer string.
+ * The `superRefine` enforces the price contract at the boundary before the body
+ * can reach the safety gate. (KR requires `quantity`; US forbids it — that
+ * KR/US distinction is enforced server-side via `us-modify-quantity-not-supported`,
+ * not here, since this schema has no symbol to key off.)
+ */
+export const orderModifyRequestSchema = z
+  .object({
+    orderType: z.enum(["LIMIT", "MARKET"]),
+    quantity: orderQuantitySchema.optional(),
+    price: orderDecimalSchema.optional(),
+    confirmHighValueOrder: z.boolean().default(false),
+  })
+  .superRefine((value, ctx) => {
+    if (value.orderType === "LIMIT" && value.price === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["price"],
+        message: "price is required for LIMIT orders",
+      });
+    }
+    if (value.orderType === "MARKET" && value.price !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["price"],
+        message: "price must not be sent for MARKET orders",
+      });
+    }
+  });
+export type OrderModifyRequest = z.infer<typeof orderModifyRequestSchema>;
+
+/**
+ * Shared 200 result for `POST .../modify` and `POST .../cancel`
+ * (`OrderOperationResponse`): a single `orderId` that is the *newly issued*
+ * identifier for the modified/canceled order — distinct from the original
+ * order's `orderId`.
+ */
+export const orderOperationResponseSchema = z.object({
+  orderId: z.string(),
+});
+export type OrderOperationResponse = z.infer<
+  typeof orderOperationResponseSchema
+>;
+
 // --- stocks -----------------------------------------------------------------
 
 export const stockMarketSchema = openEnum([

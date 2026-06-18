@@ -2,14 +2,23 @@ import { describe, expect, it, vi } from "vitest";
 import {
   orderCreateQuantityBasedSchema,
   orderCreateRequestSchema,
+  orderModifyRequestSchema,
   type OrderCreateRequest,
+  type OrderModifyRequest,
 } from "@/lib/server/toss/schemas";
 import {
+  cancelOrder,
+  evaluateCancelGate,
+  evaluateModifyGate,
   evaluateOrderGate,
+  modifyOrder,
   placeOrder,
   type AuditLogger,
+  type CancelOrderRawFn,
   type CreateOrderRawFn,
+  type ModifyOrderRawFn,
   type OrderGateContext,
+  type OrderOpAuditLogger,
   type TradingConfig,
 } from "@/lib/server/trading/safety";
 
@@ -580,6 +589,535 @@ describe("orderCreateRequestSchema", () => {
       side: "BUY",
       orderType: "MARKET",
       quantity: "10",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// === modify / cancel ========================================================
+
+// --- modify fixtures --------------------------------------------------------
+
+/** A KR LIMIT modify whose notional (15 * 71000 = 1,065,000 KRW) is below 1억. */
+const krLimitModify: OrderModifyRequest = {
+  orderType: "LIMIT",
+  quantity: "15",
+  price: "71000",
+  confirmHighValueOrder: false,
+};
+
+interface OpHarness {
+  modifyOrderRaw: ReturnType<typeof vi.fn>;
+  cancelOrderRaw: ReturnType<typeof vi.fn>;
+  auditLog: ReturnType<typeof vi.fn>;
+  now: () => number;
+}
+
+function opHarness(): OpHarness & {
+  modifyOrderRawFn: ModifyOrderRawFn;
+  cancelOrderRawFn: CancelOrderRawFn;
+  auditLogger: OrderOpAuditLogger;
+} {
+  const modifyOrderRaw = vi.fn(async () => ({ orderId: "srv-modify-1" }));
+  const cancelOrderRaw = vi.fn(async () => ({ orderId: "srv-cancel-1" }));
+  const auditLog = vi.fn(() => {});
+  const now = () => 1_700_000_000_000;
+  return {
+    modifyOrderRaw,
+    cancelOrderRaw,
+    auditLog,
+    now,
+    modifyOrderRawFn: modifyOrderRaw as unknown as ModifyOrderRawFn,
+    cancelOrderRawFn: cancelOrderRaw as unknown as CancelOrderRawFn,
+    auditLogger: auditLog as unknown as OrderOpAuditLogger,
+  };
+}
+
+// --- evaluateModifyGate (pure) ----------------------------------------------
+
+describe("evaluateModifyGate", () => {
+  it("DRY_RUN default (true) => DRY_RUN", () => {
+    const result = evaluateModifyGate(krLimitModify, "005930", {
+      config: liveConfig({ dryRun: true }),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("DRY_RUN");
+    expect(result.notionalKrw).toBe(1_065_000);
+  });
+
+  it("KR LIMIT new notional over MAX_ORDER_AMOUNT => BLOCK", () => {
+    // 15 * 71000 = 1,065,000 > 1,000,000 limit
+    const result = evaluateModifyGate(krLimitModify, "005930", {
+      config: liveConfig({ maxOrderAmount: 1_000_000 }),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("BLOCK");
+    expect(result.reasons).toContain("max-order-amount-exceeded");
+  });
+
+  it("US LIMIT new notional over limit once converted via fxRate => BLOCK", () => {
+    // AAPL LIMIT 100 @ $200 = $20,000; * 1380 = 27,600,000 KRW > 5,000,000 limit.
+    const usModify: OrderModifyRequest = {
+      orderType: "LIMIT",
+      quantity: "100",
+      price: "200",
+      confirmHighValueOrder: false,
+    };
+    const result = evaluateModifyGate(usModify, "AAPL", {
+      config: liveConfig({ maxOrderAmount: 5_000_000 }),
+      confirm: true,
+      accountSeq: 789,
+      fxRate: 1380,
+    });
+    expect(result.notionalKrw).toBe(27_600_000);
+    expect(result.decision).toBe("BLOCK");
+    expect(result.reasons).toContain("max-order-amount-exceeded");
+  });
+
+  it("US LIMIT without fxRate => BLOCK (notional unknown, fail-safe)", () => {
+    const usModify: OrderModifyRequest = {
+      orderType: "LIMIT",
+      quantity: "1",
+      price: "200",
+      confirmHighValueOrder: false,
+    };
+    const result = evaluateModifyGate(usModify, "AAPL", {
+      config: liveConfig(),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("BLOCK");
+    expect(result.reasons).toContain("notional-unknown");
+  });
+
+  it("re-valued high-value (>=1억) without confirmHighValueOrder => BLOCK", () => {
+    // 2 * 60,000,000 = 120,000,000 >= 1억
+    const highValueModify: OrderModifyRequest = {
+      orderType: "LIMIT",
+      quantity: "2",
+      price: "60000000",
+      confirmHighValueOrder: false,
+    };
+    const result = evaluateModifyGate(highValueModify, "005930", {
+      config: liveConfig({ maxOrderAmount: 200_000_000 }),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.highValue).toBe(true);
+    expect(result.decision).toBe("BLOCK");
+    expect(result.reasons).toContain("high-value-not-confirmed");
+  });
+
+  it("KILL_SWITCH on => BLOCK (even with confirm + DRY_RUN off)", () => {
+    const result = evaluateModifyGate(krLimitModify, "005930", {
+      config: liveConfig({ killSwitch: true }),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("BLOCK");
+    expect(result.reasons).toContain("kill-switch-on");
+  });
+
+  it("DRY_RUN off + confirm + within limit + kill off => SEND", () => {
+    const result = evaluateModifyGate(krLimitModify, "005930", {
+      config: liveConfig(),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("SEND");
+    expect(result.notionalKrw).toBe(1_065_000);
+  });
+
+  it("price-only modify (no quantity) without originalQuantity => BLOCK", () => {
+    // US price-only amendment: quantity omitted, no original quantity supplied.
+    const priceOnly: OrderModifyRequest = {
+      orderType: "LIMIT",
+      price: "185.5",
+      confirmHighValueOrder: false,
+    };
+    const result = evaluateModifyGate(priceOnly, "AAPL", {
+      config: liveConfig(),
+      confirm: true,
+      accountSeq: 789,
+      fxRate: 1380,
+    });
+    expect(result.decision).toBe("BLOCK");
+    expect(result.reasons).toContain("notional-unknown");
+  });
+
+  it("price-only modify uses caller-supplied originalQuantity to value => SEND", () => {
+    // US price-only: 10 shares (original) @ $185.5 = $1,855 * 1380 = 2,559,900 KRW.
+    const priceOnly: OrderModifyRequest = {
+      orderType: "LIMIT",
+      price: "185.5",
+      confirmHighValueOrder: false,
+    };
+    const result = evaluateModifyGate(priceOnly, "AAPL", {
+      config: liveConfig(),
+      confirm: true,
+      accountSeq: 789,
+      fxRate: 1380,
+      originalQuantity: 10,
+    });
+    expect(result.notionalKrw).toBe(2_559_900);
+    expect(result.decision).toBe("SEND");
+  });
+});
+
+// --- evaluateCancelGate (pure) ----------------------------------------------
+
+describe("evaluateCancelGate", () => {
+  it("DRY_RUN default (true) => DRY_RUN", () => {
+    const result = evaluateCancelGate({
+      config: liveConfig({ dryRun: true }),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("DRY_RUN");
+  });
+
+  it("KILL_SWITCH on => BLOCK (even with confirm + DRY_RUN off)", () => {
+    const result = evaluateCancelGate({
+      config: liveConfig({ killSwitch: true }),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("BLOCK");
+    expect(result.reasons).toContain("kill-switch-on");
+  });
+
+  it("DRY_RUN off + confirm + kill off => SEND", () => {
+    const result = evaluateCancelGate({
+      config: liveConfig(),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("SEND");
+  });
+
+  it("DRY_RUN off but no confirm => DRY_RUN", () => {
+    const result = evaluateCancelGate({
+      config: liveConfig(),
+      confirm: false,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("DRY_RUN");
+  });
+
+  it("does not value a notional (no limit/high-value check)", () => {
+    // Even with MAX_ORDER_AMOUNT unset (which BLOCKS create/modify), a cancel
+    // is allowed because it reduces risk and is not valued.
+    const result = evaluateCancelGate({
+      config: liveConfig({ maxOrderAmount: undefined }),
+      confirm: true,
+      accountSeq: 789,
+    });
+    expect(result.decision).toBe("SEND");
+    expect(result.notionalKrw).toBeUndefined();
+  });
+});
+
+// --- modifyOrder (executor) -------------------------------------------------
+
+describe("modifyOrder", () => {
+  it("DRY_RUN default => DRY_RUN, modifyOrderRaw NOT called", async () => {
+    const h = opHarness();
+    const result = await modifyOrder(
+      { orderId: "ord-1", symbol: "005930", request: krLimitModify, confirm: true },
+      {
+        config: liveConfig({ dryRun: true }),
+        modifyOrderRaw: h.modifyOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(result.status).toBe("DRY_RUN");
+    if (result.status === "DRY_RUN") {
+      expect(result.wouldSend).toEqual(krLimitModify);
+    }
+    expect(h.modifyOrderRaw).not.toHaveBeenCalled();
+  });
+
+  it("KR LIMIT new notional over limit => BLOCK, modifyOrderRaw NOT called", async () => {
+    const h = opHarness();
+    const result = await modifyOrder(
+      { orderId: "ord-1", symbol: "005930", request: krLimitModify, confirm: true },
+      {
+        config: liveConfig({ maxOrderAmount: 1_000_000 }),
+        modifyOrderRaw: h.modifyOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(result.status).toBe("BLOCKED");
+    expect(h.modifyOrderRaw).not.toHaveBeenCalled();
+  });
+
+  it("US LIMIT over limit via fxRate => BLOCK; without fxRate => BLOCK", async () => {
+    const usModify: OrderModifyRequest = {
+      orderType: "LIMIT",
+      quantity: "100",
+      price: "200",
+      confirmHighValueOrder: false,
+    };
+    const withFx = opHarness();
+    const overLimit = await modifyOrder(
+      { orderId: "ord-1", symbol: "AAPL", request: usModify, confirm: true, fxRate: 1380 },
+      {
+        config: liveConfig({ maxOrderAmount: 5_000_000 }),
+        modifyOrderRaw: withFx.modifyOrderRawFn,
+        now: withFx.now,
+        auditLog: withFx.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(overLimit.status).toBe("BLOCKED");
+    expect(withFx.modifyOrderRaw).not.toHaveBeenCalled();
+
+    const noFx = opHarness();
+    const unknown = await modifyOrder(
+      { orderId: "ord-1", symbol: "AAPL", request: usModify, confirm: true },
+      {
+        config: liveConfig(),
+        modifyOrderRaw: noFx.modifyOrderRawFn,
+        now: noFx.now,
+        auditLog: noFx.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(unknown.status).toBe("BLOCKED");
+    if (unknown.status === "BLOCKED") {
+      expect(unknown.reasons).toContain("notional-unknown");
+    }
+    expect(noFx.modifyOrderRaw).not.toHaveBeenCalled();
+  });
+
+  it("re-valued high-value without confirmHighValueOrder => BLOCK", async () => {
+    const h = opHarness();
+    const highValueModify: OrderModifyRequest = {
+      orderType: "LIMIT",
+      quantity: "2",
+      price: "60000000",
+      confirmHighValueOrder: false,
+    };
+    const result = await modifyOrder(
+      { orderId: "ord-1", symbol: "005930", request: highValueModify, confirm: true },
+      {
+        config: liveConfig({ maxOrderAmount: 200_000_000 }),
+        modifyOrderRaw: h.modifyOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(result.status).toBe("BLOCKED");
+    if (result.status === "BLOCKED") {
+      expect(result.reasons).toContain("high-value-not-confirmed");
+    }
+    expect(h.modifyOrderRaw).not.toHaveBeenCalled();
+  });
+
+  it("DRY_RUN off + confirm + within limit + kill off => SEND, modifyOrderRaw called once", async () => {
+    const h = opHarness();
+    const result = await modifyOrder(
+      { orderId: "ord-1", symbol: "005930", request: krLimitModify, confirm: true },
+      {
+        config: liveConfig(),
+        modifyOrderRaw: h.modifyOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(result.status).toBe("SENT");
+    expect(h.modifyOrderRaw).toHaveBeenCalledTimes(1);
+    expect(h.modifyOrderRaw).toHaveBeenCalledWith({
+      accountSeq: 789,
+      orderId: "ord-1",
+      body: krLimitModify,
+    });
+  });
+
+  it("KILL_SWITCH on => BLOCK, modifyOrderRaw NOT called", async () => {
+    const h = opHarness();
+    const result = await modifyOrder(
+      { orderId: "ord-1", symbol: "005930", request: krLimitModify, confirm: true },
+      {
+        config: liveConfig({ killSwitch: true }),
+        modifyOrderRaw: h.modifyOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(result.status).toBe("BLOCKED");
+    expect(h.modifyOrderRaw).not.toHaveBeenCalled();
+  });
+
+  it("audit log records the modify decision (op=modify)", async () => {
+    const h = opHarness();
+    await modifyOrder(
+      { orderId: "ord-1", symbol: "005930", request: krLimitModify, confirm: true },
+      {
+        config: liveConfig(),
+        modifyOrderRaw: h.modifyOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(h.auditLog).toHaveBeenCalledTimes(1);
+    expect(h.auditLog.mock.calls[0]?.[0]).toMatchObject({
+      op: "modify",
+      decision: "SEND",
+      orderId: "ord-1",
+    });
+    const entry = JSON.stringify(h.auditLog.mock.calls[0]?.[0]);
+    expect(entry).not.toMatch(/Bearer/);
+    expect(entry).not.toMatch(/secret/i);
+  });
+});
+
+// --- cancelOrder (executor) -------------------------------------------------
+
+describe("cancelOrder", () => {
+  it("DRY_RUN default => DRY_RUN, cancelOrderRaw NOT called", async () => {
+    const h = opHarness();
+    const result = await cancelOrder(
+      { orderId: "ord-1", confirm: true },
+      {
+        config: liveConfig({ dryRun: true }),
+        cancelOrderRaw: h.cancelOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(result.status).toBe("DRY_RUN");
+    expect(h.cancelOrderRaw).not.toHaveBeenCalled();
+  });
+
+  it("KILL_SWITCH on => BLOCK, cancelOrderRaw NOT called", async () => {
+    const h = opHarness();
+    const result = await cancelOrder(
+      { orderId: "ord-1", confirm: true },
+      {
+        config: liveConfig({ killSwitch: true }),
+        cancelOrderRaw: h.cancelOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(result.status).toBe("BLOCKED");
+    if (result.status === "BLOCKED") {
+      expect(result.reasons).toContain("kill-switch-on");
+    }
+    expect(h.cancelOrderRaw).not.toHaveBeenCalled();
+  });
+
+  it("DRY_RUN off + confirm => SEND, cancelOrderRaw called once", async () => {
+    const h = opHarness();
+    const result = await cancelOrder(
+      { orderId: "ord-1", confirm: true },
+      {
+        config: liveConfig(),
+        cancelOrderRaw: h.cancelOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(result.status).toBe("SENT");
+    expect(h.cancelOrderRaw).toHaveBeenCalledTimes(1);
+    expect(h.cancelOrderRaw).toHaveBeenCalledWith({
+      accountSeq: 789,
+      orderId: "ord-1",
+    });
+  });
+
+  it("DRY_RUN off but no confirm => DRY_RUN, cancelOrderRaw NOT called", async () => {
+    const h = opHarness();
+    const result = await cancelOrder(
+      { orderId: "ord-1", confirm: false },
+      {
+        config: liveConfig(),
+        cancelOrderRaw: h.cancelOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(result.status).toBe("DRY_RUN");
+    expect(h.cancelOrderRaw).not.toHaveBeenCalled();
+  });
+
+  it("audit log records the cancel decision (op=cancel)", async () => {
+    const h = opHarness();
+    await cancelOrder(
+      { orderId: "ord-1", confirm: true },
+      {
+        config: liveConfig(),
+        cancelOrderRaw: h.cancelOrderRawFn,
+        now: h.now,
+        auditLog: h.auditLogger,
+        accountSeq: 789,
+      },
+    );
+    expect(h.auditLog).toHaveBeenCalledTimes(1);
+    expect(h.auditLog.mock.calls[0]?.[0]).toMatchObject({
+      op: "cancel",
+      decision: "SEND",
+      orderId: "ord-1",
+    });
+  });
+});
+
+// --- orderModifyRequestSchema -----------------------------------------------
+
+describe("orderModifyRequestSchema", () => {
+  it("accepts a KR LIMIT modify with price + quantity", () => {
+    const parsed = orderModifyRequestSchema.parse({
+      orderType: "LIMIT",
+      quantity: "15",
+      price: "71000",
+    });
+    expect(parsed).toMatchObject({ orderType: "LIMIT", price: "71000" });
+  });
+
+  it("accepts a US LIMIT price-only modify (no quantity)", () => {
+    const parsed = orderModifyRequestSchema.parse({
+      orderType: "LIMIT",
+      price: "185.5",
+    });
+    expect(parsed).toMatchObject({ orderType: "LIMIT", price: "185.5" });
+  });
+
+  it("rejects a LIMIT modify missing price", () => {
+    const result = orderModifyRequestSchema.safeParse({
+      orderType: "LIMIT",
+      quantity: "15",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a MARKET modify carrying price", () => {
+    const result = orderModifyRequestSchema.safeParse({
+      orderType: "MARKET",
+      price: "71000",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a fractional (non-integer) quantity", () => {
+    const result = orderModifyRequestSchema.safeParse({
+      orderType: "LIMIT",
+      quantity: "15.5",
+      price: "71000",
     });
     expect(result.success).toBe(false);
   });

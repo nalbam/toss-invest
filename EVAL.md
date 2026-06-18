@@ -231,3 +231,20 @@
 
 **최저축**: 없음(전 축 5). **Safety 5 복귀 → 확장 차단 해제.**
 **다음 개선(next pick #12)**: 주문 정정/취소(POST modify/cancel) + §6 게이트 적용(정정 notional 재평가·dry-run 기본) + 상태(`already-*`/`request-in-progress`) 처리. 라우트/UI는 #13.
+
+---
+
+## #12 | phase2 | 주문 정정/취소(POST) + §6 게이트 적용
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0 / build exit 0(번들 가드 33파일 클린, trading 심볼 미노출)
+- test exit 0 → vitest **220 passed (14 files)**(safety.test.ts 63)
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — `evaluateModifyGate`/`evaluateCancelGate` + `modifyOrder`/`cancelOrder` 실행기 + `modifyOrderRaw`/`cancelOrderRaw`(ungated) + orderModify/operation 스키마. 근거: 220 tests.
+- API 정합성 **5** — OrderModifyRequest refine(LIMIT price 필수·MARKET price 금지·정수 quantity), OrderOperationResponse{orderId}, modify/cancel POST(계좌헤더·orderId path). 근거: 스키마/게이트 테스트.
+- Safety **5** — modify는 원주문 symbol로 **통화-인지 notional 재평가**(create와 동일 규칙); cancel은 kill/dry-run/confirm만(리스크감소, notional 없음) + **kill은 cancel도 차단**(§6 보수적, 임의 예외 금지 주석); SEND일 때만 raw 호출 — dry-run/BLOCK은 raw 미호출(테스트 증명). 기존 create 게이트·메타가드 무회귀. 근거: modify/cancel 게이트 테스트 + 번들 클린.
+- Security **5** — trading server-only, 번들 클린. UX **5** — UI 무변경. Code quality **5** — 추가 위주(기존 함수/불변식 미수정), isKrwSymbol/nativeToKrw 재사용.
+
+**최저축**: 없음(전 축 5).
+**다음 개선(next pick #13)**: 게이트된 주문 API 라우트(create/modify/cancel, DRY_RUN 기본·confirm 필수, 게이트에 accountSeq/fxRate/referencePrice 주입, confirm 없으면 dry-run 미리보기) + 사전검증 연동 + 에러 매핑. ⚠️ 처음으로 주문이 HTTP로 도달 가능 — 라우트 레벨에서도 confirm 게이트·에러 sanitize 유지.
