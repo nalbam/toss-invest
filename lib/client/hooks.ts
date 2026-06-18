@@ -7,6 +7,8 @@ import type {
   ExchangeRateResponse,
   HoldingsOverview,
   OrderbookResponse,
+  OrderCreateBody,
+  OrderPlaceResult,
   PaginatedOrderResponse,
   PriceLimitResponse,
   PriceResponse,
@@ -250,4 +252,55 @@ export function useExchangeRate(
     ApiClientError
   >(key, fetcher, sharedConfig);
   return { data, error, isLoading };
+}
+
+/**
+ * Submits an order to `POST /api/orders` for the given account. Returns the
+ * parsed `{ status }` result (DRY_RUN / SENT / BLOCKED) on success and throws an
+ * `ApiClientError` when the route responds with the `{ error }` envelope (or a
+ * non-JSON failure). The §6 safety gate is the source of truth: `body.confirm`
+ * is forwarded verbatim, so an unchecked confirm yields a DRY_RUN preview.
+ */
+export async function submitOrder(
+  accountSeq: number | undefined,
+  body: OrderCreateBody,
+): Promise<OrderPlaceResult> {
+  const url =
+    accountSeq === undefined
+      ? "/api/orders"
+      : `/api/orders?accountSeq=${accountSeq}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    throw new ApiClientError({
+      code: "invalid-response",
+      message: "The server returned an unreadable response.",
+      status: res.status,
+    });
+  }
+
+  if (!res.ok || isErrorEnvelope(payload)) {
+    if (isErrorEnvelope(payload)) {
+      throw new ApiClientError({
+        code: payload.error.code,
+        message: payload.error.message,
+        status: res.status,
+        requestId: payload.error.requestId,
+      });
+    }
+    throw new ApiClientError({
+      code: "unexpected-error",
+      message: `Request failed with status ${res.status}.`,
+      status: res.status,
+    });
+  }
+
+  return (payload as SuccessEnvelope<OrderPlaceResult>).data;
 }

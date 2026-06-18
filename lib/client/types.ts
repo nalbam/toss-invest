@@ -147,6 +147,60 @@ export interface PaginatedOrderResponse {
   hasNext: boolean;
 }
 
+/**
+ * Client mirror of the order-create request body (`POST /api/orders`). Either a
+ * quantity-based order (`quantity`, with `price` required for LIMIT) or an
+ * amount-based US MARKET order (`orderAmount`). `confirm` is the per-order human
+ * confirmation read only from the body; the server defaults it to `false`, so
+ * omitting it yields a DRY_RUN preview.
+ */
+export interface OrderCreateBody {
+  symbol: string;
+  side: "BUY" | "SELL";
+  orderType: "LIMIT" | "MARKET";
+  timeInForce?: "DAY" | "CLS";
+  quantity?: string;
+  price?: string;
+  orderAmount?: string;
+  confirmHighValueOrder?: boolean;
+  confirm?: boolean;
+}
+
+/** Informational prevalidation attached to the order result (advisory only). */
+export interface OrderPrevalidation {
+  side: OrderSide;
+  available: string | null;
+  requested: string | null;
+  insufficient: boolean;
+}
+
+/**
+ * Client mirror of the `POST /api/orders` success payload. The §6 safety gate
+ * decides the `status`; `prevalidation` is attached to every outcome.
+ *   - DRY_RUN: preview only — `wouldSend` echoes the would-be request.
+ *   - SENT: a real order was placed — `response.orderId` is the server id.
+ *   - BLOCKED: a guard refused the order — `reasons` lists why.
+ */
+export type OrderPlaceResult =
+  | {
+      status: "DRY_RUN";
+      wouldSend: OrderCreateBody;
+      reasons: string[];
+      prevalidation: OrderPrevalidation;
+    }
+  | {
+      status: "SENT";
+      response: { orderId: string; clientOrderId?: string | null };
+      notionalKrw: number;
+      prevalidation: OrderPrevalidation;
+    }
+  | {
+      status: "BLOCKED";
+      request: OrderCreateBody;
+      reasons: string[];
+      prevalidation: OrderPrevalidation;
+    };
+
 export interface PriceResponse {
   symbol: string;
   timestamp?: string | null;

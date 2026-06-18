@@ -2,8 +2,8 @@
 
 ## 현재 위치
 - **Phase**: **2 (수동 거래, dry-run 기본)** — Phase 1 완료 후 진입.
-- **마지막 이터레이션**: #13 완료 (게이트된 주문 API 라우트 POST create/modify/cancel). `lib/server/trading/executor.ts`(`createServerTradingExecutor`)·`context.ts`(통화→fxRate, MARKET→referencePrice, modify→getOrder로 symbol/originalQuantity; 조회 실패는 undefined→게이트 fail-safe BLOCK), `container.getServerTradingExecutor()`(실행기 유일 진입점). 라우트는 `confirm`을 **바디에서만**(`z.boolean().default(false)`) 읽어 전달(자동 confirm 없음, grep+테스트 검증), 결과 `{status:DRY_RUN|SENT|BLOCKED}` 200, 사전검증(BUY=buying-power/SELL=sellable-quantity) preview 첨부(플래그만, 게이트 대체 아님), TossApiError(already-*/422)→sanitize 매핑. 237 tests.
-- **다음 pick (#14)**: **주문 폼 UI** — `/api/orders*` POST를 호출하는 클라이언트 폼(심볼·side·유형·수량/가격·confirm 체크박스). **dry-run 미리보기**(would-send + 사전검증) 표시, BLOCKED 사유 표시, confirm 체크 시에만 실주문 시도(서버 게이트가 최종 결정). jsdom 렌더 테스트. → Phase 2 종료조건 점검 후 Phase 3.
+- **마지막 이터레이션**: #14 완료 (주문 생성 폼 UI). `app/_components/OrderForm.tsx`('use client', 심볼·side·유형·수량/가격·금액토글·**confirm 체크박스**), `lib/client/hooks.submitOrder`, Dashboard 섹션. 응답 status별 표시 — DRY_RUN "🔍 미리보기(전송 안 됨)"+wouldSend+prevalidation / BLOCKED "⛔"+reasons / SENT "✅"+orderId / 에러 code·message. confirm 체크 상태 그대로 전송(클라이언트 자동 true 없음), 최종 판정은 서버 §6 게이트. 243 tests.
+- **다음 pick (#15)**: 정정/취소 UI(OrdersTable의 대기 주문에 취소 버튼 + 정정 폼, confirm 게이트 동일) + **사전검증 실패 케이스 명시 테스트 보강**(insufficient-buying-power/price-out-of-range/order-hours-closed 매핑) → **Phase 2 종료조건 점검 + Phase 3(제한적 자동거래) 진입 판정**.
 
 ## ⚠️ Phase 2 안전 불변식 (§6 — 약화 금지, 메타 가드)
 - **DRY_RUN 기본 true** — 환경변수로만 끄고, 끄려면 확인 게이트 추가 통과.
@@ -37,7 +37,8 @@
 - [x] #11 안전 갭 수정(통화 추론+fxRate 환산, USD&fxRate없으면 BLOCK) → **Safety 5 복귀**(189).
 - [x] #12 주문 정정/취소(POST modify/cancel) + §6 게이트 적용(220). `already-*`/422는 TossApiError로 전파(라우트에서 매핑은 #13).
 - [x] #13 게이트된 주문 API 라우트(create/modify/cancel, DRY_RUN 기본·confirm 바디전용) + 사전검증 preview + 에러 매핑(237).
-- [ ] #14 주문 폼 UI(dry-run 미리보기, 실주문은 confirm 체크). → 이후 Phase 2 종료조건 점검 + Phase 3 진입.
+- [x] #14 주문 생성 폼 UI(dry-run 미리보기·confirm 체크박스·BLOCKED/SENT/에러 표시)(243).
+- [ ] #15 정정/취소 UI + 사전검증 실패 케이스 테스트 보강 → Phase 2 종료 점검 + Phase 3 진입.
 
 ### Phase 2 종료 조건 (dev-loop §4) — 현황
 - [x] dry-run에서 주문 생성/정정/취소 요청 페이로드가 API 계약과 일치(게이트/라우트 테스트 — dry-run wouldSend=요청).

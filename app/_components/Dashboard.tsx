@@ -10,6 +10,7 @@ import {
 import { FxRate } from "./FxRate";
 import { HoldingsTable } from "./HoldingsTable";
 import { MarketQuote } from "./MarketQuote";
+import { OrderForm } from "./OrderForm";
 import { OrdersTable } from "./OrdersTable";
 import { PortfolioSummary } from "./PortfolioSummary";
 import page from "@/app/page.module.css";
@@ -92,6 +93,8 @@ export function Dashboard() {
       ) : orders.data ? (
         <OrdersTable orders={orders.data.orders} />
       ) : null}
+
+      <OrderForm accountSeq={selectedSeq} />
 
       <MarketQuote defaultSymbol={holdings.data?.items[0]?.symbol} />
     </div>

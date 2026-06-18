@@ -266,3 +266,20 @@
 
 **최저축**: 없음(전 축 5).
 **다음 개선(next pick #14)**: 주문 폼 UI(`/api/orders*` POST, confirm 체크박스, dry-run 미리보기·BLOCKED 사유 표시) + jsdom 렌더 테스트. → Phase 2 종료조건 점검(사전검증 실패 케이스 테스트 보강) 후 Phase 3 진입 판정.
+
+---
+
+## #14 | phase2 | 주문 생성 폼 UI (dry-run 미리보기 + confirm 체크박스)
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0 / build exit 0(번들 가드 35파일 클린)
+- test exit 0 → vitest **243 passed (15 files)**(신규 6 OrderForm)
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — OrderForm + submitOrder + Dashboard 섹션. 근거: 243 tests(confirm 미체크→DRY_RUN, 체크→SENT, BLOCKED reasons, 에러 렌더).
+- API 정합성 **5** — 폼 바디가 POST 계약과 일치, status별(DRY_RUN/SENT/BLOCKED)·에러 응답 처리. 근거: 폼 테스트.
+- Safety **5** — confirm 체크박스 상태 **그대로 전송**(클라이언트 자동 true 없음), 미체크=dry-run 안내, 최종 판정 서버 게이트, 클라이언트 시크릿 미노출. 근거: 폼 테스트 + 번들 클린.
+- Security **5** — OrderForm 등 클라이언트 코드 시크릿/`process.env.TOSS_` 미노출(35파일). UX **5** — dry-run/blocked/sent 명확 표시 + confirm 안전 어포던스. Code quality **5** — 클라이언트 미러 타입·submitOrder 헬퍼·외과적.
+
+**최저축**: 없음(전 축 5). Phase 2 수동 거래 사용자 플로우 작동.
+**다음 개선(next pick #15)**: 정정/취소 UI(OrdersTable 취소 버튼+정정 폼, confirm 게이트 동일) + 사전검증 실패(insufficient-buying-power/price-out-of-range/order-hours-closed) 명시 테스트 → Phase 2 종료조건 충족 점검 → Phase 3 진입 판정.
