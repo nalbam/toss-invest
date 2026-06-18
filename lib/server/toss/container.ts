@@ -4,6 +4,10 @@ import { createTokenProvider } from "@/lib/server/toss/auth";
 import { createTossClient, type TossClient } from "@/lib/server/toss/client";
 import { createRateLimiter } from "@/lib/server/toss/rate-limiter";
 import {
+  createServerTradingExecutor,
+  type ServerTradingExecutor,
+} from "@/lib/server/trading/executor";
+import {
   getAccounts,
   getBuyingPower,
   getCandles,
@@ -116,6 +120,19 @@ function buildClient(): TossClient {
   });
 }
 
+/**
+ * Process-wide live client, shared by the read facade and the gated trading
+ * executor so both reuse the same token provider / rate limiter budgets.
+ */
+let cachedClient: TossClient | null = null;
+
+function getClient(): TossClient {
+  if (cachedClient === null) {
+    cachedClient = buildClient();
+  }
+  return cachedClient;
+}
+
 let cached: ServerTossClient | null = null;
 
 /**
@@ -125,7 +142,7 @@ let cached: ServerTossClient | null = null;
  */
 export function getServerTossClient(): ServerTossClient {
   if (cached === null) {
-    const client = buildClient();
+    const client = getClient();
     cached = {
       getAccounts: () => getAccounts(client),
       getHoldings: (params) => getHoldings(client, params),
@@ -147,4 +164,20 @@ export function getServerTossClient(): ServerTossClient {
     };
   }
   return cached;
+}
+
+let cachedExecutor: ServerTradingExecutor | null = null;
+
+/**
+ * Returns the process-wide gated trading executor facade, bound to the same
+ * live client as `getServerTossClient`. This is the ONLY entry point through
+ * which routes may reach the raw `POST /orders*` calls; the §6 safety gate runs
+ * inside it. Routes still supply the per-order `confirm` and gate context — this
+ * facade never invents a confirm or weakens a gate input.
+ */
+export function getServerTradingExecutor(): ServerTradingExecutor {
+  if (cachedExecutor === null) {
+    cachedExecutor = createServerTradingExecutor(getClient());
+  }
+  return cachedExecutor;
 }

@@ -248,3 +248,21 @@
 
 **최저축**: 없음(전 축 5).
 **다음 개선(next pick #13)**: 게이트된 주문 API 라우트(create/modify/cancel, DRY_RUN 기본·confirm 필수, 게이트에 accountSeq/fxRate/referencePrice 주입, confirm 없으면 dry-run 미리보기) + 사전검증 연동 + 에러 매핑. ⚠️ 처음으로 주문이 HTTP로 도달 가능 — 라우트 레벨에서도 confirm 게이트·에러 sanitize 유지.
+
+---
+
+## #13 | phase2 | 게이트된 주문 API 라우트(POST create/modify/cancel) + 컨텍스트 조립 + 사전검증
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0 / build exit 0(번들 가드 35파일 클린, POST 라우트 3종 서버 ƒ)
+- test exit 0 → vitest **237 passed (14 files)**(신규 17 라우트/컨텍스트)
+- **확인**: 라우트 소스(`app/api/orders/*`)에 `confirm: true` 리터럴/승격 없음(grep) — confirm은 `z.boolean().default(false)` 바디 전용.
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — POST 라우트 3종 + `executor.ts`(facade)·`context.ts`(게이트 컨텍스트 조립) + 사전검증 preview. 근거: 237 tests.
+- API 정합성 **5** — 바디 zod, 컨텍스트 조립(USD→getExchangeRate fxRate, MARKET→getPrices referencePrice, modify→getOrder symbol/originalQuantity), TossApiError 매핑. 근거: 라우트 테스트.
+- Safety **5** — confirm **바디 전용**(자동 confirm 없음: grep+테스트), DRY_RUN 기본, 게이트/메타가드 무수정(호출만), 컨텍스트 조회 실패는 undefined→fail-safe BLOCK(임의 대체 안 함), 사전검증은 플래그만(게이트 대체 아님), 에러 sanitize, trading 심볼 번들 미노출. 근거: route 소스 grep + 테스트 + 번들 클린.
+- Security **5** — trading/raw-order 심볼 클라이언트 번들 미노출(35파일). UX **5** — UI 무변경(라우트만). Code quality **5** — executor/context 분리, 게이트 untouched, 추가 위주.
+
+**최저축**: 없음(전 축 5).
+**다음 개선(next pick #14)**: 주문 폼 UI(`/api/orders*` POST, confirm 체크박스, dry-run 미리보기·BLOCKED 사유 표시) + jsdom 렌더 테스트. → Phase 2 종료조건 점검(사전검증 실패 케이스 테스트 보강) 후 Phase 3 진입 판정.

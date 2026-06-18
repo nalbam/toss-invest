@@ -2,8 +2,8 @@
 
 ## 현재 위치
 - **Phase**: **2 (수동 거래, dry-run 기본)** — Phase 1 완료 후 진입.
-- **마지막 이터레이션**: #12 완료 (주문 정정/취소 POST + §6 게이트 적용). `orderModifyRequestSchema`(refine)·`orderOperationResponseSchema`, `modifyOrderRaw`/`cancelOrderRaw`(ungated), `evaluateModifyGate`(원주문 symbol로 통화-인지 notional 재평가)·`evaluateCancelGate`(kill/dry-run/confirm만, notional 없음; **kill은 cancel도 차단** — 보수적), `modifyOrder`/`cancelOrder` 실행기(SEND일 때만 raw 호출). 220 tests.
-- **다음 pick (#13)**: **게이트된 주문 API 라우트**(create/modify/cancel) — `placeOrder`/`modifyOrder`/`cancelOrder`를 HTTP에 연결(처음으로 앱에서 주문 경로 도달 가능, **단 DRY_RUN 기본·confirm 필수**). 라우트가 게이트에 accountSeq·fxRate(exchange-rate)·referencePrice/originalQuantity(getOrder/prices)를 주입, **명시적 `confirm` 입력 없으면 dry-run 미리보기 반환**. 사전검증(buying-power/sellable-quantity/commissions/price-limits) 연동. 주문 폼 UI는 #14.
+- **마지막 이터레이션**: #13 완료 (게이트된 주문 API 라우트 POST create/modify/cancel). `lib/server/trading/executor.ts`(`createServerTradingExecutor`)·`context.ts`(통화→fxRate, MARKET→referencePrice, modify→getOrder로 symbol/originalQuantity; 조회 실패는 undefined→게이트 fail-safe BLOCK), `container.getServerTradingExecutor()`(실행기 유일 진입점). 라우트는 `confirm`을 **바디에서만**(`z.boolean().default(false)`) 읽어 전달(자동 confirm 없음, grep+테스트 검증), 결과 `{status:DRY_RUN|SENT|BLOCKED}` 200, 사전검증(BUY=buying-power/SELL=sellable-quantity) preview 첨부(플래그만, 게이트 대체 아님), TossApiError(already-*/422)→sanitize 매핑. 237 tests.
+- **다음 pick (#14)**: **주문 폼 UI** — `/api/orders*` POST를 호출하는 클라이언트 폼(심볼·side·유형·수량/가격·confirm 체크박스). **dry-run 미리보기**(would-send + 사전검증) 표시, BLOCKED 사유 표시, confirm 체크 시에만 실주문 시도(서버 게이트가 최종 결정). jsdom 렌더 테스트. → Phase 2 종료조건 점검 후 Phase 3.
 
 ## ⚠️ Phase 2 안전 불변식 (§6 — 약화 금지, 메타 가드)
 - **DRY_RUN 기본 true** — 환경변수로만 끄고, 끄려면 확인 게이트 추가 통과.
@@ -36,8 +36,14 @@
 - [x] #10 주문 생성 §6 안전 계층 + dry-run 실행기 + 안전 테스트(186). `lib/server/trading/safety.ts`(`getTradingConfig`/`evaluateOrderGate` 순수/`placeOrder` 실행기), `createOrderRaw`(ungated 저수준, 직접노출 금지), ORDER:6 그룹, `orderCreateRequestSchema`(union+refine). **단 USD LIMIT notional 갭(↑#11)**.
 - [x] #11 안전 갭 수정(통화 추론+fxRate 환산, USD&fxRate없으면 BLOCK) → **Safety 5 복귀**(189).
 - [x] #12 주문 정정/취소(POST modify/cancel) + §6 게이트 적용(220). `already-*`/422는 TossApiError로 전파(라우트에서 매핑은 #13).
-- [ ] #13 게이트된 주문 API 라우트(create/modify/cancel, DRY_RUN 기본·confirm 필수) + 사전검증(buying-power/sellable-quantity/commissions/price-limits) 연동 + 에러(`already-*` 등) 매핑.
-- [ ] #14 주문 폼 UI(dry-run 미리보기, 실주문은 사람 확인).
+- [x] #13 게이트된 주문 API 라우트(create/modify/cancel, DRY_RUN 기본·confirm 바디전용) + 사전검증 preview + 에러 매핑(237).
+- [ ] #14 주문 폼 UI(dry-run 미리보기, 실주문은 confirm 체크). → 이후 Phase 2 종료조건 점검 + Phase 3 진입.
+
+### Phase 2 종료 조건 (dev-loop §4) — 현황
+- [x] dry-run에서 주문 생성/정정/취소 요청 페이로드가 API 계약과 일치(게이트/라우트 테스트 — dry-run wouldSend=요청).
+- [x] 실주문 경로는 확인 게이트 없이 도달 불가(게이트 테스트 + 라우트 confirm 바디전용·grep 검증).
+- [~] 사전검증 실패(잔고부족·틱사이즈·장마감) 처리 — buying-power/sellable preview 플래그 + TossApiError(422 insufficient/price-out-of-range/order-hours-closed) 매핑. 명시 케이스 테스트 보강 여지(#14/#15).
+- [x] lint·typecheck·test·build green.
 - 이후 Phase 3(제한적 자동거래): 전략 intent(순수)→executor(한도·kill switch 내)→감사로그, 백테스트.
 
 ## 미해결/후속
