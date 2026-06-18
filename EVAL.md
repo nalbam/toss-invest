@@ -337,3 +337,31 @@
 
 **최저축**: 없음(전 축 5). **Phase 3 종료조건 1(백테스트) 충족.**
 **다음 개선(next pick #18)**: 게이트된 자동 executor — intent→§6 `placeOrder`(confirm=AUTO_TRADE_ENABLED 사람 사전 env 승인), AUTO_TRADE_ENABLED 기본 false→전부 dry-run·createOrderRaw 미호출 증명, kill/한도 거부 증명, 감사로그. 상시 루프 없음. → Phase 3 종료조건 2·3 충족 판정.
+
+---
+
+## #18 | phase3 | 게이트된 자동 executor → **Phase 3 종료 → 로드맵 전체 완료**
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0 / build exit 0(번들 가드 35파일 클린)
+- test exit 0 → vitest **306 passed (19 files)**(신규 14: auto-executor 12 + env 2)
+- **안전 검증(직접)**: `git status` safety.ts **무수정**(게이트/메타가드 보존), auto-* 에 setInterval/cron 없음(주석만, 상시 루프 없음), `confirm: deps.autoTradeEnabled`(env값, 리터럴 true 아님).
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — `intentToOrderRequest`(순수)+`runAutoTrade`(§6 placeOrder 경유)+`auto-trader` facade+env. 근거: 306 tests.
+- API 정합성 **5** — intent→OrderCreateRequest(SELL/MARKET/quantity) 변환. 근거: 변환 테스트.
+- Safety **5** — confirm=AUTO_TRADE_ENABLED(사람 env, 자가 발급 없음), **기본 false→전부 dry-run, createOrderRaw 미호출**(테스트 summary {sent:0}), kill/한도/notional-unknown BLOCK+미호출 증명, safety.ts 게이트/메타가드 **무수정**(git status), 상시 루프 없음. 근거: 테스트 + git status + grep.
+- Security **5** — auto-* server-only, 번들 클린. UX **5** — 백엔드(영향 없음). Code quality **5** — 순수 변환·DI·facade, safety.ts untouched.
+
+**최저축**: 없음(전 축 5).
+**★ Phase 3 종료 판정**: 종료조건 4개 충족 + 루브릭 전 축 ≥목표(Safety/Security=5) → §5.3 advance. **3개 Phase(읽기 대시보드/수동 거래/제한적 자동거래) 로드맵 전체 완료 → dev-loop §0 따라 루프 종료.**
+
+---
+
+## 🏁 로드맵 완료 요약 (#1~#18)
+- Phase 1: 읽기전용 대시보드(전 GET 17/17 + 4섹션 UI + Playwright E2E).
+- Phase 2: 수동 거래(§6 게이트 + create/modify/cancel 라우트·UI, dry-run 기본·confirm 게이트).
+- Phase 3: 제한적 자동거래(SELL-only 전략 순수 계층 + 결정적 백테스트 + 게이트된 auto-executor, AUTO_TRADE_ENABLED 기본 false).
+- 누적 **306 tests**, 4게이트+E2E green. 안전: DRY_RUN/AUTO_TRADE_ENABLED 기본 false·kill switch·한도·고액 confirm·통화-인지 notional·번들 시크릿 가드. 루프가 자체 안전 갭(#10 USD notional)을 발견·수정(#11)한 사례 포함.
+
+**남은 후속(사람 요청 시)**: DAILY_LOSS_LIMIT 강제, ORDER 피크 3/s, 자동 트리거 배선(라우트/cron, 사람 결정), modify/cancel·시세 E2E, 차트 페이지네이션·테마, 주문조회 CLOSED.

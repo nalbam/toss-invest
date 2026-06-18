@@ -45,6 +45,20 @@ describe("parseEnv", () => {
     expect(env.KILL_SWITCH).toBe(false);
   });
 
+  it("defaults AUTO_TRADE_ENABLED to false (disarmed) when unset", () => {
+    const env = parseEnv(validRaw);
+    expect(env.AUTO_TRADE_ENABLED).toBe(false);
+  });
+
+  it('AUTO_TRADE_ENABLED is true only for the literal "true"', () => {
+    expect(parseEnv({ ...validRaw, AUTO_TRADE_ENABLED: "true" }).AUTO_TRADE_ENABLED).toBe(
+      true,
+    );
+    expect(
+      parseEnv({ ...validRaw, AUTO_TRADE_ENABLED: "false" }).AUTO_TRADE_ENABLED,
+    ).toBe(false);
+  });
+
   it("defaults TOSS_API_BASE when unset", () => {
     const { TOSS_API_BASE, ...withoutBase } = validRaw;
     void TOSS_API_BASE;

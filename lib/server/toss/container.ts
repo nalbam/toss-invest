@@ -8,6 +8,10 @@ import {
   type ServerTradingExecutor,
 } from "@/lib/server/trading/executor";
 import {
+  createServerAutoTrader,
+  type ServerAutoTrader,
+} from "@/lib/server/trading/auto-trader";
+import {
   getAccounts,
   getBuyingPower,
   getCandles,
@@ -180,4 +184,21 @@ export function getServerTradingExecutor(): ServerTradingExecutor {
     cachedExecutor = createServerTradingExecutor(getClient());
   }
   return cachedExecutor;
+}
+
+let cachedAutoTrader: ServerAutoTrader | null = null;
+
+/**
+ * Returns the process-wide gated auto-trader facade, bound to the same live
+ * client. It evaluates strategy intents through the §6 `placeOrder` gate ONCE
+ * per call (no standing loop / cron). The per-order `confirm` is read from
+ * `AUTO_TRADE_ENABLED` (the human's out-of-band activation) — this facade never
+ * arms itself. It is intentionally NOT wired to any HTTP route or UI; a human
+ * trigger is a separate, later decision.
+ */
+export function getServerAutoTrader(): ServerAutoTrader {
+  if (cachedAutoTrader === null) {
+    cachedAutoTrader = createServerAutoTrader(getClient());
+  }
+  return cachedAutoTrader;
 }

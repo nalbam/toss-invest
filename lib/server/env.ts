@@ -23,6 +23,11 @@ const envSchema = z.object({
   TOSS_API_BASE: z.url().default("https://openapi.tossinvest.com"),
   DRY_RUN: booleanFromString.default(true),
   KILL_SWITCH: booleanFromString.default(false),
+  // Phase 3 auto-trade activation. Defaults to false: an automated loop is never
+  // armed unless a human sets this explicitly (out-of-band approval, §6.2). The
+  // auto-executor reads this and passes it as the §6 `confirm`; it does NOT
+  // weaken any other gate (DRY_RUN / limits / kill switch still apply).
+  AUTO_TRADE_ENABLED: booleanFromString.default(false),
   // Hard limits (§6). Unset => the gate blocks real orders (fail-safe).
   MAX_ORDER_AMOUNT: positiveAmountFromString.optional(),
   DAILY_LOSS_LIMIT: positiveAmountFromString.optional(),

@@ -1,20 +1,20 @@
 # PROGRESS — 토스증권 대시보드 (현재 상태만)
 
 ## 현재 위치
-- **Phase**: **3 (제한적 자동거래)** — Phase 2 완료 후 진입.
-- **마지막 이터레이션**: #17 완료 (백테스트/시뮬레이션 하네스). `lib/server/trading/backtest/`: `simulate.ts` 순수 `runBacktest(input)` — 캔들 시퀀스에서 매 스텝 PositionSnapshot 구성→`thresholdExitStrategy`→가상 SELL 적용·realizedPnlKrw 집계, (step,symbol) 결정 순서, fxRate 없는 USD는 제외+metrics 표기, avgCost 불변 단순화. 실주문/I/O 없음. 292 tests.
-- **다음 pick (#18)**: **게이트된 자동 executor** — intent→§6 `placeOrder`. `AUTO_TRADE_ENABLED`(env, 기본 false) 추가. **placeOrder의 confirm = autoTradeEnabled**(사람이 사전 env로 부여한 out-of-band 승인 — §6.2 Phase3; **에이전트가 자가 발급 안 함**). 실 자동주문 도달 조건 = AUTO_TRADE_ENABLED=true(사람) ∧ DRY_RUN=false(사람) ∧ 한도통과 ∧ kill off ∧ 고액confirm. **AUTO_TRADE_ENABLED 기본 false → 전부 dry-run, createOrderRaw 미호출**을 테스트로 증명. 감사로그. **상시 실행 루프/cron은 만들지 않음**(사람이 명시 트리거; 별도 결정). → Phase 3 종료조건 2·3 충족 판정.
+- **Phase**: **전체 완료 (1·2·3 종료)** — dev-loop §0 "모든 Phase 완료 시 루프 종료".
+- **마지막 이터레이션**: #18 완료 (게이트된 자동 executor → **Phase 3 종료 → 로드맵 전체 완료**). `lib/server/trading/auto-executor.ts`(`intentToOrderRequest` 순수 + `runAutoTrade`: intent→§6 `placeOrder`, **confirm=AUTO_TRADE_ENABLED**(사람 env값 그대로))·`auto-trader.ts` facade(`runOnce` 1회 평가, 상시 루프 없음)·env `AUTO_TRADE_ENABLED`(기본 false). safety.ts 게이트/메타가드 **무수정**(호출만). 306 tests.
+- **다음 작업**: 루프 종료. 추가 개선(아래 미해결)은 사람이 명시 요청 시 새 루프/이터로.
 
-### Phase 3 종료 조건 (dev-loop §4)
-- [x] 백테스트/시뮬레이션 하네스로 전략을 과거·합성 데이터에 결정적 검증(#17, runBacktest).
-- [ ] 한도 위반·kill switch 시 실행 거부 증명 테스트(#18 auto-executor, §6 게이트 경유).
-- [ ] 모든 자동 주문 경로가 dry-run 기본 + 명시적 활성화 없이 실주문 불가(#18, AUTO_TRADE_ENABLED 기본 false).
-- [x] lint·typecheck·test·build green(유지중).
+### Phase 3 종료 조건 (dev-loop §4) — ✅ 전부 충족
+- [x] 백테스트/시뮬레이션 하네스 결정적 검증(#17 runBacktest).
+- [x] 한도 위반·kill switch 시 실행 거부 증명(#18, §6 게이트 경유 — kill/한도/notional-unknown BLOCK + createOrderRaw 미호출 테스트).
+- [x] 모든 자동 주문 경로 dry-run 기본 + 명시 활성화 없이 실주문 불가(#18, AUTO_TRADE_ENABLED 기본 false → 전부 dry-run, raw 미호출 테스트).
+- [x] lint·typecheck·test·build green.
 
 ### Phase 3 로드맵
 - [x] #16 전략 intent 순수 계층 + 테스트(280).
 - [x] #17 백테스트/시뮬레이션 하네스(합성/과거 캔들, 결정적)(292).
-- [ ] #18 자동 executor(intent→§6 `placeOrder`, AUTO_TRADE_ENABLED+한도+kill switch 뒤, dry-run 기본·실주문 도달불가 증명) + 감사로그. → Phase 3 종료 판정.
+- [x] #18 게이트된 자동 executor(intent→§6 `placeOrder`, AUTO_TRADE_ENABLED 기본 false·한도·kill 뒤, dry-run 기본·실주문 도달불가 증명) + facade(상시 루프 없음)(306). → **Phase 3 종료 → 로드맵 전체 완료.**
 
 ## ✅ Phase 2 (수동 거래) 종료조건 — 전부 충족
 - [x] dry-run 페이로드 = API 계약 일치(게이트/라우트/폼 테스트). [x] 실주문 확인게이트 없이 도달불가(confirm 바디전용·자동 true 없음·게이트 테스트). [x] 사전검증 실패(insufficient-buying-power/price-out-of-range/order-hours-closed) 422 매핑 테스트. [x] gates green.
