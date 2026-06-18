@@ -61,9 +61,11 @@ export interface OrderGateContext {
   confirm: boolean;
   /** Account the order would be placed on (used by the executor, not the gate). */
   accountSeq: number | string;
-  /** USD->KRW rate for amount-based (US) orders. Required to value them. */
+  /** USD->KRW rate. Required to value any USD (non-KRX) order; without it such
+   * orders fail safe and BLOCK. */
   fxRate?: number;
-  /** Reference price (KRW) for MARKET quantity-based orders that lack a price. */
+  /** Native-currency reference price for MARKET quantity-based orders that lack
+   * a price (converted to KRW via the symbol's currency). */
   referencePrice?: number;
 }
 
@@ -84,24 +86,46 @@ function isAmountBased(
 }
 
 /**
+ * KRX symbols are 6-digit numeric (e.g. `005930`) and trade in KRW; everything
+ * else (US tickers like `AAPL`) trades in USD. Mirrors the API's symbol rule.
+ */
+function isKrwSymbol(symbol: string): boolean {
+  return /^\d{6}$/.test(symbol);
+}
+
+/**
+ * Converts a native-currency amount to KRW. KRW (KRX) symbols pass through; USD
+ * symbols require `fxRate` and return `undefined` when it is missing, so the
+ * caller fails safe and BLOCKS (a USD order is never under-valued as if KRW).
+ */
+function nativeToKrw(
+  nativeAmount: number,
+  symbol: string,
+  fxRate: number | undefined,
+): number | undefined {
+  if (isKrwSymbol(symbol)) return nativeAmount;
+  if (fxRate === undefined || !Number.isFinite(fxRate)) return undefined;
+  return nativeAmount * fxRate;
+}
+
+/**
  * Computes the KRW notional of an order, or `undefined` when it cannot be
- * determined (in which case the gate fails safe and BLOCKS):
- *   - LIMIT quantity-based: quantity * price.
- *   - Amount-based (US, USD): orderAmount * fxRate (requires fxRate).
- *   - MARKET quantity-based: price is unknown; uses referencePrice if given,
- *     otherwise returns undefined so the caller blocks.
+ * determined (in which case the gate fails safe and BLOCKS). The amount is
+ * first computed in the order's native currency, then converted to KRW by the
+ * symbol's currency (USD orders require `fxRate`; a missing rate => undefined):
+ *   - LIMIT quantity-based: quantity * price (native).
+ *   - Amount-based (US, USD): orderAmount (native USD).
+ *   - MARKET quantity-based: price is unknown; uses native `referencePrice` if
+ *     given, otherwise returns undefined so the caller blocks.
  */
 function computeNotionalKrw(
   request: OrderCreateRequest,
   ctx: OrderGateContext,
 ): number | undefined {
   if (isAmountBased(request)) {
-    if (ctx.fxRate === undefined || !Number.isFinite(ctx.fxRate)) {
-      return undefined;
-    }
     const amount = Number(request.orderAmount);
     if (!Number.isFinite(amount)) return undefined;
-    return amount * ctx.fxRate;
+    return nativeToKrw(amount, request.symbol, ctx.fxRate);
   }
 
   const quantity = Number(request.quantity);
@@ -111,14 +135,14 @@ function computeNotionalKrw(
     if (request.price === undefined) return undefined;
     const price = Number(request.price);
     if (!Number.isFinite(price)) return undefined;
-    return quantity * price;
+    return nativeToKrw(quantity * price, request.symbol, ctx.fxRate);
   }
 
   // MARKET quantity-based: no order price. Only valuable via a reference price.
   if (ctx.referencePrice === undefined || !Number.isFinite(ctx.referencePrice)) {
     return undefined;
   }
-  return quantity * ctx.referencePrice;
+  return nativeToKrw(quantity * ctx.referencePrice, request.symbol, ctx.fxRate);
 }
 
 /**

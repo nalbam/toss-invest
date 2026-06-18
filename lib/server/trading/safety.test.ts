@@ -180,6 +180,59 @@ describe("evaluateOrderGate", () => {
     expect(result.decision).toBe("BLOCK");
     expect(result.reasons).toContain("notional-unknown");
   });
+
+  it("US LIMIT (USD price) over limit once converted via fxRate => BLOCK", () => {
+    // AAPL LIMIT 100 @ $200 = $20,000; * 1380 = 27,600,000 KRW > 5,000,000 limit.
+    // Without currency-aware notional this would be mis-valued as 20,000 KRW and
+    // wrongly pass — the fail-unsafe regression this test guards against.
+    const usLimit: OrderCreateRequest = {
+      symbol: "AAPL",
+      side: "BUY",
+      orderType: "LIMIT",
+      timeInForce: "DAY",
+      quantity: "100",
+      price: "200",
+      confirmHighValueOrder: false,
+    };
+    const result = evaluateOrderGate(
+      usLimit,
+      baseCtx({ fxRate: 1380, config: liveConfig({ maxOrderAmount: 5_000_000 }) }),
+    );
+    expect(result.notionalKrw).toBe(27_600_000);
+    expect(result.decision).toBe("BLOCK");
+    expect(result.reasons).toContain("max-order-amount-exceeded");
+  });
+
+  it("US LIMIT (USD) without fxRate => BLOCK (notional unknown, fail-safe)", () => {
+    const usLimit: OrderCreateRequest = {
+      symbol: "AAPL",
+      side: "BUY",
+      orderType: "LIMIT",
+      timeInForce: "DAY",
+      quantity: "1",
+      price: "200",
+      confirmHighValueOrder: false,
+    };
+    const result = evaluateOrderGate(usLimit, baseCtx());
+    expect(result.decision).toBe("BLOCK");
+    expect(result.reasons).toContain("notional-unknown");
+  });
+
+  it("US LIMIT (USD) within limit converts via fxRate => SEND", () => {
+    // 1 * $100 * 1380 = 138,000 KRW, within the default 1억 limit.
+    const usLimit: OrderCreateRequest = {
+      symbol: "AAPL",
+      side: "BUY",
+      orderType: "LIMIT",
+      timeInForce: "DAY",
+      quantity: "1",
+      price: "100",
+      confirmHighValueOrder: false,
+    };
+    const result = evaluateOrderGate(usLimit, baseCtx({ fxRate: 1380 }));
+    expect(result.notionalKrw).toBe(138_000);
+    expect(result.decision).toBe("SEND");
+  });
 });
 
 // --- placeOrder (executor) --------------------------------------------------

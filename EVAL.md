@@ -213,3 +213,21 @@
 
 **최저축**: **Safety(4)**. §5.3 적용: Safety<5 → advance·확장 금지, **갭 수정을 즉시 다음 pick으로 강제**.
 **다음 개선(next pick #11)**: notional 통화-인지 수정 — 심볼로 통화 추론(KRX `^\d{6}$`→KRW, 그 외→USD), USD는 fxRate로 KRW 환산, **USD인데 fxRate 없으면 BLOCK(fail-safe)**. US LIMIT 대형 주문 한도초과 BLOCK 회귀 테스트. → Safety 5 복귀 후에야 정정/취소·라우트·UI로 확장.
+
+---
+
+## #11 | phase2 | 주문 게이트 notional 통화-인지 수정 (Safety 4→5 복귀)
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0 / build exit 0(번들 가드 33파일 클린)
+- test exit 0 → vitest **189 passed (14 files)**(신규 3 US LIMIT; safety 32)
+- **참고**: 1차 시도 시 typecheck exit 2(US LIMIT 픽스처 `timeInForce` 누락) — vitest는 통과했으나 tsc가 포착 → 픽스처 수정 후 통과. **다중 객관 게이트가 단일 테스트러너가 놓친 결함을 잡은 사례.**
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — `isKrwSymbol`+`nativeToKrw` 도입, `computeNotionalKrw` 통화-인지로 교체. 근거: 189 tests.
+- API 정합성 **5** — 심볼 통화 규칙이 API 규약(KRX 6자리=KRW, US 티커=USD)과 일치. 근거: US LIMIT 테스트.
+- Safety **5 (복귀)** — fail-unsafe(USD price를 KRW로 과소계산) 제거: USD 주문은 fxRate 환산, fxRate 없으면 BLOCK(fail-safe). 회귀 테스트: AAPL LIMIT 100@$200×1380=27.6M > 5M 한도 → BLOCK(이전엔 20,000으로 오평가돼 통과했을 것). 기존 게이트 보장(kill/dry-run 기본/실 send 도달조건) 무회귀(32 safety tests). 근거: 게이트 테스트.
+- Security **5** — 번들 가드 클린. UX **5** — UI 무변경. Code quality **5** — 외과적 헬퍼 2개 + 기존 분기 통화-인지로 교체, 주석 갱신, 스코프 크리프 없음.
+
+**최저축**: 없음(전 축 5). **Safety 5 복귀 → 확장 차단 해제.**
+**다음 개선(next pick #12)**: 주문 정정/취소(POST modify/cancel) + §6 게이트 적용(정정 notional 재평가·dry-run 기본) + 상태(`already-*`/`request-in-progress`) 처리. 라우트/UI는 #13.

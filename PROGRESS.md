@@ -2,8 +2,8 @@
 
 ## 현재 위치
 - **Phase**: **2 (수동 거래, dry-run 기본)** — Phase 1 완료 후 진입.
-- **마지막 이터레이션**: #10 완료 (주문 생성 §6 안전 계층 + dry-run 실행기 + 안전 테스트, 라우트/UI 미노출).
-- **⚠️ 다음 pick (#11) — 안전 갭 수정 (Safety 4→5, 최우선)**: `evaluateOrderGate`의 notional 계산이 **LIMIT quantity-based price를 무조건 KRW로 간주**(`safety.ts` computeNotionalKrw) → **US 티커(USD) LIMIT 주문 notional 과소계산** → `MAX_ORDER_AMOUNT`(KRW) 한도 fail-unsafe. **수정**: 심볼로 통화 추론(KRX `^\d{6}$`→KRW, 그 외→USD; API 규약과 일치), USD 주문은 `fxRate`로 KRW 환산, **USD인데 fxRate 없으면 BLOCK(fail-safe)**. 회귀 테스트(US LIMIT 대형 주문이 한도 초과로 BLOCK). §5.3: Safety<5이므로 이 수정 전엔 라우트/UI/정정·취소 확장 금지.
+- **마지막 이터레이션**: #11 완료 (주문 게이트 notional **통화-인지** 수정 → **Safety 5 복귀**). `isKrwSymbol`(`^\d{6}$`→KRW, 그 외→USD)+`nativeToKrw`(USD는 fxRate 환산, 없으면 BLOCK fail-safe). 회귀 테스트(US LIMIT 대형 주문 한도초과 BLOCK)·기존 안전 테스트 무회귀(189 tests).
+- **다음 pick (#12)**: 주문 정정/취소(POST modify/cancel) — `OrderModifyRequest` 스키마(jq 확인) + `modifyOrderRaw`/`cancelOrderRaw`(ungated, ORDER 그룹·계좌헤더) + **§6 게이트를 정정/취소에도 적용**(정정은 notional 재평가, 취소는 kill switch/감사만; dry-run 기본·확인 게이트). 상태(`already-filled/canceled/modified/rejected`, `request-in-progress`) 처리. 라우트/UI는 #13.
 
 ## ⚠️ Phase 2 안전 불변식 (§6 — 약화 금지, 메타 가드)
 - **DRY_RUN 기본 true** — 환경변수로만 끄고, 끄려면 확인 게이트 추가 통과.
@@ -34,8 +34,8 @@
 
 ## Phase 2 진행/로드맵
 - [x] #10 주문 생성 §6 안전 계층 + dry-run 실행기 + 안전 테스트(186). `lib/server/trading/safety.ts`(`getTradingConfig`/`evaluateOrderGate` 순수/`placeOrder` 실행기), `createOrderRaw`(ungated 저수준, 직접노출 금지), ORDER:6 그룹, `orderCreateRequestSchema`(union+refine). **단 USD LIMIT notional 갭(↑#11)**.
-- [ ] **#11 안전 갭 수정**(통화 추론+fxRate 환산, USD&fxRate없으면 BLOCK) → Safety 5 복귀.
-- [ ] #12 주문 정정/취소(POST modify/cancel) + 상태(`already-*`) 처리.
+- [x] #11 안전 갭 수정(통화 추론+fxRate 환산, USD&fxRate없으면 BLOCK) → **Safety 5 복귀**(189).
+- [ ] #12 주문 정정/취소(POST modify/cancel) + §6 게이트 적용 + 상태(`already-*`) 처리.
 - [ ] #13 사전검증 연동(buying-power/sellable-quantity/commissions/price-limits) + 게이트된 API 라우트 + 주문 폼 UI(dry-run 미리보기, 실주문은 사람 확인).
 - 이후 Phase 3(제한적 자동거래): 전략 intent(순수)→executor(한도·kill switch 내)→감사로그, 백테스트.
 
