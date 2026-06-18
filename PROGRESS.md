@@ -2,8 +2,8 @@
 
 ## 현재 위치
 - **Phase**: **3 (제한적 자동거래)** — Phase 2 완료 후 진입.
-- **마지막 이터레이션**: #15 완료 (정정/취소 UI + 사전검증/422 에러 테스트 → **Phase 2 종료조건 4개 충족 → Phase 2 종료 판정**). OrdersTable에 정정/취소 액션(브라우저 dialog 없이 **2단계 인라인 확인**, confirm 사용자 입력 그대로), `ModifyOrderForm`, `hooks.modifyOrder`/`cancelOrder`, 라우트 422 매핑 테스트(insufficient-buying-power/price-out-of-range/order-hours-closed). 266 tests.
-- **다음 pick (#16)**: Phase 3 첫 증분 — **전략 intent 계층(순수 함수)**. `lib/server/trading/strategy/`에 `OrderIntent` 타입 + 예시 규칙 전략(시세·보유·주문정보 스냅샷 입력 → intent[] 산출, **순수·결정적·I/O 없음**) + 결정적 단위 테스트. **실행 배선·자동 루프 없음**(executor는 #18에서 §6 게이트+사전 활성화 뒤). ⚠️ 자동거래 §6: (b)승인은 사람이 사전 out-of-band로 부여(예 AUTO_TRADE_ENABLED)+한도+kill switch, **에이전트 자가 발급 금지**.
+- **마지막 이터레이션**: #16 완료 (전략 intent **순수 계층**). `lib/server/trading/strategy/`: `types.ts`(PositionSnapshot/StrategySnapshot/OrderIntent/StrategyParams/Strategy), `threshold-exit.ts`(순수 `thresholdExitStrategy` — **SELL-only** 보수: stop-loss>take-profit>concentration-trim 우선순위, 전량/부분 floor 정수 수량, symbol 정렬, 부수효과 없음, Date.now/random 미사용), `index.ts`. 실행 배선·주문 전송 없음. 280 tests.
+- **다음 pick (#17)**: **백테스트/시뮬레이션 하네스** — 합성/과거 캔들(candles) 시퀀스에서 포지션 스냅샷을 구성해 `thresholdExitStrategy`를 **결정적으로** 실행·집계(생성된 SELL intent·가상 PnL). I/O 없는 순수 시뮬레이터 + 결정적 테스트. (실주문 없음.) 이후 #18 게이트된 자동 executor(intent→§6 placeOrder, AUTO_TRADE_ENABLED+한도+kill switch 뒤, dry-run 기본·실주문 도달불가 증명).
 
 ### Phase 3 종료 조건 (dev-loop §4)
 - [ ] 백테스트/시뮬레이션 하네스로 전략을 과거·합성 데이터에 결정적 검증.
@@ -11,8 +11,10 @@
 - [ ] 모든 자동 주문 경로가 dry-run 기본 + 명시적 활성화 없이 실주문 불가(테스트).
 - [ ] lint·typecheck·test·build green.
 
-### Phase 3 로드맵(예정)
-- #16 전략 intent 순수 계층 + 테스트. #17 백테스트/시뮬레이션 하네스(합성/과거 캔들, 결정적). #18 자동 executor(intent→§6 `placeOrder`, AUTO_TRADE_ENABLED+한도+kill switch 뒤, dry-run 기본·실주문 도달불가 증명) + 감사로그.
+### Phase 3 로드맵
+- [x] #16 전략 intent 순수 계층 + 테스트(280).
+- [ ] #17 백테스트/시뮬레이션 하네스(합성/과거 캔들, 결정적).
+- [ ] #18 자동 executor(intent→§6 `placeOrder`, AUTO_TRADE_ENABLED+한도+kill switch 뒤, dry-run 기본·실주문 도달불가 증명) + 감사로그.
 
 ## ✅ Phase 2 (수동 거래) 종료조건 — 전부 충족
 - [x] dry-run 페이로드 = API 계약 일치(게이트/라우트/폼 테스트). [x] 실주문 확인게이트 없이 도달불가(confirm 바디전용·자동 true 없음·게이트 테스트). [x] 사전검증 실패(insufficient-buying-power/price-out-of-range/order-hours-closed) 422 매핑 테스트. [x] gates green.

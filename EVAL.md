@@ -302,3 +302,21 @@
 **최저축**: 없음(전 축 5).
 **★ Phase 2 종료 판정**: 종료조건 4개 전부 충족(dry-run 일치·실주문 게이트 없이 도달불가·사전검증 실패 처리·gates) + 루브릭 전 축 ≥목표(Safety/Security=5) → **§5.3 advance_phase() → Phase 3(제한적 자동거래)**.
 **다음 개선(next pick #16)**: 전략 intent 순수 계층(스냅샷→intent[], 결정적, I/O 없음) + 단위 테스트. 실행 배선 없음(executor는 #18, §6 게이트+사전 활성화 뒤). ⚠️ 자동거래 승인은 사람 사전 부여, 에이전트 자가 발급 금지.
+
+---
+
+## #16 | phase3 | 전략 intent 순수 계층 (실행 배선 없음)
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0 / build exit 0(번들 가드 35파일 클린)
+- test exit 0 → vitest **280 passed (17 files)**(신규 14)
+- **확인**: strategy/에 `Date.now`/`Math.random`/`new Date` 없음(grep) — 결정적.
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — strategy types + `thresholdExitStrategy` 순수 함수. 근거: 280 tests(손절/익절/밴드내/트림/정렬/정수/빈입력/우선순위).
+- API 정합성 **5** — OrderIntent가 OrderCreateRequest로 변환 가능한 형태(side/orderType/quantity 정수). 변환·전송은 #18.
+- Safety **5** — **순수 모듈·I/O 없음·실행 배선 없음**(실주문 경로 부재), **SELL-only 보수 기본**(자동 매수 미생성 — 리스크 감소만). 근거: 코드 순수성 + 실행기 부재.
+- Security **5** — 번들 클린. UX **5** — UI 무변경. Code quality **5** — 결정적(정렬·floor 정수화·부수효과 없음), 신규 디렉터리만 추가.
+
+**최저축**: 없음(전 축 5).
+**다음 개선(next pick #17)**: 백테스트/시뮬레이션 하네스 — 합성/과거 캔들 시퀀스로 포지션 스냅샷 구성 → thresholdExitStrategy 결정적 실행·집계(intent·가상 PnL) + 결정적 테스트(실주문 없음).
