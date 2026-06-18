@@ -64,3 +64,27 @@
 
 **최저축**: UX(2). **추세 경고: #1~#3 UX=2 정체** → 단, 다음 pick(#4)이 정확히 이 축을 해소하는 UI 이터레이션이므로 계획된 시퀀싱. #4 종료 후 UX 미상승 시 회로차단기(접근 재검토).
 **다음 개선(next pick #4)**: 포트폴리오 요약 대시보드 UI + SWR 훅 + Playwright 렌더 테스트(종료조건 3, UX↑).
+
+---
+
+## #4 | phase1 | 포트폴리오 요약+보유종목 대시보드 UI + SWR 훅 + jsdom 렌더 테스트 + build 클린 보강
+
+**비고**: 첫 시도가 외부 API Overload로 중단(deps+types.ts만 생성) → 범위를 핵심 UI로 좁히고 Playwright는 #7로 분리해 재실행. 일시적 외부 오류라 회로차단기 비대상.
+
+**객관 게이트(메인 에이전트 직접 재실행, `.next` 클린 후 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0
+- test exit 0 → vitest **Test Files 9 passed, Tests 71 passed**(신규 22: format/PortfolioSummary/HoldingsTable, node+jsdom 공존)
+- build exit 0 → ✓ Compiled successfully + `check-bundle-secrets: scanned 19 ... no forbidden strings`
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — SWR 훅(accounts/holdings/exchange-rate) + 요약·보유종목·FX 컴포넌트 + format + 대시보드 페이지. 근거: 71 tests, app/page.tsx 대시보드 교체, 빌드 OK.
+- API 정합성 **5** — 클라이언트 타입이 API 응답 형태와 일치, decimal 문자열 유지, /api/* 호출. 근거: hooks/format 테스트, 라우트 응답 형태 준수.
+- Safety **5** — 주문 코드 없음(읽기전용). 근거: GET/표시 전용.
+- Security **5** — 클라이언트 코드 추가에도 번들 가드 클린(시크릿/`process.env.TOSS_` 미노출), 클라이언트가 lib/server 미import. 근거: 가드 19파일 클린.
+- UX **4** — 계좌 선택·요약(손익 부호색·% 표기)·보유 테이블·FX·로딩/에러·빈상태 렌더(jsdom 테스트로 검증). 5 아님: 풀 브라우저 E2E·디자인 폴리시·시세/주문 섹션 미완. 근거: 렌더 테스트가 요약/테이블/15.16%/빈상태 단언. **(UX 2→4, 정체 해소)**
+- Code quality **5** — 순수 표시 컴포넌트 + 훅 분리, 데모 자산 surgical 정리, 서버 파일 무수정. 근거: 의도 파일만 변경.
+
+**최저축**: UX(4) — 목표(≥3) 충족, 정체 해소. 회로차단기 비대상.
+**검증 한계(정직)**: 렌더는 jsdom 컴포넌트 테스트로 검증(게이트 내). **풀 브라우저 E2E(Playwright)는 #7 보류** — 따라서 "브라우저 실제 동작"은 미검증.
+**운영**: stale `.next` 증분 캐시 빌드 오탐 관측 → build 스크립트에 `rm -rf .next` 추가(클린 빌드 강제).
+**다음 개선(next pick #5)**: 주문조회 GET(list/detail) 클라이언트+라우트+주문내역 섹션+계약 테스트.
