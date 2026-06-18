@@ -3,11 +3,14 @@
 import useSWR, { type SWRConfiguration } from "swr";
 import type {
   Account,
+  CancelOrderResult,
   CandlePageResponse,
   ExchangeRateResponse,
   HoldingsOverview,
+  ModifyOrderResult,
   OrderbookResponse,
   OrderCreateBody,
+  OrderModifyBody,
   OrderPlaceResult,
   PaginatedOrderResponse,
   PriceLimitResponse,
@@ -269,6 +272,17 @@ export async function submitOrder(
     accountSeq === undefined
       ? "/api/orders"
       : `/api/orders?accountSeq=${accountSeq}`;
+  return postOrderJson<OrderPlaceResult>(url, body);
+}
+
+/**
+ * POSTs an order-operation body to an `/api/orders*` route and unwraps the
+ * `{ data }` envelope. Any `{ error }` body (or non-JSON failure) is converted
+ * into a thrown `ApiClientError`. Shared by `submitOrder`, `modifyOrder`, and
+ * `cancelOrder`; the §6 safety gate stays the source of truth, so `body.confirm`
+ * is forwarded verbatim and an unchecked confirm yields a DRY_RUN preview.
+ */
+async function postOrderJson<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -302,5 +316,42 @@ export async function submitOrder(
     });
   }
 
-  return (payload as SuccessEnvelope<OrderPlaceResult>).data;
+  return (payload as SuccessEnvelope<T>).data;
+}
+
+/**
+ * Modifies an existing order via `POST /api/orders/{orderId}/modify`. `confirm`
+ * is forwarded verbatim (never forced to `true`), so an unchecked confirm comes
+ * back as a DRY_RUN preview from the §6 gate. Returns the parsed `{ status }`
+ * result and throws an `ApiClientError` on the `{ error }` envelope.
+ */
+export async function modifyOrder(
+  accountSeq: number | undefined,
+  orderId: string,
+  body: OrderModifyBody,
+  confirm: boolean,
+): Promise<ModifyOrderResult> {
+  const url =
+    accountSeq === undefined
+      ? `/api/orders/${encodeURIComponent(orderId)}/modify`
+      : `/api/orders/${encodeURIComponent(orderId)}/modify?accountSeq=${accountSeq}`;
+  return postOrderJson<ModifyOrderResult>(url, { ...body, confirm });
+}
+
+/**
+ * Cancels an existing order via `POST /api/orders/{orderId}/cancel`. `confirm`
+ * is forwarded verbatim (never forced to `true`), so an unchecked confirm comes
+ * back as a DRY_RUN preview from the §6 gate. Returns the parsed `{ status }`
+ * result and throws an `ApiClientError` on the `{ error }` envelope.
+ */
+export async function cancelOrder(
+  accountSeq: number | undefined,
+  orderId: string,
+  confirm: boolean,
+): Promise<CancelOrderResult> {
+  const url =
+    accountSeq === undefined
+      ? `/api/orders/${encodeURIComponent(orderId)}/cancel`
+      : `/api/orders/${encodeURIComponent(orderId)}/cancel?accountSeq=${accountSeq}`;
+  return postOrderJson<CancelOrderResult>(url, { confirm });
 }

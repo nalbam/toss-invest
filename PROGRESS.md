@@ -1,9 +1,21 @@
 # PROGRESS — 토스증권 대시보드 (현재 상태만)
 
 ## 현재 위치
-- **Phase**: **2 (수동 거래, dry-run 기본)** — Phase 1 완료 후 진입.
-- **마지막 이터레이션**: #14 완료 (주문 생성 폼 UI). `app/_components/OrderForm.tsx`('use client', 심볼·side·유형·수량/가격·금액토글·**confirm 체크박스**), `lib/client/hooks.submitOrder`, Dashboard 섹션. 응답 status별 표시 — DRY_RUN "🔍 미리보기(전송 안 됨)"+wouldSend+prevalidation / BLOCKED "⛔"+reasons / SENT "✅"+orderId / 에러 code·message. confirm 체크 상태 그대로 전송(클라이언트 자동 true 없음), 최종 판정은 서버 §6 게이트. 243 tests.
-- **다음 pick (#15)**: 정정/취소 UI(OrdersTable의 대기 주문에 취소 버튼 + 정정 폼, confirm 게이트 동일) + **사전검증 실패 케이스 명시 테스트 보강**(insufficient-buying-power/price-out-of-range/order-hours-closed 매핑) → **Phase 2 종료조건 점검 + Phase 3(제한적 자동거래) 진입 판정**.
+- **Phase**: **3 (제한적 자동거래)** — Phase 2 완료 후 진입.
+- **마지막 이터레이션**: #15 완료 (정정/취소 UI + 사전검증/422 에러 테스트 → **Phase 2 종료조건 4개 충족 → Phase 2 종료 판정**). OrdersTable에 정정/취소 액션(브라우저 dialog 없이 **2단계 인라인 확인**, confirm 사용자 입력 그대로), `ModifyOrderForm`, `hooks.modifyOrder`/`cancelOrder`, 라우트 422 매핑 테스트(insufficient-buying-power/price-out-of-range/order-hours-closed). 266 tests.
+- **다음 pick (#16)**: Phase 3 첫 증분 — **전략 intent 계층(순수 함수)**. `lib/server/trading/strategy/`에 `OrderIntent` 타입 + 예시 규칙 전략(시세·보유·주문정보 스냅샷 입력 → intent[] 산출, **순수·결정적·I/O 없음**) + 결정적 단위 테스트. **실행 배선·자동 루프 없음**(executor는 #18에서 §6 게이트+사전 활성화 뒤). ⚠️ 자동거래 §6: (b)승인은 사람이 사전 out-of-band로 부여(예 AUTO_TRADE_ENABLED)+한도+kill switch, **에이전트 자가 발급 금지**.
+
+### Phase 3 종료 조건 (dev-loop §4)
+- [ ] 백테스트/시뮬레이션 하네스로 전략을 과거·합성 데이터에 결정적 검증.
+- [ ] 한도 위반·kill switch 시 실행 거부 증명 테스트.
+- [ ] 모든 자동 주문 경로가 dry-run 기본 + 명시적 활성화 없이 실주문 불가(테스트).
+- [ ] lint·typecheck·test·build green.
+
+### Phase 3 로드맵(예정)
+- #16 전략 intent 순수 계층 + 테스트. #17 백테스트/시뮬레이션 하네스(합성/과거 캔들, 결정적). #18 자동 executor(intent→§6 `placeOrder`, AUTO_TRADE_ENABLED+한도+kill switch 뒤, dry-run 기본·실주문 도달불가 증명) + 감사로그.
+
+## ✅ Phase 2 (수동 거래) 종료조건 — 전부 충족
+- [x] dry-run 페이로드 = API 계약 일치(게이트/라우트/폼 테스트). [x] 실주문 확인게이트 없이 도달불가(confirm 바디전용·자동 true 없음·게이트 테스트). [x] 사전검증 실패(insufficient-buying-power/price-out-of-range/order-hours-closed) 422 매핑 테스트. [x] gates green.
 
 ## ⚠️ Phase 2 안전 불변식 (§6 — 약화 금지, 메타 가드)
 - **DRY_RUN 기본 true** — 환경변수로만 끄고, 끄려면 확인 게이트 추가 통과.
@@ -38,7 +50,7 @@
 - [x] #12 주문 정정/취소(POST modify/cancel) + §6 게이트 적용(220). `already-*`/422는 TossApiError로 전파(라우트에서 매핑은 #13).
 - [x] #13 게이트된 주문 API 라우트(create/modify/cancel, DRY_RUN 기본·confirm 바디전용) + 사전검증 preview + 에러 매핑(237).
 - [x] #14 주문 생성 폼 UI(dry-run 미리보기·confirm 체크박스·BLOCKED/SENT/에러 표시)(243).
-- [ ] #15 정정/취소 UI + 사전검증 실패 케이스 테스트 보강 → Phase 2 종료 점검 + Phase 3 진입.
+- [x] #15 정정/취소 UI(2단계 인라인 확인) + 사전검증/422 에러 테스트 → **Phase 2 종료**(266).
 
 ### Phase 2 종료 조건 (dev-loop §4) — 현황
 - [x] dry-run에서 주문 생성/정정/취소 요청 페이로드가 API 계약과 일치(게이트/라우트 테스트 — dry-run wouldSend=요청).

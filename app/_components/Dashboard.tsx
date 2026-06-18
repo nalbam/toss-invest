@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSWRConfig } from "swr";
 import {
   useAccounts,
   useExchangeRate,
@@ -34,6 +35,15 @@ export function Dashboard() {
   const holdings = useHoldings(selectedSeq);
   const orders = useOrders(selectedSeq);
   const fx = useExchangeRate("USD", "KRW");
+  const { mutate } = useSWRConfig();
+
+  // After a SENT modify/cancel, revalidate any cached `/api/orders` queries so
+  // the table reflects the new state.
+  function refreshOrders() {
+    void mutate(
+      (key) => typeof key === "string" && key.startsWith("/api/orders"),
+    );
+  }
 
   if (accounts.isLoading) {
     return <p className={page.status}>계좌 정보를 불러오는 중…</p>;
@@ -91,7 +101,11 @@ export function Dashboard() {
           주문 내역을 불러오지 못했습니다: {orders.error.message}
         </p>
       ) : orders.data ? (
-        <OrdersTable orders={orders.data.orders} />
+        <OrdersTable
+          orders={orders.data.orders}
+          accountSeq={selectedSeq}
+          onChanged={refreshOrders}
+        />
       ) : null}
 
       <OrderForm accountSeq={selectedSeq} />

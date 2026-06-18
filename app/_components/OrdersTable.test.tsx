@@ -1,10 +1,44 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { OrdersTable } from "./OrdersTable";
 import type { Order } from "@/lib/client/types";
 
-afterEach(cleanup);
+// Cancel/modify post to `/api/orders/{id}/...` via the real hooks; mock `fetch`
+// so we can assert the exact body and feed back each status.
+const fetchMock = vi.fn();
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+/** Builds a `Response`-like object exposing `.ok`, `.status`, and `.json()`. */
+function jsonResponse(body: unknown, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  };
+}
+
+/** The body the component sent on its most recent fetch call. */
+function lastSentBody(): Record<string, unknown> {
+  const [, init] = fetchMock.mock.calls.at(-1) ?? [];
+  return JSON.parse((init as RequestInit).body as string);
+}
 
 const buyLimit: Order = {
   orderId: "ord-1",
@@ -54,6 +88,12 @@ const sellUsPartial: Order = {
   },
 };
 
+const filledTerminal: Order = {
+  ...buyLimit,
+  orderId: "ord-3",
+  status: "FILLED",
+};
+
 describe("OrdersTable", () => {
   it("renders a row per order with symbol, side, status, and filled quantity", () => {
     render(<OrdersTable orders={[buyLimit, sellUsPartial]} />);
@@ -76,5 +116,187 @@ describe("OrdersTable", () => {
     render(<OrdersTable orders={[]} />);
     expect(screen.getByText("주문 없음")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("offers modify/cancel actions only for cancelable (pending) orders", () => {
+    render(<OrdersTable orders={[buyLimit, filledTerminal]} accountSeq={1} />);
+    // Two pending-eligible? Only buyLimit is cancelable; FILLED is terminal.
+    expect(screen.getAllByRole("button", { name: "취소" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "정정" })).toHaveLength(1);
+  });
+
+  it("reveals an inline confirm on 취소 click without calling fetch", () => {
+    render(<OrdersTable orders={[buyLimit]} accountSeq={1} />);
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    expect(screen.getByText("정말 취소?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "확인" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "되돌리기" }),
+    ).toBeInTheDocument();
+    // Revealing the confirm prompt must not send any request.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("되돌리기 dismisses the confirm without calling fetch", () => {
+    render(<OrdersTable orders={[buyLimit]} accountSeq={1} />);
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "되돌리기" }));
+    expect(screen.queryByText("정말 취소?")).not.toBeInTheDocument();
+    // The original 취소 button is shown again.
+    expect(screen.getByRole("button", { name: "취소" })).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("확인 POSTs confirm:true to the cancel route and shows SENT", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: { status: "SENT", response: { orderId: "ord-new" } },
+      }),
+    );
+
+    render(<OrdersTable orders={[buyLimit]} accountSeq={7} />);
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "확인" }));
+
+    expect(await screen.findByText("✅ 취소 전송됨")).toBeInTheDocument();
+    expect(screen.getByText("주문번호: ord-new")).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/orders/ord-1/cancel?accountSeq=7",
+    );
+    expect(lastSentBody().confirm).toBe(true);
+  });
+
+  it("shows the DRY_RUN cancel preview with reasons (confirm:true may still preview)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: {
+          status: "DRY_RUN",
+          orderId: "ord-1",
+          reasons: ["dry-run-enabled"],
+        },
+      }),
+    );
+
+    render(<OrdersTable orders={[buyLimit]} accountSeq={7} />);
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "확인" }));
+
+    expect(
+      await screen.findByText("🔍 취소 미리보기 (전송되지 않음)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("dry-run-enabled")).toBeInTheDocument();
+    expect(lastSentBody().confirm).toBe(true);
+  });
+
+  it("shows the BLOCKED cancel outcome with reasons", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: {
+          status: "BLOCKED",
+          orderId: "ord-1",
+          reasons: ["kill-switch-on"],
+        },
+      }),
+    );
+
+    render(<OrdersTable orders={[buyLimit]} accountSeq={7} />);
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "확인" }));
+
+    expect(await screen.findByText("⛔ 차단됨")).toBeInTheDocument();
+    expect(screen.getByText("kill-switch-on")).toBeInTheDocument();
+  });
+
+  it("shows the cancel error code/message on an error envelope", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            requestId: "req-1",
+            code: "already-canceled",
+            message: "Order already canceled",
+          },
+        },
+        409,
+      ),
+    );
+
+    render(<OrdersTable orders={[buyLimit]} accountSeq={7} />);
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "확인" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("[already-canceled] Order already canceled"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("opens the inline modify form on 정정 click", () => {
+    render(<OrdersTable orders={[buyLimit]} accountSeq={7} />);
+    expect(screen.queryByLabelText("유형")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "정정" }));
+    expect(screen.getByLabelText("유형")).toBeInTheDocument();
+    // Prefilled from the order.
+    expect((screen.getByLabelText("수량") as HTMLInputElement).value).toBe(
+      "10",
+    );
+    expect((screen.getByLabelText("가격") as HTMLInputElement).value).toBe(
+      "71000",
+    );
+  });
+
+  it("calls onChanged after a SENT cancel", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: { status: "SENT", response: { orderId: "ord-new" } },
+      }),
+    );
+    const onChanged = vi.fn();
+
+    render(
+      <OrdersTable orders={[buyLimit]} accountSeq={7} onChanged={onChanged} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "확인" }));
+
+    await screen.findByText("✅ 취소 전송됨");
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onChanged on a DRY_RUN cancel", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: {
+          status: "DRY_RUN",
+          orderId: "ord-1",
+          reasons: ["dry-run-enabled"],
+        },
+      }),
+    );
+    const onChanged = vi.fn();
+
+    render(
+      <OrdersTable orders={[buyLimit]} accountSeq={7} onChanged={onChanged} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "확인" }));
+
+    await screen.findByText("🔍 취소 미리보기 (전송되지 않음)");
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("isolates actions per row (cancel on one row only)", () => {
+    render(
+      <OrdersTable orders={[buyLimit, sellUsPartial]} accountSeq={1} />,
+    );
+    const rows = screen.getAllByRole("row");
+    // header + 2 data rows; both pending => each has its own 취소 button.
+    const firstRowCancel = within(rows[1]).getByRole("button", {
+      name: "취소",
+    });
+    fireEvent.click(firstRowCancel);
+    // Only one inline confirm prompt is shown.
+    expect(screen.getAllByText("정말 취소?")).toHaveLength(1);
   });
 });

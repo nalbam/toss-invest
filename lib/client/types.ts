@@ -201,6 +201,67 @@ export type OrderPlaceResult =
       prevalidation: OrderPrevalidation;
     };
 
+/**
+ * Client mirror of the order-modify request body (`POST /api/orders/{id}/modify`).
+ * The original order is identified by the path id, so no `symbol` is carried.
+ * `price` is required for LIMIT and forbidden for MARKET; `confirm` is read only
+ * from the body, so omitting it yields a DRY_RUN preview.
+ */
+export interface OrderModifyBody {
+  orderType: "LIMIT" | "MARKET";
+  quantity?: string;
+  price?: string;
+  confirmHighValueOrder?: boolean;
+  confirm?: boolean;
+}
+
+/**
+ * Client mirror of the `POST /api/orders/{id}/modify` success payload. The §6
+ * safety gate decides the `status`.
+ *   - DRY_RUN: preview only — `wouldSend` echoes the would-be modify body.
+ *   - SENT: a real modify was issued — `response.orderId` is the new server id.
+ *   - BLOCKED: a guard refused the modify — `reasons` lists why.
+ */
+export type ModifyOrderResult =
+  | {
+      status: "DRY_RUN";
+      wouldSend: OrderModifyBody;
+      reasons: string[];
+    }
+  | {
+      status: "SENT";
+      response: { orderId: string };
+      notionalKrw: number;
+    }
+  | {
+      status: "BLOCKED";
+      request: OrderModifyBody;
+      reasons: string[];
+    };
+
+/**
+ * Client mirror of the `POST /api/orders/{id}/cancel` success payload. The §6
+ * safety gate decides the `status`.
+ *   - DRY_RUN: preview only — the cancel was not sent.
+ *   - SENT: a real cancel was issued — `response.orderId` is the new server id.
+ *   - BLOCKED: a guard refused the cancel — `reasons` lists why.
+ */
+export type CancelOrderResult =
+  | {
+      status: "DRY_RUN";
+      orderId: string;
+      reasons: string[];
+    }
+  | {
+      status: "SENT";
+      response: { orderId: string };
+    }
+  | {
+      status: "BLOCKED";
+      orderId: string;
+      reasons: string[];
+    };
+
 export interface PriceResponse {
   symbol: string;
   timestamp?: string | null;

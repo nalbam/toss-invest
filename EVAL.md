@@ -283,3 +283,22 @@
 
 **최저축**: 없음(전 축 5). Phase 2 수동 거래 사용자 플로우 작동.
 **다음 개선(next pick #15)**: 정정/취소 UI(OrdersTable 취소 버튼+정정 폼, confirm 게이트 동일) + 사전검증 실패(insufficient-buying-power/price-out-of-range/order-hours-closed) 명시 테스트 → Phase 2 종료조건 충족 점검 → Phase 3 진입 판정.
+
+---
+
+## #15 | phase2 | 정정/취소 UI + 사전검증/422 에러 테스트 → **Phase 2 종료 판정**
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0 / build exit 0(번들 가드 35파일 클린)
+- test exit 0 → vitest **266 passed (16 files)**(신규 23)
+- **확인**: `app/_components`에 `window.confirm/alert/prompt` 없음(grep) — 2단계 인라인 확인.
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — OrdersTable 정정/취소 액션 + ModifyOrderForm + hooks.modifyOrder/cancelOrder + 422 테스트. 근거: 266 tests.
+- API 정합성 **5** — modify/cancel 바디·응답, 422(insufficient-buying-power/price-out-of-range/order-hours-closed) 매핑·sanitize. 근거: 라우트 테스트.
+- Safety **5** — confirm 사용자 입력 그대로(자동 true 없음), **취소 2단계 인라인 확인**(브라우저 dialog 미사용), safety.ts/route 핸들러 무수정(테스트만 추가), 사전검증 실패 422 처리 잠금. 근거: 테스트 + grep.
+- Security **5** — 클라이언트 시크릿 미노출(35파일). UX **5** — 정정/취소 인라인 + 결과 표시. Code quality **5** — OrderForm 패턴 재사용·postOrderJson 추출·외과적.
+
+**최저축**: 없음(전 축 5).
+**★ Phase 2 종료 판정**: 종료조건 4개 전부 충족(dry-run 일치·실주문 게이트 없이 도달불가·사전검증 실패 처리·gates) + 루브릭 전 축 ≥목표(Safety/Security=5) → **§5.3 advance_phase() → Phase 3(제한적 자동거래)**.
+**다음 개선(next pick #16)**: 전략 intent 순수 계층(스냅샷→intent[], 결정적, I/O 없음) + 단위 테스트. 실행 배선 없음(executor는 #18, §6 게이트+사전 활성화 뒤). ⚠️ 자동거래 승인은 사람 사전 부여, 에이전트 자가 발급 금지.

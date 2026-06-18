@@ -894,6 +894,51 @@ describe("POST /api/orders", () => {
     expect(facade.getAccounts).toHaveBeenCalledOnce();
     expect(executor.placeOrder).toHaveBeenCalledWith(42, expect.anything());
   });
+
+  // Upstream 422 prevalidation/business-rule failures: the route maps each to a
+  // 422 carrying the upstream code + caller-safe message + requestId. The body
+  // exposes only those vetted fields — never an internal secret.
+  it.each([
+    ["insufficient-buying-power", "insufficient buying power"],
+    ["price-out-of-range", "price is outside the allowed tick/range"],
+    ["order-hours-closed", "the market is closed for ordering"],
+  ])(
+    "maps an upstream 422 %s to 422 + code + sanitized body",
+    async (code, message) => {
+      facade.getBuyingPower.mockResolvedValue({
+        currency: "KRW",
+        cashBuyingPower: "5000000",
+      });
+      executor.placeOrder.mockRejectedValue(
+        new TossApiError({
+          status: 422,
+          code,
+          message,
+          requestId: "req-1",
+        }),
+      );
+
+      const res = await ordersPOST(
+        postReq("http://localhost/api/orders?accountSeq=7", {
+          ...krwLimitBuy,
+          confirm: true,
+        }),
+      );
+
+      expect(res.status).toBe(422);
+      const body = await res.json();
+      expect(body.error.code).toBe(code);
+      expect(body.error.message).toBe(message);
+      expect(body.error.requestId).toBe("req-1");
+      // Only the vetted error fields are present — no internal secret leaks.
+      expect(Object.keys(body.error).sort()).toEqual([
+        "code",
+        "message",
+        "requestId",
+      ]);
+      expect(JSON.stringify(body)).not.toContain(SECRET);
+    },
+  );
 });
 
 // --- POST /api/orders/[orderId]/modify (gated modify) -----------------------
@@ -998,6 +1043,49 @@ describe("POST /api/orders/[orderId]/modify", () => {
     const body = await res.json();
     expect(body.error.code).toBe("already-canceled");
   });
+
+  // Upstream 422 business-rule failures on a modify map to 422 + code +
+  // caller-safe message; the body exposes only the vetted error fields.
+  it.each([
+    ["price-out-of-range", "price is outside the allowed tick/range"],
+    ["order-hours-closed", "the market is closed for ordering"],
+  ])(
+    "maps an upstream 422 %s to 422 + code + sanitized body",
+    async (code, message) => {
+      facade.getOrder.mockResolvedValue({
+        orderId: "ord-1",
+        symbol: "005930",
+        quantity: "10",
+      });
+      executor.modifyOrder.mockRejectedValue(
+        new TossApiError({
+          status: 422,
+          code,
+          message,
+          requestId: "req-1",
+        }),
+      );
+
+      const res = await orderModifyPOST(
+        postReq("http://localhost/api/orders/ord-1/modify?accountSeq=7", {
+          ...limitModify,
+          confirm: true,
+        }),
+        modifyContext("ord-1"),
+      );
+
+      expect(res.status).toBe(422);
+      const body = await res.json();
+      expect(body.error.code).toBe(code);
+      expect(body.error.message).toBe(message);
+      expect(Object.keys(body.error).sort()).toEqual([
+        "code",
+        "message",
+        "requestId",
+      ]);
+      expect(JSON.stringify(body)).not.toContain(SECRET);
+    },
+  );
 });
 
 // --- POST /api/orders/[orderId]/cancel (gated cancel) -----------------------
