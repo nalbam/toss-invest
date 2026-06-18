@@ -269,6 +269,92 @@ export type PaginatedOrderResponse = z.infer<
   typeof paginatedOrderResponseSchema
 >;
 
+// --- order creation (POST /api/v1/orders) -----------------------------------
+
+/** clientOrderId: idempotency key, <=36 chars, `[a-zA-Z0-9-_]` only. */
+const clientOrderIdSchema = z
+  .string()
+  .max(36)
+  .regex(/^[a-zA-Z0-9\-_]+$/);
+
+/** Quantity is shares: integer only (`^\d+$`). Fractional => Amount-based. */
+const orderQuantitySchema = z.string().regex(/^\d+$/).max(30);
+
+/** Price/orderAmount are decimal strings (`^\d+(\.\d+)?$`). */
+const orderDecimalSchema = z.string().regex(/^\d+(\.\d+)?$/).max(30);
+
+const orderSideEnum = z.enum(["BUY", "SELL"]);
+
+/**
+ * Quantity-based order. `price` is required for LIMIT and forbidden for MARKET;
+ * the `superRefine` enforces both so an out-of-contract body is rejected at the
+ * boundary before it can reach the safety gate.
+ */
+export const orderCreateQuantityBasedSchema = z
+  .object({
+    clientOrderId: clientOrderIdSchema.optional(),
+    symbol: z.string().min(1),
+    side: orderSideEnum,
+    orderType: z.enum(["LIMIT", "MARKET"]),
+    timeInForce: z.enum(["DAY", "CLS"]).default("DAY"),
+    quantity: orderQuantitySchema,
+    price: orderDecimalSchema.optional(),
+    confirmHighValueOrder: z.boolean().default(false),
+  })
+  .superRefine((value, ctx) => {
+    if (value.orderType === "LIMIT" && value.price === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["price"],
+        message: "price is required for LIMIT orders",
+      });
+    }
+    if (value.orderType === "MARKET" && value.price !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["price"],
+        message: "price must not be sent for MARKET orders",
+      });
+    }
+  });
+
+/** Amount-based order (US MARKET only). `orderType` is locked to MARKET. */
+export const orderCreateAmountBasedSchema = z.object({
+  clientOrderId: clientOrderIdSchema.optional(),
+  symbol: z.string().min(1),
+  side: orderSideEnum,
+  orderType: z.literal("MARKET"),
+  orderAmount: orderDecimalSchema,
+  confirmHighValueOrder: z.boolean().default(false),
+});
+
+/**
+ * `OrderCreateRequest` = oneOf(QuantityBased, AmountBased). Amount-based bodies
+ * (which carry `orderAmount` and never `quantity`) are matched first; anything
+ * else must satisfy the quantity-based contract.
+ */
+export const orderCreateRequestSchema = z.union([
+  orderCreateAmountBasedSchema,
+  orderCreateQuantityBasedSchema,
+]);
+export type OrderCreateRequest = z.infer<typeof orderCreateRequestSchema>;
+export type OrderCreateQuantityBased = z.infer<
+  typeof orderCreateQuantityBasedSchema
+>;
+export type OrderCreateAmountBased = z.infer<
+  typeof orderCreateAmountBasedSchema
+>;
+
+/**
+ * `POST /api/v1/orders` 200 result (`OrderResponse`): only the server order id
+ * and the echoed `clientOrderId` (null when none was sent).
+ */
+export const orderCreateResponseSchema = z.object({
+  orderId: z.string(),
+  clientOrderId: z.string().nullable().optional(),
+});
+export type OrderCreateResponse = z.infer<typeof orderCreateResponseSchema>;
+
 // --- stocks -----------------------------------------------------------------
 
 export const stockMarketSchema = openEnum([

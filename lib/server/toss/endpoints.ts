@@ -9,6 +9,7 @@ import {
   holdingsOverviewSchema,
   krMarketCalendarResponseSchema,
   orderbookResponseSchema,
+  orderCreateResponseSchema,
   orderSchema,
   paginatedOrderResponseSchema,
   priceLimitResponseSchema,
@@ -27,6 +28,8 @@ import {
   type KrMarketCalendarResponse,
   type Order,
   type OrderbookResponse,
+  type OrderCreateRequest,
+  type OrderCreateResponse,
   type PaginatedOrderResponse,
   type PriceLimitResponse,
   type PriceResponse,
@@ -227,6 +230,32 @@ export function getOrder(
       accountSeq: params.accountSeq,
     },
   );
+}
+
+export interface CreateOrderRawParams {
+  accountSeq: number | string;
+  body: OrderCreateRequest;
+}
+
+/**
+ * ⚠️ LOW-LEVEL, UNGATED real-money call: `POST /api/v1/orders` (ORDER group,
+ * account header). This sends an actual order to the live API.
+ *
+ * DO NOT call this directly from routes, UI, or other endpoints. It MUST only
+ * be reached through `lib/server/trading` (`placeOrder`), which enforces the
+ * §6 safety gate (DRY_RUN default / kill switch / hard limits / high-value /
+ * idempotency / audit log) before any real POST. Bypassing the gate would
+ * defeat every trading safeguard.
+ */
+export function createOrderRaw(
+  client: TossClient,
+  params: CreateOrderRawParams,
+): Promise<OrderCreateResponse> {
+  return client.post("/api/v1/orders", orderCreateResponseSchema, {
+    group: "ORDER",
+    accountSeq: params.accountSeq,
+    body: params.body,
+  });
 }
 
 export interface GetStocksParams {

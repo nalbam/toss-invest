@@ -11,6 +11,7 @@ export type RateLimitGroup =
   | "MARKET_DATA"
   | "MARKET_DATA_CHART"
   | "MARKET_INFO"
+  | "ORDER"
   | "ORDER_HISTORY"
   | "ORDER_INFO"
   | "STOCK";
@@ -22,6 +23,10 @@ export const GROUP_TPS: Record<RateLimitGroup, number> = {
   MARKET_DATA: 10,
   MARKET_DATA_CHART: 5,
   MARKET_INFO: 3,
+  // Order placement/modify/cancel. The docs lower this to 3/s during the
+  // 09:00–09:10 KST open auction; that peak window is not yet modeled here
+  // (follow-up), so the sustained 6/s budget is used for now.
+  ORDER: 6,
   ORDER_HISTORY: 5,
   ORDER_INFO: 6,
   STOCK: 5,

@@ -2,8 +2,8 @@
 
 ## 현재 위치
 - **Phase**: **2 (수동 거래, dry-run 기본)** — Phase 1 완료 후 진입.
-- **마지막 이터레이션**: #9 완료 (Playwright E2E 통과 → Phase 1 종료조건 3 충족 → **Phase 1 종료 판정**).
-- **다음 pick (#10)**: Phase 2 첫 증분 — **주문 생성(POST)의 §6 안전 계층 + dry-run 실행기**. `OrderCreateRequest`(amount/quantity)·`OrderOperationResponse` 스키마(`/tmp/toss-openapi.json` jq 확인) + `lib/server/trading/`에 placeOrder: **DRY_RUN 기본 true·kill switch·하드 리밋·실주문 확인 게이트·confirmHighValueOrder(≥1억)·clientOrderId 멱등성·감사 로그**. **실 POST 경로는 게이트 미통과 시 도달 불가**를 테스트로 증명. ORDER rate 그룹(6/s, 09:00–09:10 3/s) 추가. UI/정정·취소는 #11+.
+- **마지막 이터레이션**: #10 완료 (주문 생성 §6 안전 계층 + dry-run 실행기 + 안전 테스트, 라우트/UI 미노출).
+- **⚠️ 다음 pick (#11) — 안전 갭 수정 (Safety 4→5, 최우선)**: `evaluateOrderGate`의 notional 계산이 **LIMIT quantity-based price를 무조건 KRW로 간주**(`safety.ts` computeNotionalKrw) → **US 티커(USD) LIMIT 주문 notional 과소계산** → `MAX_ORDER_AMOUNT`(KRW) 한도 fail-unsafe. **수정**: 심볼로 통화 추론(KRX `^\d{6}$`→KRW, 그 외→USD; API 규약과 일치), USD 주문은 `fxRate`로 KRW 환산, **USD인데 fxRate 없으면 BLOCK(fail-safe)**. 회귀 테스트(US LIMIT 대형 주문이 한도 초과로 BLOCK). §5.3: Safety<5이므로 이 수정 전엔 라우트/UI/정정·취소 확장 금지.
 
 ## ⚠️ Phase 2 안전 불변식 (§6 — 약화 금지, 메타 가드)
 - **DRY_RUN 기본 true** — 환경변수로만 끄고, 끄려면 확인 게이트 추가 통과.
@@ -32,10 +32,11 @@
 ### 완료 이터레이션
 - #1 스캐폴드+게이트+시크릿격리+토큰(누적 test) · #2 베이스 클라이언트+코어 GET4(37) · #3 프록시 라우트4+번들가드(48) · #4 대시보드 UI 요약·보유(71) · #5 주문조회+주문내역섹션(87) · #6 시세 GET4(110) · #7 시세 섹션+차트(123) · #8 나머지 GET7→17/17(157) · #9 Playwright E2E → **Phase 1 종료**.
 
-## Phase 2 로드맵(예정)
-- #10 주문 생성 §6 안전 계층 + dry-run 실행기 + 안전 테스트.
-- #11 주문 정정/취소(POST) + 상태(`already-*`) 처리.
-- #12 사전검증 연동(buying-power/sellable-quantity/commissions/price-limits) + 주문 폼 UI(dry-run 미리보기, 실주문은 사람 확인).
+## Phase 2 진행/로드맵
+- [x] #10 주문 생성 §6 안전 계층 + dry-run 실행기 + 안전 테스트(186). `lib/server/trading/safety.ts`(`getTradingConfig`/`evaluateOrderGate` 순수/`placeOrder` 실행기), `createOrderRaw`(ungated 저수준, 직접노출 금지), ORDER:6 그룹, `orderCreateRequestSchema`(union+refine). **단 USD LIMIT notional 갭(↑#11)**.
+- [ ] **#11 안전 갭 수정**(통화 추론+fxRate 환산, USD&fxRate없으면 BLOCK) → Safety 5 복귀.
+- [ ] #12 주문 정정/취소(POST modify/cancel) + 상태(`already-*`) 처리.
+- [ ] #13 사전검증 연동(buying-power/sellable-quantity/commissions/price-limits) + 게이트된 API 라우트 + 주문 폼 UI(dry-run 미리보기, 실주문은 사람 확인).
 - 이후 Phase 3(제한적 자동거래): 전략 intent(순수)→executor(한도·kill switch 내)→감사로그, 백테스트.
 
 ## 미해결/후속

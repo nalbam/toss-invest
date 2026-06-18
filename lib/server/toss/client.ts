@@ -69,6 +69,11 @@ export interface RequestOptions {
   accountSeq?: number | string;
 }
 
+export interface PostOptions extends RequestOptions {
+  /** JSON-serializable request body. */
+  body: unknown;
+}
+
 export interface TossClient {
   /**
    * Issues an authenticated GET, unwraps the `{ result }` envelope, validates
@@ -79,6 +84,18 @@ export interface TossClient {
     path: string,
     resultSchema: T,
     options: RequestOptions,
+  ): Promise<z.infer<T>>;
+  /**
+   * Issues an authenticated POST with a JSON body, unwraps `{ result }`, and
+   * validates it against `resultSchema`. Unlike `get`, this does NOT auto-retry
+   * on 429: order mutations are not safe to blindly replay (a retry without a
+   * stable `clientOrderId` risks a duplicate order), so a 429 surfaces as a
+   * `TossApiError` for the caller to handle.
+   */
+  post<T extends z.ZodTypeAny>(
+    path: string,
+    resultSchema: T,
+    options: PostOptions,
   ): Promise<z.infer<T>>;
   /** Last observed `X-RateLimit-*` values per group (when the API sends them). */
   rateLimitSnapshot(group: RateLimitGroup): RateLimitSnapshot | undefined;
@@ -217,9 +234,51 @@ export function createTossClient(config: TossClientConfig): TossClient {
     });
   }
 
+  async function executePost(
+    path: string,
+    options: PostOptions,
+  ): Promise<Response> {
+    const url = buildUrl(config.baseUrl, path, options.query);
+
+    await config.rateLimiter.acquire(options.group);
+
+    const token = await config.tokenProvider.getAccessToken();
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${token}`,
+      accept: "application/json",
+      "content-type": "application/json",
+    };
+    if (options.accountSeq !== undefined) {
+      headers["x-tossinvest-account"] = String(options.accountSeq);
+    }
+
+    const response = await config.fetchFn(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(options.body),
+    });
+
+    const snapshot = readRateLimit(response);
+    if (snapshot) {
+      snapshots.set(options.group, snapshot);
+    }
+
+    return response;
+  }
+
   return {
     async get(path, resultSchema, options) {
       const response = await execute(path, options);
+
+      if (!response.ok) {
+        throw await toApiError(response);
+      }
+
+      const envelope = envelopeSchema.parse(await response.json());
+      return resultSchema.parse(envelope.result);
+    },
+    async post(path, resultSchema, options) {
+      const response = await executePost(path, options);
 
       if (!response.ok) {
         throw await toApiError(response);

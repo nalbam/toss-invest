@@ -193,3 +193,23 @@
 **최저축**: 없음(전 축 5). 
 **★ Phase 1 종료 판정**: 4 종료조건 전부 충족 + 루브릭 전 축 ≥목표(Safety/Security=5) → **§5.3 advance_phase() → Phase 2(수동 거래) 진입**.
 **다음 개선(next pick #10)**: Phase 2 — 주문 생성(POST) §6 안전 계층 + dry-run 실행기(DRY_RUN 기본·kill switch·한도·확인 게이트·confirmHighValue·멱등성·감사 로그) + **실 POST 경로 게이트 미통과 시 도달불가 증명 테스트**. ⚠️ 실거래 코드 시작 — Safety 축 최우선.
+
+---
+
+## #10 | phase2 | 주문 생성 §6 안전 계층 + dry-run 실행기 (라우트/UI 미노출)
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0
+- test exit 0 → vitest **186 passed (14 files)**(신규 29 safety/schema)
+- build exit 0 → 번들 가드 33파일 클린(+`.next/static`에 placeOrder/createOrderRaw/evaluateOrderGate/MAX_ORDER_AMOUNT 누출 없음 확인)
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — `evaluateOrderGate`(순수)·`placeOrder`(DI 실행기)·`createOrderRaw`(ungated)·ORDER:6·orderCreateRequest union/refine. 근거: 186 tests.
+- API 정합성 **5** — openapi 기반 union/refine(LIMIT price 필수·MARKET price 금지·quantity 정수), 200=`{orderId, clientOrderId|null}`. 근거: 스키마 테스트.
+- Safety **4 (목표 5 미달 — 갭 발견)** — 강점: 평가순서 fail-safe(차단 우선), KILL_SWITCH·DRY_RUN 기본 true·notional 계산불가 시 BLOCK·MAX_ORDER_AMOUNT 미설정 시 BLOCK·실 send는 (DRY_RUN=false+confirm+한도+killoff+고액confirm) 전부일 때만 — **`createOrderRaw` 미호출/clientOrderId 미소비 테스트로 증명**. **갭(fail-unsafe)**: `computeNotionalKrw`(safety.ts:110-114) LIMIT quantity-based price를 **무조건 KRW로 간주** → US 티커(USD) LIMIT 주문 notional ~1380배 과소계산 → MAX_ORDER_AMOUNT 한도 우회 가능. 근거: safety.ts:114 + 코드 직접 확인. 완화: 라우트/UI 미노출·DRY_RUN 기본이라 현 실노출 0, 그러나 게이트 로직 자체 결함.
+- Security **5** — trading server-only, 번들 가드 클린(trading 심볼 미노출). 근거: 가드+grep.
+- UX **5** — UI 무변경(백엔드 안전), 회귀 없음.
+- Code quality **5** — 순수 게이트/DI 실행기/fail-safe 순서/ungated 명시. 근거: 구조.
+
+**최저축**: **Safety(4)**. §5.3 적용: Safety<5 → advance·확장 금지, **갭 수정을 즉시 다음 pick으로 강제**.
+**다음 개선(next pick #11)**: notional 통화-인지 수정 — 심볼로 통화 추론(KRX `^\d{6}$`→KRW, 그 외→USD), USD는 fxRate로 KRW 환산, **USD인데 fxRate 없으면 BLOCK(fail-safe)**. US LIMIT 대형 주문 한도초과 BLOCK 회귀 테스트. → Safety 5 복귀 후에야 정정/취소·라우트·UI로 확장.

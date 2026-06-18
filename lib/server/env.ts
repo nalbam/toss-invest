@@ -5,6 +5,17 @@ const booleanFromString = z
   .enum(["true", "false"])
   .transform((value) => value === "true");
 
+/**
+ * Positive KRW amount limit. Kept optional (not defaulted) so the trading gate
+ * can treat an unset limit as "no real orders allowed" (fail-safe) rather than
+ * silently picking a permissive default.
+ */
+const positiveAmountFromString = z
+  .string()
+  .regex(/^\d+(\.\d+)?$/)
+  .transform((value) => Number(value))
+  .refine((value) => value > 0, "must be a positive amount");
+
 const envSchema = z.object({
   TOSS_CLIENT_ID: z.string().min(1),
   TOSS_CLIENT_SECRET: z.string().min(1),
@@ -12,6 +23,9 @@ const envSchema = z.object({
   TOSS_API_BASE: z.url().default("https://openapi.tossinvest.com"),
   DRY_RUN: booleanFromString.default(true),
   KILL_SWITCH: booleanFromString.default(false),
+  // Hard limits (§6). Unset => the gate blocks real orders (fail-safe).
+  MAX_ORDER_AMOUNT: positiveAmountFromString.optional(),
+  DAILY_LOSS_LIMIT: positiveAmountFromString.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
