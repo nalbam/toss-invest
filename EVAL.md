@@ -171,3 +171,25 @@
 **최저축**: 없음(전 축 5). 
 **Phase 1 상태**: 종료조건 4개 중 3 완료(GET 17/17 ✅·시크릿 번들 ✅·gates ✅), 대시보드 렌더는 컴포넌트 레벨 ✅·**Playwright E2E(#9)만 남음**.
 **다음 개선(next pick #9)**: Playwright E2E(브라우저 설치 + route-mock 대시보드 렌더 스펙) → Phase 1 종료 판정 → Phase 2(수동 거래) 진입.
+
+---
+
+## #9 | phase1 | Playwright E2E(대시보드 4섹션 렌더) → **Phase 1 종료 판정**
+
+**객관 게이트 + E2E(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0
+- test exit 0 → vitest **157 passed (13 files)**
+- build exit 0 → ✓ Compiled + 번들 가드 33파일 클린
+- **e2e exit 0 → `1 passed`** (chromium, `e2e/dashboard.spec.ts` — 포트폴리오 요약 ₩2,020,000·보유 "삼성전자"/"Apple"·주문내역(대기)·시세 현재가 ₩72,000 region 단언)
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — Playwright config(webServer dev+더미env) + route-mock E2E. 종료조건 3 완성. 근거: e2e 1 passed.
+- API 정합성 **5** — e2e mock이 `/api/*` `{data}` 형태 일치. 근거: 실 토스 호출 없이 통과.
+- Safety **5** — 주문 코드 없음(읽기전용). 근거: read-only.
+- Security **5** — 번들 가드 클린, e2e env는 더미(실 시크릿 아님). 근거: 가드 클린.
+- UX **5** — 실 브라우저에서 4섹션 렌더 확인(aria region 단언). 근거: e2e.
+- Code quality **5** — testid 없이 기존 aria region 활용, 외과적. 근거: 컴포넌트 무변경.
+
+**최저축**: 없음(전 축 5). 
+**★ Phase 1 종료 판정**: 4 종료조건 전부 충족 + 루브릭 전 축 ≥목표(Safety/Security=5) → **§5.3 advance_phase() → Phase 2(수동 거래) 진입**.
+**다음 개선(next pick #10)**: Phase 2 — 주문 생성(POST) §6 안전 계층 + dry-run 실행기(DRY_RUN 기본·kill switch·한도·확인 게이트·confirmHighValue·멱등성·감사 로그) + **실 POST 경로 게이트 미통과 시 도달불가 증명 테스트**. ⚠️ 실거래 코드 시작 — Safety 축 최우선.

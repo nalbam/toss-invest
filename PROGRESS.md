@@ -1,43 +1,43 @@
 # PROGRESS — 토스증권 대시보드 (현재 상태만)
 
 ## 현재 위치
-- **Phase**: 1 (읽기전용 대시보드) — 거의 완료, #9만 남음
-- **마지막 이터레이션**: #8 완료 (나머지 GET 7종 + 라우트 + 계약 테스트 → **전 GET 17/17 완성**)
-- **다음 pick (#9)**: **Playwright E2E** — `playwright install chromium` 후 `webServer`(dev) + route-mock으로 대시보드(요약·보유종목·주문내역·시세) 렌더 E2E 스펙 작성·실행. 통과 시 **Phase 1 종료조건 3 완전 충족 → Phase 1 종료 판정 후 Phase 2(수동 거래) 진입**. (E2E가 환경 불안정하면 §5.5 회로차단기 따라 보류·보고하고 Phase 2 진입은 보류.)
+- **Phase**: **2 (수동 거래, dry-run 기본)** — Phase 1 완료 후 진입.
+- **마지막 이터레이션**: #9 완료 (Playwright E2E 통과 → Phase 1 종료조건 3 충족 → **Phase 1 종료 판정**).
+- **다음 pick (#10)**: Phase 2 첫 증분 — **주문 생성(POST)의 §6 안전 계층 + dry-run 실행기**. `OrderCreateRequest`(amount/quantity)·`OrderOperationResponse` 스키마(`/tmp/toss-openapi.json` jq 확인) + `lib/server/trading/`에 placeOrder: **DRY_RUN 기본 true·kill switch·하드 리밋·실주문 확인 게이트·confirmHighValueOrder(≥1억)·clientOrderId 멱등성·감사 로그**. **실 POST 경로는 게이트 미통과 시 도달 불가**를 테스트로 증명. ORDER rate 그룹(6/s, 09:00–09:10 3/s) 추가. UI/정정·취소는 #11+.
+
+## ⚠️ Phase 2 안전 불변식 (§6 — 약화 금지, 메타 가드)
+- **DRY_RUN 기본 true** — 환경변수로만 끄고, 끄려면 확인 게이트 추가 통과.
+- **실주문 확인 게이트**: 실제 `POST /orders*`는 (a)`DRY_RUN=false` + (b)확인(수동=주문단위 사람 입력) + (c)한도 통과일 때만. 하나라도 거짓이면 dry-run 강등+기록. **에이전트 자가 확인 토큰 발급 금지.**
+- **하드 리밋**(env): 1회 최대 주문금액·일일 손실/누적·종목당 비중. **Kill switch** ON이면 전 실주문 차단.
+- **고액(≥1억)**: `confirmHighValueOrder=true` 없이는 전송 금지. **멱등성** clientOrderId(dry-run 강등 시 미소비). **감사 로그**(시크릿/PII 제외).
+- 안전 상수·테스트는 루프가 임의 변경 불가(사람 승인 필요). 종료 압박으로 안전 낮춰 게이트 통과 금지.
 
 ## 확정된 아키텍처 결정
 - Next.js **15.5.19** App Router, TS **strict**, **pnpm**. Tailwind X, alias `@/*`.
-- 테스트: **Vitest**(서버=node, UI=jsdom; 차트는 `vi.mock('lightweight-charts')` 스모크). Playwright는 `test:e2e` 스크립트(브라우저 #9에서 설치).
+- 테스트: **Vitest**(서버=node, UI=jsdom; 차트=`vi.mock('lightweight-charts')`). **Playwright E2E**(`test:e2e`, chromium 설치됨, `e2e/dashboard.spec.ts` route-mock 렌더 스모크, `webServer: next dev -p 3100` 더미 env, vitest는 `e2e/**` exclude).
 - **build 게이트**: `rm -rf .next && next build && node scripts/check-bundle-secrets.mjs`.
 - 시크릿 격리: 서버 전용 `lib/server/**` + `server-only`, env zod(`getEnv()`).
-- 서버 toss 계층: `auth`·`client`(Bearer·`X-Tossinvest-Account`·봉투·`TossApiError`·429)·`rate-limiter`(ACCOUNT1·ASSET5·MARKET_DATA10·MARKET_INFO3·ORDER_HISTORY5·MARKET_DATA_CHART5·**STOCK5·ORDER_INFO6**)·`schemas`(decimal=string, openEnum, nullable.optional)·`endpoints`(17 GET)·`container`.
-- **API 프록시 라우트 17종**(`force-dynamic`, `{data}`/sanitized error): accounts·holdings·prices·exchange-rate·orders·orders/[orderId]·orderbook·trades·price-limits·candles·stocks·stocks/[symbol]/warnings·market-calendar/kr·market-calendar/us·buying-power·sellable-quantity·commissions.
-- 클라이언트: `lib/client/{types,format,hooks}.ts`(서버 import 금지). 컴포넌트 `app/_components/{Dashboard,PortfolioSummary,HoldingsTable,FxRate,OrdersTable,MarketQuote,Orderbook,CandleChart}.tsx`. 차트 = lightweight-charts(`toChartSeries` 순수 분리).
+- 서버 toss 계층: `auth`·`client`·`rate-limiter`(ACCOUNT1·ASSET5·MARKET_DATA10·MARKET_INFO3·ORDER_HISTORY5·MARKET_DATA_CHART5·STOCK5·ORDER_INFO6)·`schemas`(decimal=string, openEnum)·`endpoints`(GET 17)·`container`.
+- **API 프록시 라우트 17종**(`force-dynamic`, `{data}`/sanitized error). 클라이언트 `lib/client/{types,format,hooks}.ts`(서버 import 금지) + `app/_components/*`(대시보드 4섹션: PortfolioSummary·HoldingsTable·FxRate·OrdersTable·MarketQuote/Orderbook/CandleChart). 차트 lightweight-charts.
 
-## 게이트 (4개)
-`pnpm run lint` · `pnpm run typecheck` · `pnpm run test` · `pnpm run build`(클린+번들 가드)
+## 게이트 (4개) + E2E
+`pnpm run lint` · `pnpm run typecheck` · `pnpm run test` · `pnpm run build`(클린+번들 가드). 별도: `pnpm run test:e2e`(Playwright).
 
-## Phase 1 종료 조건
-- [x] mock 계약 테스트로 **모든** GET 엔드포인트 클라이언트 통과 — **17/17 ✅** (accounts·holdings·prices·exchange-rate·orders·orders/{id}·orderbook·trades·price-limits·candles·stocks·warnings·market-calendar KR·US·buying-power·sellable-quantity·commissions).
-- [x] 시크릿이 클라이언트 번들에 없음 — build 게이트 가드(33파일 클린).
-- [~] 대시보드 렌더(요약·보유종목·주문내역·시세) — **4섹션 컴포넌트 레벨 ✅ + jsdom 렌더 테스트**. 풀 브라우저 **Playwright E2E만 #9**.
-- [x] lint·typecheck·test·build 전부 green.
+## Phase 1 종료 조건 — ✅ 전부 완료
+- [x] 모든 GET 엔드포인트 클라이언트 계약 테스트 — **17/17**.
+- [x] 시크릿 클라이언트 번들 미노출 — build 가드(33파일 클린).
+- [x] 대시보드(요약·보유종목·주문내역·시세) 렌더 — jsdom 컴포넌트 테스트 + **Playwright E2E 통과**.
+- [x] lint·typecheck·test·build green.
 
-### 완료
-- [x] #1 스캐폴드 + 게이트 + 시크릿 격리 + OAuth 토큰
-- [x] #2 베이스 클라이언트 + 코어 GET 4종(37)
-- [x] #3 API 프록시 라우트 4종 + 시크릿 번들 가드(48)
-- [x] #4 대시보드 UI(요약·보유종목·FX)(71)
-- [x] #5 주문조회 GET + 주문내역(대기) 섹션(87)
-- [x] #6 시세 GET 4종 + 라우트(110)
-- [x] #7 시세 대시보드 섹션(현재가·상하한가·호가·캔들 차트)(123)
-- [x] #8 나머지 GET 7종 + 라우트 + 계약 → 전 GET 17/17(157)
+### 완료 이터레이션
+- #1 스캐폴드+게이트+시크릿격리+토큰(누적 test) · #2 베이스 클라이언트+코어 GET4(37) · #3 프록시 라우트4+번들가드(48) · #4 대시보드 UI 요약·보유(71) · #5 주문조회+주문내역섹션(87) · #6 시세 GET4(110) · #7 시세 섹션+차트(123) · #8 나머지 GET7→17/17(157) · #9 Playwright E2E → **Phase 1 종료**.
+
+## Phase 2 로드맵(예정)
+- #10 주문 생성 §6 안전 계층 + dry-run 실행기 + 안전 테스트.
+- #11 주문 정정/취소(POST) + 상태(`already-*`) 처리.
+- #12 사전검증 연동(buying-power/sellable-quantity/commissions/price-limits) + 주문 폼 UI(dry-run 미리보기, 실주문은 사람 확인).
+- 이후 Phase 3(제한적 자동거래): 전략 intent(순수)→executor(한도·kill switch 내)→감사로그, 백테스트.
 
 ## 미해결/후속
-- **#9 Playwright E2E** → Phase 1 종료 판정.
-- 차트 페이지네이션(nextBefore)·useTrades·심볼 검증·테마 토큰 미연동. ORDER_INFO 3종(buying-power/sellable-quantity/commissions)은 데이터 계층만(Phase 2 사전검증 입력). 주문조회 CLOSED 미지원. 선제 스로틀·market-calendar 폴링 완화 미구현.
-- **Phase 2 예고**: 주문 생성/정정/취소(POST) + §6 안전 게이트(DRY_RUN 기본 true·실주문 확인 게이트·하드 리밋·kill switch·멱등성·감사 로그). buying-power/sellable-quantity/commissions/price-limits로 사전검증.
-
-## 운영
-- build가 매번 `rm -rf .next`로 클린 빌드(증분 캐시 오탐 방지).
-- 자가개선 루프: 매 이터 §5.3 절차(상태읽기→증분→게이트→자기채점→상태갱신) + 커밋/푸시. 누적 점수 추세 EVAL.md.
+- 차트 페이지네이션·useTrades·심볼 검증·테마 토큰, 선제 스로틀·market-calendar 폴링 완화, 주문조회 CLOSED 미지원, dev `allowedDevOrigins` 경고(무해).
+- 운영: build 매번 `rm -rf .next` 클린.
