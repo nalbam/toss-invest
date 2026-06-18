@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TokenProvider } from "@/lib/server/toss/auth";
-import { createTossClient } from "@/lib/server/toss/client";
+import { createTossClient, TossApiError } from "@/lib/server/toss/client";
 import {
   getAccounts,
   getExchangeRate,
   getHoldings,
+  getOrder,
+  getOrders,
   getPrices,
 } from "@/lib/server/toss/endpoints";
 
@@ -240,5 +242,142 @@ describe("getExchangeRate", () => {
 
     const { url } = lastRequest(fetchFn);
     expect(url.searchParams.get("dateTime")).toBe("2026-03-25T09:30:00+09:00");
+  });
+});
+
+// --- orders -----------------------------------------------------------------
+
+const openOrder = {
+  orderId: "ord-1",
+  symbol: "005930",
+  side: "BUY",
+  orderType: "LIMIT",
+  timeInForce: "DAY",
+  status: "PENDING",
+  price: "71000",
+  quantity: "10",
+  orderAmount: "710000",
+  currency: "KRW",
+  orderedAt: "2026-03-25T09:30:00+09:00",
+  canceledAt: null,
+  execution: {
+    filledQuantity: "0",
+    averageFilledPrice: null,
+    filledAmount: null,
+    commission: null,
+    tax: null,
+    filledAt: null,
+    settlementDate: null,
+  },
+};
+
+describe("getOrders", () => {
+  it("sends X-Tossinvest-Account, the status query, and unwraps pagination", async () => {
+    const { fetchFn, client } = harness([
+      jsonResponse({
+        result: { orders: [openOrder], nextCursor: null, hasNext: false },
+      }),
+    ]);
+
+    const page = await getOrders(client, { accountSeq: 1, status: "OPEN" });
+
+    const { url, headers } = lastRequest(fetchFn);
+    expect(url.pathname).toBe("/api/v1/orders");
+    expect(headers["x-tossinvest-account"]).toBe("1");
+    expect(url.searchParams.get("status")).toBe("OPEN");
+    expect(url.searchParams.has("symbol")).toBe(false);
+    expect(page.orders).toHaveLength(1);
+    expect(page.orders[0].quantity).toBe("10");
+    expect(page.orders[0].execution.filledQuantity).toBe("0");
+    expect(page.nextCursor).toBeNull();
+    expect(page.hasNext).toBe(false);
+  });
+
+  it("forwards symbol, cursor, and limit when provided", async () => {
+    const { fetchFn, client } = harness([
+      jsonResponse({
+        result: { orders: [], nextCursor: null, hasNext: false },
+      }),
+    ]);
+
+    await getOrders(client, {
+      accountSeq: 7,
+      status: "OPEN",
+      symbol: "005930",
+      cursor: "abc",
+      limit: 50,
+    });
+
+    const { url, headers } = lastRequest(fetchFn);
+    expect(headers["x-tossinvest-account"]).toBe("7");
+    expect(url.searchParams.get("symbol")).toBe("005930");
+    expect(url.searchParams.get("cursor")).toBe("abc");
+    expect(url.searchParams.get("limit")).toBe("50");
+  });
+
+  it("accepts an unknown order status value without throwing", async () => {
+    const { client } = harness([
+      jsonResponse({
+        result: {
+          orders: [{ ...openOrder, status: "SOMETHING_NEW" }],
+          nextCursor: null,
+          hasNext: false,
+        },
+      }),
+    ]);
+
+    const page = await getOrders(client, { accountSeq: 1, status: "OPEN" });
+    expect(page.orders[0].status).toBe("SOMETHING_NEW");
+  });
+
+  it("maps a CLOSED 400 to a TossApiError with the upstream code", async () => {
+    const { client } = harness([
+      jsonResponse(
+        {
+          error: {
+            requestId: "req-1",
+            code: "closed-not-supported",
+            message: "CLOSED orders are not supported",
+          },
+        },
+        { status: 400 },
+      ),
+    ]);
+
+    const error = await getOrders(client, {
+      accountSeq: 1,
+      status: "CLOSED",
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TossApiError);
+    expect(error).toMatchObject({
+      status: 400,
+      code: "closed-not-supported",
+    });
+  });
+});
+
+describe("getOrder", () => {
+  it("requests the order path with the account header", async () => {
+    const { fetchFn, client } = harness([jsonResponse({ result: openOrder })]);
+
+    const order = await getOrder(client, { accountSeq: 3, orderId: "ord-1" });
+
+    const { url, headers } = lastRequest(fetchFn);
+    expect(url.pathname).toBe("/api/v1/orders/ord-1");
+    expect(headers["x-tossinvest-account"]).toBe("3");
+    expect(order.orderId).toBe("ord-1");
+    expect(order.execution.filledQuantity).toBe("0");
+  });
+
+  it("url-encodes the orderId in the path", async () => {
+    const { fetchFn, client } = harness([
+      jsonResponse({ result: { ...openOrder, orderId: "a/b c" } }),
+    ]);
+
+    await getOrder(client, { accountSeq: 1, orderId: "a/b c" });
+
+    const { url } = lastRequest(fetchFn);
+    expect(url.pathname).toBe("/api/v1/orders/a%2Fb%20c");
   });
 });

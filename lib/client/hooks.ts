@@ -5,6 +5,7 @@ import type {
   Account,
   ExchangeRateResponse,
   HoldingsOverview,
+  PaginatedOrderResponse,
 } from "@/lib/client/types";
 
 /**
@@ -126,6 +127,34 @@ export function useHoldings(
     fetcher,
     sharedConfig,
   );
+  return { data, error, isLoading: isLoading && key !== null };
+}
+
+/**
+ * Loads the order list for an account. Defaults to `status=OPEN` because the
+ * upstream API does not yet support `CLOSED` (it returns `closed-not-supported`).
+ * The request is paused (key is `null`) until an `accountSeq` is known.
+ */
+export function useOrders(
+  accountSeq: number | undefined,
+  options: { status?: "OPEN"; symbol?: string } = {},
+): QueryResult<PaginatedOrderResponse> {
+  const status = options.status ?? "OPEN";
+  let key: string | null = null;
+  if (accountSeq !== undefined) {
+    const params = new URLSearchParams({
+      accountSeq: String(accountSeq),
+      status,
+    });
+    if (options.symbol !== undefined) {
+      params.set("symbol", options.symbol);
+    }
+    key = `/api/orders?${params.toString()}`;
+  }
+  const { data, error, isLoading } = useSWR<
+    PaginatedOrderResponse,
+    ApiClientError
+  >(key, fetcher, sharedConfig);
   return { data, error, isLoading: isLoading && key !== null };
 }
 

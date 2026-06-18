@@ -98,3 +98,51 @@ export interface ExchangeRateResponse {
   validFrom: string;
   validUntil: string;
 }
+
+export type OrderSide = "BUY" | "SELL" | (string & {});
+export type OrderType = "LIMIT" | "MARKET" | (string & {});
+export type TimeInForce = "DAY" | "CLS" | "OPG" | (string & {});
+export type OrderStatus =
+  | "PENDING"
+  | "PENDING_CANCEL"
+  | "PENDING_REPLACE"
+  | "PARTIAL_FILLED"
+  | "FILLED"
+  | "CANCELED"
+  | "REJECTED"
+  | "CANCEL_REJECTED"
+  | "REPLACE_REJECTED"
+  | "REPLACED"
+  | (string & {});
+
+export interface OrderExecution {
+  filledQuantity: string;
+  averageFilledPrice: string | null;
+  filledAmount: string | null;
+  commission: string | null;
+  tax: string | null;
+  filledAt: string | null;
+  settlementDate: string | null;
+}
+
+export interface Order {
+  orderId: string;
+  symbol: string;
+  side: OrderSide;
+  orderType: OrderType;
+  timeInForce: TimeInForce;
+  status: OrderStatus;
+  price: string | null;
+  quantity: string;
+  orderAmount: string | null;
+  currency: Currency;
+  orderedAt: string;
+  canceledAt: string | null;
+  execution: OrderExecution;
+}
+
+export interface PaginatedOrderResponse {
+  orders: Order[];
+  nextCursor: string | null;
+  hasNext: boolean;
+}

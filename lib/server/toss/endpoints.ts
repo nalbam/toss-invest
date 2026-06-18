@@ -4,10 +4,14 @@ import {
   accountsResultSchema,
   exchangeRateResponseSchema,
   holdingsOverviewSchema,
+  orderSchema,
+  paginatedOrderResponseSchema,
   pricesResultSchema,
   type Account,
   type ExchangeRateResponse,
   type HoldingsOverview,
+  type Order,
+  type PaginatedOrderResponse,
   type PriceResponse,
 } from "@/lib/server/toss/schemas";
 
@@ -69,4 +73,57 @@ export function getExchangeRate(
       dateTime: params.dateTime,
     },
   });
+}
+
+export interface GetOrdersParams {
+  accountSeq: number | string;
+  /** Required by the API. `CLOSED` currently yields 400 `closed-not-supported`. */
+  status: string;
+  symbol?: string;
+  from?: string;
+  to?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+/**
+ * `GET /api/v1/orders` — requires `X-Tossinvest-Account` and a `status` query.
+ * Returns a paginated list (`orders`, `nextCursor`, `hasNext`).
+ */
+export function getOrders(
+  client: TossClient,
+  params: GetOrdersParams,
+): Promise<PaginatedOrderResponse> {
+  return client.get("/api/v1/orders", paginatedOrderResponseSchema, {
+    group: "ORDER_HISTORY",
+    accountSeq: params.accountSeq,
+    query: {
+      status: params.status,
+      symbol: params.symbol,
+      from: params.from,
+      to: params.to,
+      cursor: params.cursor,
+      limit: params.limit === undefined ? undefined : String(params.limit),
+    },
+  });
+}
+
+export interface GetOrderParams {
+  accountSeq: number | string;
+  orderId: string;
+}
+
+/** `GET /api/v1/orders/{orderId}` — requires `X-Tossinvest-Account`. */
+export function getOrder(
+  client: TossClient,
+  params: GetOrderParams,
+): Promise<Order> {
+  return client.get(
+    `/api/v1/orders/${encodeURIComponent(params.orderId)}`,
+    orderSchema,
+    {
+      group: "ORDER_HISTORY",
+      accountSeq: params.accountSeq,
+    },
+  );
 }

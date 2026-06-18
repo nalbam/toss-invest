@@ -88,3 +88,24 @@
 **검증 한계(정직)**: 렌더는 jsdom 컴포넌트 테스트로 검증(게이트 내). **풀 브라우저 E2E(Playwright)는 #7 보류** — 따라서 "브라우저 실제 동작"은 미검증.
 **운영**: stale `.next` 증분 캐시 빌드 오탐 관측 → build 스크립트에 `rm -rf .next` 추가(클린 빌드 강제).
 **다음 개선(next pick #5)**: 주문조회 GET(list/detail) 클라이언트+라우트+주문내역 섹션+계약 테스트.
+
+---
+
+## #5 | phase1 | 주문조회 GET(list/detail) + 라우트 + 주문내역(대기) 섹션 + 계약/렌더 테스트
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0
+- test exit 0 → vitest **Test Files 10 passed, Tests 87 passed**(신규 16)
+- build exit 0 → ✓ Compiled + `/api/orders`·`/api/orders/[orderId]` Dynamic + `scanned 21 ... no forbidden strings`
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — getOrders/getOrder + 라우트 2종 + OrdersTable 섹션 + ORDER_HISTORY 그룹. 근거: 87 tests, /api/orders 빌드.
+- API 정합성 **5** — Order/execution/pagination/enum을 openapi ground truth로, closed-not-supported passthrough, X-Tossinvest-Account 헤더. 근거: 계약 테스트(status/헤더/페이지네이션 필드·400 매핑·unknown enum).
+- Safety **5** — 주문 생성(POST) 없음, 읽기전용. 근거: GET only.
+- Security **5** — 번들 가드 21파일 클린, 클라이언트 lib/server 미import. 근거: 가드 클린.
+- UX **4** — 주문내역(대기) 섹션 추가(정직한 "대기 중" 레이블). 5 아님: 시세 섹션·풀 E2E 미완. 근거: OrdersTable 렌더 테스트(2주문+빈상태).
+- Code quality **5** — 기존 패턴 재사용·외과적 추가(스키마/엔드포인트/라우트/훅/컴포넌트), 무관 리팩토링 없음. 근거: 기존 파일 확장만.
+
+**최저축**: UX(4) — 목표 충족. 회로차단기 비대상.
+**정직한 한계**: CLOSED 미지원으로 체결완료 주문 조회 불가(OPEN만). 렌더는 jsdom 컴포넌트 테스트, 풀 브라우저 E2E는 #8 보류.
+**다음 개선(next pick #6)**: 시세 GET(orderbook/trades/price-limits/candles) 클라이언트 + 라우트 + 계약 테스트(`MARKET_DATA_CHART:5` 그룹 추가).

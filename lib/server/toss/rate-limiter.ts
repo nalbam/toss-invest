@@ -9,7 +9,8 @@ export type RateLimitGroup =
   | "ACCOUNT"
   | "ASSET"
   | "MARKET_DATA"
-  | "MARKET_INFO";
+  | "MARKET_INFO"
+  | "ORDER_HISTORY";
 
 /** Documented per-group sustained request rate (requests per second). */
 export const GROUP_TPS: Record<RateLimitGroup, number> = {
@@ -17,6 +18,7 @@ export const GROUP_TPS: Record<RateLimitGroup, number> = {
   ASSET: 5,
   MARKET_DATA: 10,
   MARKET_INFO: 3,
+  ORDER_HISTORY: 5,
 };
 
 export interface RateLimiterConfig {

@@ -5,9 +5,11 @@ import {
   useAccounts,
   useExchangeRate,
   useHoldings,
+  useOrders,
 } from "@/lib/client/hooks";
 import { FxRate } from "./FxRate";
 import { HoldingsTable } from "./HoldingsTable";
+import { OrdersTable } from "./OrdersTable";
 import { PortfolioSummary } from "./PortfolioSummary";
 import page from "@/app/page.module.css";
 
@@ -28,6 +30,7 @@ export function Dashboard() {
   }, [accounts.data, selectedSeq]);
 
   const holdings = useHoldings(selectedSeq);
+  const orders = useOrders(selectedSeq);
   const fx = useExchangeRate("USD", "KRW");
 
   if (accounts.isLoading) {
@@ -77,6 +80,16 @@ export function Dashboard() {
           <PortfolioSummary overview={holdings.data} />
           <HoldingsTable items={holdings.data.items} />
         </>
+      ) : null}
+
+      {orders.isLoading ? (
+        <p className={page.status}>주문 내역을 불러오는 중…</p>
+      ) : orders.error ? (
+        <p className={`${page.status} ${page.error}`} role="alert">
+          주문 내역을 불러오지 못했습니다: {orders.error.message}
+        </p>
+      ) : orders.data ? (
+        <OrdersTable orders={orders.data.orders} />
       ) : null}
     </div>
   );

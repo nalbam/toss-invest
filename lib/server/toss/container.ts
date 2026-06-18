@@ -7,15 +7,21 @@ import {
   getAccounts,
   getExchangeRate,
   getHoldings,
+  getOrder,
+  getOrders,
   getPrices,
   type GetExchangeRateParams,
   type GetHoldingsParams,
+  type GetOrderParams,
+  type GetOrdersParams,
   type GetPricesParams,
 } from "@/lib/server/toss/endpoints";
 import type {
   Account,
   ExchangeRateResponse,
   HoldingsOverview,
+  Order,
+  PaginatedOrderResponse,
   PriceResponse,
 } from "@/lib/server/toss/schemas";
 
@@ -31,6 +37,8 @@ export interface ServerTossClient {
   getExchangeRate(
     params: GetExchangeRateParams,
   ): Promise<ExchangeRateResponse>;
+  getOrders(params: GetOrdersParams): Promise<PaginatedOrderResponse>;
+  getOrder(params: GetOrderParams): Promise<Order>;
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -73,6 +81,8 @@ export function getServerTossClient(): ServerTossClient {
       getHoldings: (params) => getHoldings(client, params),
       getPrices: (params) => getPrices(client, params),
       getExchangeRate: (params) => getExchangeRate(client, params),
+      getOrders: (params) => getOrders(client, params),
+      getOrder: (params) => getOrder(client, params),
     };
   }
   return cached;
