@@ -1,10 +1,12 @@
 # 토스증권 대시보드 — 자가 개선 개발 루프 마스터 프롬프트
 
-> 이 문서는 **개발용 프롬프트**다. Claude Code의 `/loop` 에 이 파일을 전달하거나,
-> 매 반복(iteration)마다 이 프롬프트를 컨텍스트로 주입해 "스스로 평가하고 개선하는 루프"로
+> 이 문서는 **개발용 프롬프트**다. "스스로 평가하고 개선하는 루프"로
 > 토스증권 개인 대시보드 + 거래 + 자동거래를 단계적으로 구현하기 위한 것이다.
 >
-> 사용 예: `/loop docs/dev-loop-prompt.md` (또는 이 파일 내용을 kickoff 프롬프트로 붙여넣기)
+> 실행 방법: kickoff 프롬프트로 다음을 준다 —
+> *"`docs/dev-loop-prompt.md` 와 `PROGRESS.md`·`EVAL.md` 를 읽고, §5.3 절차로 한 반복을 수행하라."*
+> `/loop` 으로 자동 반복하려면 같은 문장을 prompt 로 넘긴다. **파일 경로 문자열만으로는 내용이
+> 자동 주입되지 않으므로, 매 반복 이 파일을 Read 로 재로드해야 한다**(§5.3 1단계).
 
 ---
 
@@ -43,6 +45,7 @@
   **서버(Route Handler / Server Action)에서만** 다룬다. 클라이언트 번들·브라우저·로그에 절대 노출 금지.
   브라우저는 자체 Next API 라우트(`/api/...`)만 호출하고, 그 라우트가 토스 API로 프록시한다.
 - **상태/데이터 패칭**: 클라이언트는 SWR 또는 React Query로 폴링. rate limit을 존중하는 폴링 주기.
+- **Rate limit 강제(서버)**: 서버 프록시에 **엔드포인트 그룹별 전역 토큰버킷/요청 스케줄러**를 둬, 여러 뷰가 동시에 폴링해도 그룹 합산 TPS(예: 계좌 1/s)가 한도를 넘지 않게 강제한다.
 - **차트**: 가벼운 라이브러리(예: lightweight-charts 또는 recharts) — 후보 평가 후 선택, 선택 근거 기록.
 - **테스트**: 단위/통합은 Vitest, E2E·UI 흐름은 Playwright. 토스 API는 **계약(contract) 기반 mock**으로 격리.
 - **토큰 관리**: access token 캐싱 + 만료 전 갱신. `oauth2/token` 호출은 rate limit(5/s) 준수.
@@ -82,8 +85,9 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 - **장 운영**: `order-hours-closed`(422), 미국 금액주문은 정규장만(`amount-order-outside-regular-hours`).
 - **⚠️ 모의투자(paper) 모드가 문서에 없음 → 모든 주문을 실거래로 간주**. 안전장치(§6)는 타협 불가.
 
-> 매 반복에서 주문/계좌 관련 스키마를 다룰 때는 추측하지 말고
-> `https://openapi.tossinvest.com/openapi-docs/latest/openapi.json` 의 실제 스키마를 확인해 검증한다.
+> 스키마를 다룰 때는 추측하지 말고 `https://openapi.tossinvest.com/openapi-docs/latest/openapi.json`
+> 의 실제 정의를 확인해 검증한다 — **모든 엔드포인트의 요청/응답**, 특히 토큰 응답의 만료 필드,
+> 목록 엔드포인트(holdings·orders·stocks)의 페이지네이션, 캔들 조회의 기간/개수 한계를 포함한다.
 
 ---
 
@@ -94,9 +98,9 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 - 인증 토큰 발급/캐싱/갱신 모듈 (단위 테스트로 만료·갱신 검증).
 - `accounts` → `holdings` → `prices`/`exchange-rate` 조합으로 포트폴리오 요약(총평가액·총손익·일간손익·종목별 비중).
 - 주문내역(`orders`) 조회 뷰. 시세(현재가·호가·캔들 차트) 뷰.
-- rate-limit 준수 폴링 + 429 백오프.
+- rate-limit 준수 폴링 + 429 백오프. 폴링 주기는 `market-calendar`로 장 운영을 반영해 **폐장·휴장 시 완화/중단**한다.
 - **종료 조건**:
-  - [ ] mock 계약 테스트로 모든 GET 엔드포인트 클라이언트 통과
+  - [ ] mock 계약 테스트로 모든 GET 엔드포인트 클라이언트 통과(다중 페이지 케이스 포함)
   - [ ] 시크릿이 클라이언트 번들에 없음(빌드 산출물 grep으로 검증하는 테스트)
   - [ ] 대시보드가 포트폴리오 요약·보유종목·주문내역·시세를 렌더(Playwright)
   - [ ] lint·typecheck·test·build 전부 green
@@ -118,6 +122,7 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 - 전략 모듈은 시세·보유·주문정보를 입력받아 **주문 의도(intent)** 를 산출(순수 함수, 결정적, 테스트 용이).
 - 실행기(executor)는 의도를 §6 한도 안에서만 주문으로 변환. 한도 초과·kill switch ON이면 거부+기록.
 - 모든 자동 결정에 대한 감사 로그(audit log): 입력 스냅샷·의도·실행/거부 사유.
+- 백테스트는 `candles`의 과거 데이터 기간/개수 한계를 먼저 확인하고, 부족하면 **합성 데이터 우선**으로 검증 범위를 정한다.
 - **종료 조건**:
   - [ ] 백테스트/시뮬레이션 하네스로 전략을 과거·합성 데이터에 대해 결정적으로 검증
   - [ ] 한도 위반·kill switch 시 실행 거부됨을 증명하는 테스트
@@ -147,23 +152,34 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 | UX | 대시보드가 의도한 정보를 명확히 보여주나 | ≥3 |
 | Code quality | 외과적 변경·작은 단위·중복 없음·읽기 쉬움 | ≥4 |
 
+> **근거 필수(grade inflation 방지)**: 각 축 점수는 `EVAL.md`에 근거(게이트 출력·테스트 ID·grep 결과·Playwright 결과)를 함께 적는다. 근거 없는 점수는 **무효(0점 처리)**이며 그 반복은 완료로 보지 않는다.
+
 ### 5.3 반복 절차 (의사코드)
 ```
-read(PROGRESS.md, EVAL.md)                 # 현재 위치 + 직전 개선 항목
-pick = smallest_increment_toward(current_phase_exit_criteria)
+reload(this_prompt_file, PROGRESS.md, EVAL.md)   # 1단계: 이 파일·상태파일을 매 반복 Read로 재로드
+pick = next_unfinished_exit_criterion(current_phase, order=dependency_topological)  # 미완료 종료조건을 의존성 순서로
 write_failing_test(pick); implement(pick); make_test_pass()
-run_objective_gates()                      # 실패 시 근본원인 수정 후 재실행
-scores = self_critique(rubric)             # §5.2
-append(EVAL.md, {iteration, pick, scores, lowest_axis, next_action})
-update(PROGRESS.md, {done, in_progress, next})
-if all(current_phase_exit_criteria) and all(scores >= targets): advance_phase()
+run_objective_gates()                      # 실패 시 근본원인 수정 후 재실행 (§5.5 회로차단기 적용)
+scores = self_critique(rubric)             # §5.2 — 각 점수에 근거(게이트 출력/테스트 ID/grep) 필수
+append(EVAL.md, {iteration, pick, scores+evidence, lowest_axis, next_action})  # append-only
+update(PROGRESS.md, {done, in_progress, next})   # 현재 상태만
+if scores.Safety < 5 or scores.Security < 5:
+    advance 금지; 해당 결함을 즉시 다음 pick으로 강제
+elif all(current_phase_exit_criteria) and all(scores >= targets):
+    advance_phase()
 ```
 
 ### 5.4 상태 파일 포맷
-**`PROGRESS.md`** — 현재 Phase, 완료 항목 체크리스트, 진행 중 항목, 다음 항목, 확정된 아키텍처 결정.
-**`EVAL.md`** — 반복별 한 줄 로그: `#N | phase | 한 일 | 점수(6축) | 최저축 | 다음 개선`.
+**`PROGRESS.md`** (현재 상태만) — 현재 Phase, 완료 항목 체크리스트, 진행 중 항목, 다음 항목, 확정된 아키텍처 결정. 과거 시행착오는 누적하지 않는다.
+**`EVAL.md`** (append-only 이력) — 반복별 한 줄 로그: `#N | phase | 한 일 | 점수+근거(6축) | 최저축 | 다음 개선`. 회로차단기(§5.5)가 정체·반복 실패를 감지하려면 이력이 필요하므로 **덮어쓰지 않고 누적**한다.
 
-> 두 파일은 루프의 메모리다. 매 반복 **반드시 먼저 읽고, 끝에 갱신**한다. 과거 시행착오는 누적하지 말고 현재 상태만 기록한다.
+> 두 파일은 루프의 메모리다. 매 반복 **반드시 먼저 읽고, 끝에 갱신**한다.
+
+### 5.5 회로차단기 (루프가 막혔을 때 — 무한루프/오실레이션 방지)
+- **동일 pick에서 객관 게이트 3회 연속 실패** → 중단하고 사람에게 원인·시도 내역 보고.
+- **최저축 점수가 3회 연속 정체/하락** → 접근이 틀렸다고 보고 중단·보고.
+- **한 Phase의 누적 반복이 비정상적으로 많음**(예: 종료조건 항목 수 × 5 초과) → 중단·보고.
+- 중단 시 `EVAL.md`에 사유를 남기고 루프를 멈춘다. **막혔는데 같은 시도를 반복하지 않는다.**
 
 ---
 
@@ -171,16 +187,16 @@ if all(current_phase_exit_criteria) and all(scores >= targets): advance_phase()
 
 실거래 계좌 = 실제 돈. 모의투자 모드가 없으므로 코드 레벨에서 막는다.
 
+> **불변식(메타 가드)**: 이 §6의 안전 상수(DRY_RUN 기본값·한도·kill switch)와 관련 테스트는 루프가 **임의로 변경·완화·skip할 수 없다.** 변경하려면 사람의 명시적 승인이 필요하고, 안전 관련 파일의 변경이 감지되면 반복을 중단하고 보고한다. **종료 압박을 이유로 안전장치를 낮춰 게이트를 통과시키는 것은 금지**된다.
+
 1. **DRY_RUN 기본값 = true**. 환경변수로만 끌 수 있고, 끄려면 추가로 §6.2 확인 게이트를 통과해야 한다.
-2. **실주문 확인 게이트**: 모든 실제 `POST /orders*` 는
-   - (a) `DRY_RUN=false` **그리고**
-   - (b) 명시적 확인 토큰(예: 사람이 입력한 확인값 / 명시 flag) **그리고**
-   - (c) 한도 검사 통과
-   세 가지가 모두 참일 때만 전송. 하나라도 거짓이면 dry-run으로 강등하고 기록.
+2. **실주문 확인 게이트**: 모든 실제 `POST /orders*` 는 (a) `DRY_RUN=false` **그리고** (b) 승인 **그리고** (c) 한도 검사 통과일 때만 전송. 하나라도 거짓이면 dry-run으로 강등하고 기록.
+   - **수동거래(Phase 2)**: (b)는 *주문 단위로 사람이 입력하는* 확인값.
+   - **자동거래(Phase 3)**: (b)는 사람이 사전에 out-of-band로 부여한 활성화 승인 + §6.3 한도 + §6.4 kill switch로 갈음한다(주문 단위 사람 확인은 생략). 단, **에이전트가 자기 자신에게 확인 토큰/승인을 발급하는 것은 절대 금지**.
 3. **하드 리밋** (환경변수/설정): 1회 최대 주문금액, 일일 누적 주문/손실 한도, 종목당 최대 포지션 비중.
 4. **Kill switch**: ON이면 모든 실주문 경로 즉시 차단(자동거래 포함). 테스트로 증명.
 5. **고액 주문**: 1억원 이상은 명시적 `confirmHighValueOrder=true` 없이는 전송 금지.
-6. **멱등성**: `clientOrderId`로 중복 주문 방지(`request-in-progress`/`already-*` 처리).
+6. **멱등성**: `clientOrderId`로 중복 주문 방지(`request-in-progress`/`already-*` 처리). **dry-run으로 강등된 시도는 `clientOrderId`를 발급·소비하지 않는다**(이후 실주문 재시도 시 오판 방지).
 7. **감사 로그**: 모든 주문 시도(전송/강등/거부)를 입력·사유와 함께 남긴다. 단, 시크릿·PII 제외.
 
 ---
