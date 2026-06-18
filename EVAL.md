@@ -44,3 +44,23 @@
 
 **최저축**: UX(2) — 데이터 계층 이후 단계라 정상. active pick은 아님(회로차단기 대상 아님).
 **다음 개선(next pick #3)**: Next API 프록시 라우트 4종 + SWR 훅 + 시크릿 번들 grep 회귀 테스트(종료조건 2).
+
+---
+
+## #3 | phase1 | Next API 프록시 라우트 4종 + 컨테이너 + 시크릿 번들 회귀 가드 + 라우트 테스트
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0
+- test exit 0 → vitest **Test Files 6 passed, Tests 48 passed**(신규 11: accounts3·holdings4·prices2·exrate2)
+- build exit 0 → ✓ Compiled successfully + `check-bundle-secrets: scanned 19 client bundle file(s), no forbidden strings found.`
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — 프록시 라우트 4종 + 컨테이너 + 번들 가드. 근거: 48 tests, 라우트 4개 모두 Dynamic, 가드 19파일 스캔.
+- API 정합성 **5** — 기존 타입드 엔드포인트 재사용, `TossApiError`→upstream status 매핑, 쿼리 zod 검증. 근거: 라우트 테스트가 status 매핑·필수쿼리 400·인자 전달 단언.
+- Safety **5** — 주문 코드 여전히 없음. 근거: GET 전용 라우트.
+- Security **5** — **종료조건 2 달성**(번들 가드 build 결합, 클린). 에러 본문 sanitize(unknown→500 generic, 스택/시크릿 미노출), 컨테이너 server-only. 근거: 가드 "no forbidden strings" + handleError 강등 + 주입 self-test로 가드 exit1 확인.
+- UX **2** — UI 없음(스캐폴드 기본 page). 근거: app/page.tsx 기본값. **3회 연속 2점이나 의도적 후순위**(데이터/경계 먼저). #4가 직접 UX 대상 — #4 후에도 미상승 시 회로차단기 발동.
+- Code quality **5** — respond.ts 헬퍼 분리, 기존 파일은 package.json build 한 줄만 수정(외과적). 근거: builder 수정 1줄.
+
+**최저축**: UX(2). **추세 경고: #1~#3 UX=2 정체** → 단, 다음 pick(#4)이 정확히 이 축을 해소하는 UI 이터레이션이므로 계획된 시퀀싱. #4 종료 후 UX 미상승 시 회로차단기(접근 재검토).
+**다음 개선(next pick #4)**: 포트폴리오 요약 대시보드 UI + SWR 훅 + Playwright 렌더 테스트(종료조건 3, UX↑).
