@@ -109,3 +109,23 @@
 **최저축**: UX(4) — 목표 충족. 회로차단기 비대상.
 **정직한 한계**: CLOSED 미지원으로 체결완료 주문 조회 불가(OPEN만). 렌더는 jsdom 컴포넌트 테스트, 풀 브라우저 E2E는 #8 보류.
 **다음 개선(next pick #6)**: 시세 GET(orderbook/trades/price-limits/candles) 클라이언트 + 라우트 + 계약 테스트(`MARKET_DATA_CHART:5` 그룹 추가).
+
+---
+
+## #6 | phase1 | 시세 GET 4종(orderbook/trades/price-limits/candles) + 라우트 + 계약 테스트 (데이터 계층)
+
+**객관 게이트(메인 에이전트 직접 재실행 — 근거, 전부 exit 0):**
+- lint exit 0 / typecheck exit 0
+- test exit 0 → vitest **Test Files 10 passed, Tests 110 passed**(신규 23)
+- build exit 0 → ✓ Compiled + `/api/{orderbook,trades,price-limits,candles}` Dynamic + `scanned 25 ... no forbidden strings`
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — 시세 4종 클라이언트+라우트, MARKET_DATA_CHART 그룹. GET 계약 10/16. 근거: 110 tests, 라우트 빌드.
+- API 정합성 **5** — openapi ground truth(symbol required, candle interval 1m/1d, before/nextBefore 페이지, price-limits null 상하한가), decimal 문자열·openEnum. 근거: 계약 테스트.
+- Safety **5** — 주문 POST 없음. 근거: GET only.
+- Security **5** — 번들 가드 25파일 클린. 근거: 가드 클린.
+- UX **4** — 이번엔 UI 미추가(데이터 계층 전용), 4 유지. 근거: 컴포넌트 변경 없음. (#7 시세 UI에서 상승 예정)
+- Code quality **5** — 외과적 추가(rate-limiter union/스키마/엔드포인트/라우트), groupHarness 테스트 헬퍼. 근거: 기존 파일 확장만.
+
+**최저축**: UX(4) — 목표 충족. UX 4→4(데이터 계층 이터라 의도적 정체, #7이 UI). 회로차단기 비대상.
+**다음 개선(next pick #7)**: 시세 대시보드 섹션(심볼 선택 → 현재가/상하한가/호가/캔들 차트) + SWR 훅 + 차트 컴포넌트 + 렌더 테스트.

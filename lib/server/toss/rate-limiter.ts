@@ -9,6 +9,7 @@ export type RateLimitGroup =
   | "ACCOUNT"
   | "ASSET"
   | "MARKET_DATA"
+  | "MARKET_DATA_CHART"
   | "MARKET_INFO"
   | "ORDER_HISTORY";
 
@@ -17,6 +18,7 @@ export const GROUP_TPS: Record<RateLimitGroup, number> = {
   ACCOUNT: 1,
   ASSET: 5,
   MARKET_DATA: 10,
+  MARKET_DATA_CHART: 5,
   MARKET_INFO: 3,
   ORDER_HISTORY: 5,
 };

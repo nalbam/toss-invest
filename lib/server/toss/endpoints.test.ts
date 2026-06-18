@@ -3,11 +3,15 @@ import type { TokenProvider } from "@/lib/server/toss/auth";
 import { createTossClient, TossApiError } from "@/lib/server/toss/client";
 import {
   getAccounts,
+  getCandles,
   getExchangeRate,
   getHoldings,
   getOrder,
+  getOrderbook,
   getOrders,
+  getPriceLimits,
   getPrices,
+  getTrades,
 } from "@/lib/server/toss/endpoints";
 
 const BASE_URL = "https://openapi.tossinvest.com";
@@ -197,6 +201,243 @@ describe("getPrices", () => {
 
     const prices = await getPrices(client, { symbols: ["7203"] });
     expect(prices[0].currency).toBe("JPY");
+  });
+});
+
+// --- orderbook --------------------------------------------------------------
+
+/**
+ * Like `harness` but captures the rate-limit group passed to each acquire so
+ * the market-data contract tests can assert the correct TPS budget is used.
+ */
+function groupHarness(responses: Response[]) {
+  const queue = [...responses];
+  const fetchFn = vi.fn(async () => {
+    const next = queue.shift();
+    if (!next) throw new Error("unexpected extra fetch call");
+    return next;
+  });
+  const groups: string[] = [];
+  const client = createTossClient({
+    tokenProvider,
+    fetchFn,
+    now: () => 0,
+    sleep: vi.fn(async () => {}),
+    rateLimiter: {
+      acquire: async (group) => {
+        groups.push(group);
+        return 0;
+      },
+    },
+    baseUrl: BASE_URL,
+    random: () => 0,
+  });
+  return { fetchFn, client, groups };
+}
+
+describe("getOrderbook", () => {
+  const orderbook = {
+    timestamp: "2026-03-25T09:30:00.123+09:00",
+    currency: "KRW",
+    asks: [
+      { price: "72100", volume: "10" },
+      { price: "72200", volume: "5" },
+    ],
+    bids: [{ price: "72000", volume: "12.5" }],
+  };
+
+  it("sends symbol, no account header, uses MARKET_DATA, and preserves decimals", async () => {
+    const { fetchFn, client, groups } = groupHarness([
+      jsonResponse({ result: orderbook }),
+    ]);
+
+    const result = await getOrderbook(client, { symbol: "005930" });
+
+    const { url, headers } = lastRequest(fetchFn);
+    expect(url.pathname).toBe("/api/v1/orderbook");
+    expect(url.searchParams.get("symbol")).toBe("005930");
+    expect(headers["x-tossinvest-account"]).toBeUndefined();
+    expect(groups).toEqual(["MARKET_DATA"]);
+    expect(result.asks[0]).toEqual({ price: "72100", volume: "10" });
+    expect(result.bids[0].volume).toBe("12.5");
+    expect(typeof result.asks[0].price).toBe("string");
+  });
+
+  it("accepts a null timestamp and an unknown currency", async () => {
+    const { client } = groupHarness([
+      jsonResponse({
+        result: { ...orderbook, timestamp: null, currency: "JPY" },
+      }),
+    ]);
+
+    const result = await getOrderbook(client, { symbol: "7203" });
+    expect(result.timestamp).toBeNull();
+    expect(result.currency).toBe("JPY");
+  });
+});
+
+// --- trades -----------------------------------------------------------------
+
+describe("getTrades", () => {
+  const trades = [
+    {
+      price: "72000",
+      volume: "3",
+      timestamp: "2026-03-25T09:30:00.100+09:00",
+      currency: "KRW",
+    },
+    {
+      price: "72100",
+      volume: "1.5",
+      timestamp: "2026-03-25T09:30:01.200+09:00",
+      currency: "KRW",
+    },
+  ];
+
+  it("sends symbol, uses MARKET_DATA, and preserves decimal strings", async () => {
+    const { fetchFn, client, groups } = groupHarness([
+      jsonResponse({ result: trades }),
+    ]);
+
+    const result = await getTrades(client, { symbol: "005930" });
+
+    const { url, headers } = lastRequest(fetchFn);
+    expect(url.pathname).toBe("/api/v1/trades");
+    expect(url.searchParams.get("symbol")).toBe("005930");
+    expect(url.searchParams.has("count")).toBe(false);
+    expect(headers["x-tossinvest-account"]).toBeUndefined();
+    expect(groups).toEqual(["MARKET_DATA"]);
+    expect(result).toHaveLength(2);
+    expect(result[0].price).toBe("72000");
+    expect(result[1].volume).toBe("1.5");
+  });
+
+  it("forwards the count query when provided", async () => {
+    const { fetchFn, client } = groupHarness([jsonResponse({ result: [] })]);
+
+    await getTrades(client, { symbol: "005930", count: 50 });
+
+    const { url } = lastRequest(fetchFn);
+    expect(url.searchParams.get("count")).toBe("50");
+  });
+});
+
+// --- price-limits -----------------------------------------------------------
+
+describe("getPriceLimits", () => {
+  it("sends symbol, uses MARKET_DATA, and preserves decimal limit strings", async () => {
+    const { fetchFn, client, groups } = groupHarness([
+      jsonResponse({
+        result: {
+          timestamp: "2026-03-25T09:30:00+09:00",
+          upperLimitPrice: "93600",
+          lowerLimitPrice: "50400",
+          currency: "KRW",
+        },
+      }),
+    ]);
+
+    const result = await getPriceLimits(client, { symbol: "005930" });
+
+    const { url, headers } = lastRequest(fetchFn);
+    expect(url.pathname).toBe("/api/v1/price-limits");
+    expect(url.searchParams.get("symbol")).toBe("005930");
+    expect(headers["x-tossinvest-account"]).toBeUndefined();
+    expect(groups).toEqual(["MARKET_DATA"]);
+    expect(result.upperLimitPrice).toBe("93600");
+    expect(result.lowerLimitPrice).toBe("50400");
+  });
+
+  it("accepts null upper/lower limits (e.g. US markets) and unknown currency", async () => {
+    const { client } = groupHarness([
+      jsonResponse({
+        result: {
+          timestamp: "2026-03-25T13:30:00Z",
+          upperLimitPrice: null,
+          lowerLimitPrice: null,
+          currency: "USD",
+        },
+      }),
+    ]);
+
+    const result = await getPriceLimits(client, { symbol: "AAPL" });
+    expect(result.upperLimitPrice).toBeNull();
+    expect(result.lowerLimitPrice).toBeNull();
+    expect(result.currency).toBe("USD");
+  });
+});
+
+// --- candles ----------------------------------------------------------------
+
+describe("getCandles", () => {
+  const candlePage = {
+    candles: [
+      {
+        timestamp: "2026-03-25T09:30:00+09:00",
+        openPrice: "72000",
+        highPrice: "72500",
+        lowPrice: "71800",
+        closePrice: "72300",
+        volume: "12345.5",
+        currency: "KRW",
+      },
+    ],
+    nextBefore: "2026-03-25T09:29:00+09:00",
+  };
+
+  it("sends symbol + interval, uses MARKET_DATA_CHART, and preserves OHLCV strings", async () => {
+    const { fetchFn, client, groups } = groupHarness([
+      jsonResponse({ result: candlePage }),
+    ]);
+
+    const result = await getCandles(client, {
+      symbol: "005930",
+      interval: "1d",
+    });
+
+    const { url, headers } = lastRequest(fetchFn);
+    expect(url.pathname).toBe("/api/v1/candles");
+    expect(url.searchParams.get("symbol")).toBe("005930");
+    expect(url.searchParams.get("interval")).toBe("1d");
+    expect(url.searchParams.has("count")).toBe(false);
+    expect(url.searchParams.has("before")).toBe(false);
+    expect(url.searchParams.has("adjusted")).toBe(false);
+    expect(headers["x-tossinvest-account"]).toBeUndefined();
+    expect(groups).toEqual(["MARKET_DATA_CHART"]);
+    expect(result.candles[0].openPrice).toBe("72000");
+    expect(result.candles[0].volume).toBe("12345.5");
+    expect(typeof result.candles[0].closePrice).toBe("string");
+  });
+
+  it("forwards count, before, and adjusted; exposes the nextBefore cursor", async () => {
+    const { fetchFn, client } = groupHarness([
+      jsonResponse({ result: candlePage }),
+    ]);
+
+    const result = await getCandles(client, {
+      symbol: "005930",
+      interval: "1m",
+      count: 200,
+      before: "2026-03-25T09:30:00+09:00",
+      adjusted: true,
+    });
+
+    const { url } = lastRequest(fetchFn);
+    expect(url.searchParams.get("interval")).toBe("1m");
+    expect(url.searchParams.get("count")).toBe("200");
+    expect(url.searchParams.get("before")).toBe("2026-03-25T09:30:00+09:00");
+    expect(url.searchParams.get("adjusted")).toBe("true");
+    expect(result.nextBefore).toBe("2026-03-25T09:29:00+09:00");
+  });
+
+  it("accepts a null nextBefore on the final page", async () => {
+    const { client } = groupHarness([
+      jsonResponse({ result: { candles: [], nextBefore: null } }),
+    ]);
+
+    const result = await getCandles(client, { symbol: "005930", interval: "1d" });
+    expect(result.candles).toEqual([]);
+    expect(result.nextBefore).toBeNull();
   });
 });
 

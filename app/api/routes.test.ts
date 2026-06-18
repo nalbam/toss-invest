@@ -7,6 +7,10 @@ const facade = {
   getAccounts: vi.fn(),
   getHoldings: vi.fn(),
   getPrices: vi.fn(),
+  getOrderbook: vi.fn(),
+  getTrades: vi.fn(),
+  getPriceLimits: vi.fn(),
+  getCandles: vi.fn(),
   getExchangeRate: vi.fn(),
   getOrders: vi.fn(),
   getOrder: vi.fn(),
@@ -19,6 +23,10 @@ vi.mock("@/lib/server/toss/container", () => ({
 import { GET as accountsGET } from "@/app/api/accounts/route";
 import { GET as holdingsGET } from "@/app/api/holdings/route";
 import { GET as pricesGET } from "@/app/api/prices/route";
+import { GET as orderbookGET } from "@/app/api/orderbook/route";
+import { GET as tradesGET } from "@/app/api/trades/route";
+import { GET as priceLimitsGET } from "@/app/api/price-limits/route";
+import { GET as candlesGET } from "@/app/api/candles/route";
 import { GET as exchangeRateGET } from "@/app/api/exchange-rate/route";
 import { GET as ordersGET } from "@/app/api/orders/route";
 import { GET as orderGET } from "@/app/api/orders/[orderId]/route";
@@ -173,6 +181,218 @@ describe("GET /api/prices", () => {
     const body = await res.json();
     expect(body.error.code).toBe("invalid-request");
     expect(facade.getPrices).not.toHaveBeenCalled();
+  });
+});
+
+// --- orderbook --------------------------------------------------------------
+
+describe("GET /api/orderbook", () => {
+  const orderbook = { timestamp: null, currency: "KRW", asks: [], bids: [] };
+
+  it("forwards the symbol and returns 200", async () => {
+    facade.getOrderbook.mockResolvedValue(orderbook);
+
+    const res = await orderbookGET(
+      req("http://localhost/api/orderbook?symbol=005930"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: orderbook });
+    expect(facade.getOrderbook).toHaveBeenCalledWith({ symbol: "005930" });
+  });
+
+  it("returns 400 when symbol is missing", async () => {
+    const res = await orderbookGET(req("http://localhost/api/orderbook"));
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid-request");
+    expect(facade.getOrderbook).not.toHaveBeenCalled();
+  });
+
+  it("maps an upstream TossApiError to its status", async () => {
+    facade.getOrderbook.mockRejectedValue(
+      new TossApiError({
+        status: 404,
+        code: "symbol-not-found",
+        message: "symbol not found",
+        requestId: "req-1",
+      }),
+    );
+
+    const res = await orderbookGET(
+      req("http://localhost/api/orderbook?symbol=XXXX"),
+    );
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error.code).toBe("symbol-not-found");
+  });
+
+  it("maps an unknown error to a generic 500 without leaking secrets", async () => {
+    facade.getOrderbook.mockRejectedValue(
+      new Error(`boom containing ${SECRET}`),
+    );
+
+    const res = await orderbookGET(
+      req("http://localhost/api/orderbook?symbol=005930"),
+    );
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error.code).toBe("internal-error");
+    expect(JSON.stringify(body)).not.toContain(SECRET);
+  });
+});
+
+// --- trades -----------------------------------------------------------------
+
+describe("GET /api/trades", () => {
+  it("forwards the symbol and count and returns 200", async () => {
+    const trades = [
+      { price: "72000", volume: "3", timestamp: "t", currency: "KRW" },
+    ];
+    facade.getTrades.mockResolvedValue(trades);
+
+    const res = await tradesGET(
+      req("http://localhost/api/trades?symbol=005930&count=50"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: trades });
+    expect(facade.getTrades).toHaveBeenCalledWith({
+      symbol: "005930",
+      count: 50,
+    });
+  });
+
+  it("omits count when not provided", async () => {
+    facade.getTrades.mockResolvedValue([]);
+
+    const res = await tradesGET(
+      req("http://localhost/api/trades?symbol=005930"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(facade.getTrades).toHaveBeenCalledWith({
+      symbol: "005930",
+      count: undefined,
+    });
+  });
+
+  it("returns 400 when symbol is missing", async () => {
+    const res = await tradesGET(req("http://localhost/api/trades?count=10"));
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid-request");
+    expect(facade.getTrades).not.toHaveBeenCalled();
+  });
+});
+
+// --- price-limits -----------------------------------------------------------
+
+describe("GET /api/price-limits", () => {
+  const limits = {
+    timestamp: "t",
+    upperLimitPrice: null,
+    lowerLimitPrice: null,
+    currency: "USD",
+  };
+
+  it("forwards the symbol and returns 200", async () => {
+    facade.getPriceLimits.mockResolvedValue(limits);
+
+    const res = await priceLimitsGET(
+      req("http://localhost/api/price-limits?symbol=AAPL"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: limits });
+    expect(facade.getPriceLimits).toHaveBeenCalledWith({ symbol: "AAPL" });
+  });
+
+  it("returns 400 when symbol is missing", async () => {
+    const res = await priceLimitsGET(
+      req("http://localhost/api/price-limits"),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid-request");
+    expect(facade.getPriceLimits).not.toHaveBeenCalled();
+  });
+});
+
+// --- candles ----------------------------------------------------------------
+
+describe("GET /api/candles", () => {
+  const page = { candles: [], nextBefore: null };
+
+  it("forwards symbol + interval and returns 200", async () => {
+    facade.getCandles.mockResolvedValue(page);
+
+    const res = await candlesGET(
+      req("http://localhost/api/candles?symbol=005930&interval=1d"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: page });
+    expect(facade.getCandles).toHaveBeenCalledWith({
+      symbol: "005930",
+      interval: "1d",
+      count: undefined,
+      before: undefined,
+      adjusted: undefined,
+    });
+  });
+
+  it("coerces count and adjusted and forwards before", async () => {
+    facade.getCandles.mockResolvedValue(page);
+
+    const res = await candlesGET(
+      req(
+        "http://localhost/api/candles?symbol=005930&interval=1m&count=200&before=2026-03-25T09:30:00%2B09:00&adjusted=true",
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    expect(facade.getCandles).toHaveBeenCalledWith({
+      symbol: "005930",
+      interval: "1m",
+      count: 200,
+      before: "2026-03-25T09:30:00+09:00",
+      adjusted: true,
+    });
+  });
+
+  it("returns 400 when interval is missing", async () => {
+    const res = await candlesGET(
+      req("http://localhost/api/candles?symbol=005930"),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid-request");
+    expect(facade.getCandles).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for an invalid interval", async () => {
+    const res = await candlesGET(
+      req("http://localhost/api/candles?symbol=005930&interval=5m"),
+    );
+
+    expect(res.status).toBe(400);
+    expect(facade.getCandles).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when symbol is missing", async () => {
+    const res = await candlesGET(
+      req("http://localhost/api/candles?interval=1d"),
+    );
+
+    expect(res.status).toBe(400);
+    expect(facade.getCandles).not.toHaveBeenCalled();
   });
 });
 

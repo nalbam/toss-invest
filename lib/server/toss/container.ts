@@ -5,24 +5,36 @@ import { createTossClient, type TossClient } from "@/lib/server/toss/client";
 import { createRateLimiter } from "@/lib/server/toss/rate-limiter";
 import {
   getAccounts,
+  getCandles,
   getExchangeRate,
   getHoldings,
   getOrder,
+  getOrderbook,
   getOrders,
+  getPriceLimits,
   getPrices,
+  getTrades,
+  type GetCandlesParams,
   type GetExchangeRateParams,
   type GetHoldingsParams,
   type GetOrderParams,
+  type GetOrderbookParams,
   type GetOrdersParams,
+  type GetPriceLimitsParams,
   type GetPricesParams,
+  type GetTradesParams,
 } from "@/lib/server/toss/endpoints";
 import type {
   Account,
+  CandlePageResponse,
   ExchangeRateResponse,
   HoldingsOverview,
   Order,
+  OrderbookResponse,
   PaginatedOrderResponse,
+  PriceLimitResponse,
   PriceResponse,
+  Trade,
 } from "@/lib/server/toss/schemas";
 
 /**
@@ -34,6 +46,10 @@ export interface ServerTossClient {
   getAccounts(): Promise<Account[]>;
   getHoldings(params: GetHoldingsParams): Promise<HoldingsOverview>;
   getPrices(params: GetPricesParams): Promise<PriceResponse[]>;
+  getOrderbook(params: GetOrderbookParams): Promise<OrderbookResponse>;
+  getTrades(params: GetTradesParams): Promise<Trade[]>;
+  getPriceLimits(params: GetPriceLimitsParams): Promise<PriceLimitResponse>;
+  getCandles(params: GetCandlesParams): Promise<CandlePageResponse>;
   getExchangeRate(
     params: GetExchangeRateParams,
   ): Promise<ExchangeRateResponse>;
@@ -80,6 +96,10 @@ export function getServerTossClient(): ServerTossClient {
       getAccounts: () => getAccounts(client),
       getHoldings: (params) => getHoldings(client, params),
       getPrices: (params) => getPrices(client, params),
+      getOrderbook: (params) => getOrderbook(client, params),
+      getTrades: (params) => getTrades(client, params),
+      getPriceLimits: (params) => getPriceLimits(client, params),
+      getCandles: (params) => getCandles(client, params),
       getExchangeRate: (params) => getExchangeRate(client, params),
       getOrders: (params) => getOrders(client, params),
       getOrder: (params) => getOrder(client, params),

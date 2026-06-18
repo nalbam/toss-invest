@@ -159,6 +159,63 @@ export type PriceResponse = z.infer<typeof priceResponseSchema>;
 
 export const pricesResultSchema = z.array(priceResponseSchema);
 
+// --- orderbook --------------------------------------------------------------
+
+export const orderbookEntrySchema = z.object({
+  price: decimal,
+  volume: decimal,
+});
+export type OrderbookEntry = z.infer<typeof orderbookEntrySchema>;
+
+export const orderbookResponseSchema = z.object({
+  timestamp: z.string().nullable(),
+  currency: currencySchema,
+  asks: z.array(orderbookEntrySchema),
+  bids: z.array(orderbookEntrySchema),
+});
+export type OrderbookResponse = z.infer<typeof orderbookResponseSchema>;
+
+// --- trades -----------------------------------------------------------------
+
+export const tradeSchema = z.object({
+  price: decimal,
+  volume: decimal,
+  timestamp: z.string(),
+  currency: currencySchema,
+});
+export type Trade = z.infer<typeof tradeSchema>;
+
+export const tradesResultSchema = z.array(tradeSchema);
+
+// --- price-limits -----------------------------------------------------------
+
+export const priceLimitResponseSchema = z.object({
+  timestamp: z.string(),
+  upperLimitPrice: decimal.nullable(),
+  lowerLimitPrice: decimal.nullable(),
+  currency: currencySchema,
+});
+export type PriceLimitResponse = z.infer<typeof priceLimitResponseSchema>;
+
+// --- candles ----------------------------------------------------------------
+
+export const candleSchema = z.object({
+  timestamp: z.string(),
+  openPrice: decimal,
+  highPrice: decimal,
+  lowPrice: decimal,
+  closePrice: decimal,
+  volume: decimal,
+  currency: currencySchema,
+});
+export type Candle = z.infer<typeof candleSchema>;
+
+export const candlePageResponseSchema = z.object({
+  candles: z.array(candleSchema),
+  nextBefore: z.string().nullable(),
+});
+export type CandlePageResponse = z.infer<typeof candlePageResponseSchema>;
+
 // --- exchange-rate ----------------------------------------------------------
 
 export const exchangeRateResponseSchema = z.object({
