@@ -1,0 +1,41 @@
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows shortcuts
+*.lnk
+
+# Mac
+.DS_Store
+
+# Maven
+target/
+build/
+
+# JetBrains
+.idea/
+*.iml
+
+# tmp
+gh-pages/
+build-alpha.sh
+
+# build
+build/
+target/
+
+# backup files
+*.bak
+*.backup
+
+# claude
+.claude/
+.prompt.md
+prompt.md
+docs/plans/
