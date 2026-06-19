@@ -112,6 +112,6 @@ describe("HoldingsTable", () => {
 
   it("renders non-interactive symbol cells when no onSelectSymbol is given", () => {
     render(<HoldingsTable items={[samsung]} />);
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /삼성전자/ })).not.toBeInTheDocument();
   });
 });

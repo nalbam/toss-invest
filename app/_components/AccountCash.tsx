@@ -6,6 +6,7 @@ import {
   formatUsd,
   mulDecimalStrings,
 } from "@/lib/client/format";
+import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import styles from "./dashboard.module.css";
 
@@ -44,8 +45,7 @@ export function AccountCash({
     : null;
 
   return (
-    <section className={styles.card} aria-label="주문 가능 금액">
-      <h2 className={styles.cardTitle}>주문 가능 금액</h2>
+    <CollapsibleCard title="주문 가능 금액" storageId="account-cash">
       <div className={styles.summaryGrid}>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>총 주문가능 (원화 환산)</span>
@@ -81,6 +81,6 @@ export function AccountCash({
           {indicator.label}
         </span>
       </div>
-    </section>
+    </CollapsibleCard>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ApiClientError, cancelOrder } from "@/lib/client/hooks";
 import type { CancelOrderResult, Order } from "@/lib/client/types";
 import { formatDecimal, formatKrw, formatUsd } from "@/lib/client/format";
+import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import { ModifyOrderForm } from "./ModifyOrderForm";
 import styles from "./dashboard.module.css";
@@ -60,16 +61,14 @@ export function OrdersTable({
 }) {
   if (orders.length === 0) {
     return (
-      <section className={styles.card} aria-label="주문 내역 (대기 중)">
-        <h2 className={styles.cardTitle}>주문 내역 (대기 중)</h2>
+      <CollapsibleCard title="주문 내역 (대기 중)" storageId="orders">
         <p className={styles.empty}>주문 없음</p>
-      </section>
+      </CollapsibleCard>
     );
   }
 
   return (
-    <section className={styles.card} aria-label="주문 내역 (대기 중)">
-      <h2 className={styles.cardTitle}>주문 내역 (대기 중)</h2>
+    <CollapsibleCard title="주문 내역 (대기 중)" storageId="orders">
       <div className={styles.tableScroll}>
         <table className={styles.table}>
           <thead>
@@ -97,7 +96,7 @@ export function OrdersTable({
           </tbody>
         </table>
       </div>
-    </section>
+    </CollapsibleCard>
   );
 }
 

@@ -148,6 +148,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -171,5 +172,14 @@ describe("Dashboard", () => {
     ).not.toBeInTheDocument();
     // Center order form is prefilled with the selected symbol.
     expect(screen.getByLabelText("종목코드")).toHaveValue("AAPL");
+    expect(window.localStorage.getItem("toss-invest:last-symbol")).toBe("AAPL");
+  });
+
+  it("restores the last selected holding when it is still present", async () => {
+    window.localStorage.setItem("toss-invest:last-symbol", "AAPL");
+
+    render(<Dashboard />);
+
+    expect(await screen.findByText("Apple (AAPL)")).toBeInTheDocument();
   });
 });

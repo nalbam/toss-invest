@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ApiClientError, submitOrder, usePrices } from "@/lib/client/hooks";
 import type { OrderCreateBody, OrderPlaceResult } from "@/lib/client/types";
 import { formatKrw, formatUsd } from "@/lib/client/format";
+import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
@@ -171,9 +172,7 @@ export function OrderForm({
   }
 
   return (
-    <section className={styles.card} aria-label="주문하기">
-      <h2 className={styles.cardTitle}>주문하기</h2>
-
+    <CollapsibleCard title="주문하기" storageId="order-form">
       <div className={styles.orderTabs} role="tablist" aria-label="주문 방식">
         <button
           type="button"
@@ -410,7 +409,7 @@ export function OrderForm({
       </form>
 
       <OrderResult result={result} error={error} />
-    </section>
+    </CollapsibleCard>
   );
 }
 

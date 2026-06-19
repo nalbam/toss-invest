@@ -9,6 +9,7 @@ import {
 } from "@/lib/client/hooks";
 import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
 import { previousClose, priceChange } from "@/lib/client/quote";
+import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import { CandleChart } from "./CandleChart";
 import { Orderbook } from "./Orderbook";
@@ -56,9 +57,7 @@ export function MarketQuote({
   );
 
   return (
-    <section className={styles.card} aria-label="시세">
-      <h2 className={styles.cardTitle}>시세</h2>
-
+    <CollapsibleCard title="시세" storageId="market-quote">
       <div className={styles.quoteRow}>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>
@@ -155,6 +154,6 @@ export function MarketQuote({
       ) : orderbook.data ? (
         <Orderbook book={orderbook.data} />
       ) : null}
-    </section>
+    </CollapsibleCard>
   );
 }

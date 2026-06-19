@@ -1,5 +1,6 @@
 import type { OrderbookResponse } from "@/lib/client/types";
 import { formatDecimal, formatKrw, formatUsd } from "@/lib/client/format";
+import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import styles from "./dashboard.module.css";
 
@@ -18,10 +19,9 @@ export function Orderbook({ book }: { book: OrderbookResponse }) {
 
   if (asks.length === 0 && bids.length === 0) {
     return (
-      <section className={styles.card} aria-label="호가">
-        <h2 className={styles.cardTitle}>호가</h2>
+      <CollapsibleCard title="호가" storageId="orderbook">
         <p className={styles.empty}>호가 정보 없음</p>
-      </section>
+      </CollapsibleCard>
     );
   }
 
@@ -30,8 +30,7 @@ export function Orderbook({ book }: { book: OrderbookResponse }) {
   const displayAsks = [...asks].reverse();
 
   return (
-    <section className={styles.card} aria-label="호가">
-      <h2 className={styles.cardTitle}>호가</h2>
+    <CollapsibleCard title="호가" storageId="orderbook">
       <div className={styles.tableScroll}>
         <table className={styles.table}>
           <thead>
@@ -71,6 +70,6 @@ export function Orderbook({ book }: { book: OrderbookResponse }) {
           </tbody>
         </table>
       </div>
-    </section>
+    </CollapsibleCard>
   );
 }

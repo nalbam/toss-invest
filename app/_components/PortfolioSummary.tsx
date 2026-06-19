@@ -7,6 +7,7 @@ import {
   mulDecimalStrings,
   signOf,
 } from "@/lib/client/format";
+import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import styles from "./dashboard.module.css";
 
@@ -44,8 +45,7 @@ export function PortfolioSummary({
   ].reduce((acc, value) => addDecimalStrings(acc, value), "0");
 
   return (
-    <section className={styles.card} aria-label="포트폴리오 요약">
-      <h2 className={styles.cardTitle}>포트폴리오 요약</h2>
+    <CollapsibleCard title="포트폴리오 요약" storageId="portfolio-summary">
       <div className={styles.summaryGrid}>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>총 자산 (원화 환산)</span>
@@ -94,6 +94,6 @@ export function PortfolioSummary({
           </span>
         </div>
       </div>
-    </section>
+    </CollapsibleCard>
   );
 }

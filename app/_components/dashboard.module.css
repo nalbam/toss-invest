@@ -5,6 +5,10 @@
   background: var(--card-bg);
 }
 
+.cardHeader {
+  margin-bottom: 16px;
+}
+
 /*
  * Toss-WTS-style full-width 3-column layout. The market panel (left) is the
  * widest, the order form (center) is narrow, and the account sidebar (right)
@@ -59,7 +63,38 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-bottom: 16px;
+}
+
+.cardToggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.cardToggleIcon {
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  color: var(--foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .summaryGrid {

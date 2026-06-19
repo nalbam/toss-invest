@@ -6,6 +6,7 @@ import {
   formatUsd,
   signOf,
 } from "@/lib/client/format";
+import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import styles from "./dashboard.module.css";
 
@@ -40,16 +41,14 @@ export function HoldingsTable({
 }) {
   if (items.length === 0) {
     return (
-      <section className={styles.card} aria-label="보유 종목">
-        <h2 className={styles.cardTitle}>보유 종목</h2>
+      <CollapsibleCard title="보유 종목" storageId="holdings">
         <p className={styles.empty}>보유 종목 없음</p>
-      </section>
+      </CollapsibleCard>
     );
   }
 
   return (
-    <section className={styles.card} aria-label="보유 종목">
-      <h2 className={styles.cardTitle}>보유 종목</h2>
+    <CollapsibleCard title="보유 종목" storageId="holdings">
       <div className={styles.tableScroll}>
         <table className={styles.table}>
           <thead>
@@ -132,6 +131,6 @@ export function HoldingsTable({
           </tbody>
         </table>
       </div>
-    </section>
+    </CollapsibleCard>
   );
 }

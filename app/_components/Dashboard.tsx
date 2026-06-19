@@ -10,6 +10,7 @@ import {
   useOrders,
 } from "@/lib/client/hooks";
 import { AccountCash } from "./AccountCash";
+import { CollapsibleCard } from "./CollapsibleCard";
 import { HoldingsTable } from "./HoldingsTable";
 import { MarketQuote } from "./MarketQuote";
 import { OrderForm } from "./OrderForm";
@@ -17,6 +18,24 @@ import { OrdersTable } from "./OrdersTable";
 import { PortfolioSummary } from "./PortfolioSummary";
 import page from "@/app/page.module.css";
 import styles from "./dashboard.module.css";
+
+const LAST_SYMBOL_KEY = "toss-invest:last-symbol";
+
+function readLastSymbol(): string | null {
+  try {
+    return window.localStorage.getItem(LAST_SYMBOL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLastSymbol(symbol: string): void {
+  try {
+    window.localStorage.setItem(LAST_SYMBOL_KEY, symbol);
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
 
 /**
  * Client-side dashboard root. Loads accounts, defaults to the first one,
@@ -52,6 +71,24 @@ export function Dashboard() {
     void mutate(
       (key) => typeof key === "string" && key.startsWith("/api/orders"),
     );
+  }
+
+  useEffect(() => {
+    if (selectedSymbol !== undefined || holdings.data === undefined) {
+      return;
+    }
+    const lastSymbol = readLastSymbol();
+    if (
+      lastSymbol &&
+      holdings.data.items.some((item) => item.symbol === lastSymbol)
+    ) {
+      setSelectedSymbol(lastSymbol);
+    }
+  }, [holdings.data, selectedSymbol]);
+
+  function selectSymbol(symbol: string) {
+    setSelectedSymbol(symbol);
+    writeLastSymbol(symbol);
   }
 
   if (accounts.isLoading) {
@@ -98,10 +135,9 @@ export function Dashboard() {
           {selectedSymbol ? (
             <MarketQuote symbol={selectedSymbol} name={selectedName} />
           ) : (
-            <section className={styles.card} aria-label="시세">
-              <h2 className={styles.cardTitle}>시세</h2>
+            <CollapsibleCard title="시세" storageId="market-quote">
               <p className={styles.placeholder}>보유 종목을 선택하세요.</p>
-            </section>
+            </CollapsibleCard>
           )}
         </div>
 
@@ -110,12 +146,11 @@ export function Dashboard() {
           {selectedSymbol ? (
             <OrderForm accountSeq={selectedSeq} symbol={selectedSymbol} />
           ) : (
-            <section className={styles.card} aria-label="주문하기">
-              <h2 className={styles.cardTitle}>주문하기</h2>
+            <CollapsibleCard title="주문하기" storageId="order-form">
               <p className={styles.placeholder}>
                 보유 종목을 선택하면 주문할 수 있습니다.
               </p>
-            </section>
+            </CollapsibleCard>
           )}
         </div>
 
@@ -139,7 +174,7 @@ export function Dashboard() {
               <HoldingsTable
                 items={holdings.data.items}
                 selectedSymbol={selectedSymbol}
-                onSelectSymbol={setSelectedSymbol}
+                onSelectSymbol={selectSymbol}
               />
             </>
           ) : null}
