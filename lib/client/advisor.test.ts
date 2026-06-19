@@ -1,0 +1,78 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
+import { ApiClientError } from "./hooks";
+import { fetchAdvisor } from "./advisor";
+
+type FetchMock = Mock<(url: string, init?: RequestInit) => Promise<Response>>;
+
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+const data = {
+  advice: "조언",
+  proposals: [
+    {
+      proposal: { kind: "trim", symbol: "005930", side: "SELL", quantity: 5, rationale: "r" },
+      valid: true,
+      reasons: [],
+    },
+  ],
+  model: "stub-model",
+  generatedAt: "2026-06-19T00:00:00Z",
+};
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("fetchAdvisor", () => {
+  it("POSTs to /api/advisor and returns the unwrapped data", async () => {
+    const fetchMock: FetchMock = vi.fn(async () => jsonResponse({ data }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchAdvisor();
+    expect(result.advice).toBe("조언");
+    expect(result.proposals[0].valid).toBe(true);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/advisor");
+    expect(init?.method).toBe("POST");
+  });
+
+  it("includes accountSeq in the query when provided", async () => {
+    const fetchMock: FetchMock = vi.fn(async () => jsonResponse({ data }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchAdvisor(42);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/advisor?accountSeq=42");
+  });
+
+  it("throws ApiClientError carrying the not-configured code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({ error: { code: "advisor-not-configured", message: "nope" } }, 503),
+      ),
+    );
+
+    await expect(fetchAdvisor()).rejects.toBeInstanceOf(ApiClientError);
+    await expect(fetchAdvisor()).rejects.toMatchObject({ code: "advisor-not-configured" });
+  });
+
+  it("throws ApiClientError on a non-JSON response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<html>502</html>", { status: 502 })),
+    );
+    await expect(fetchAdvisor()).rejects.toBeInstanceOf(ApiClientError);
+  });
+
+  it("throws ApiClientError on a non-ok response without an error envelope", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ unexpected: true }, 500)));
+    await expect(fetchAdvisor()).rejects.toBeInstanceOf(ApiClientError);
+  });
+});

@@ -597,3 +597,26 @@
 
 **최저축**: 없음(핵심 축 5; UX는 A3) → **다음 개선(#29, A3 시작)**: `lib/client/advisor.ts`(온디맨드 fetcher, 자동폴링 X) + `AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안목록·**disclaimer**·미설정/에러). 무효 제안 표시만·prefill 불가.
 **★ A2 종료 → A3 전진**: A2 종료조건(advisor stub 테스트·라우트 {data}/에러 매핑/force-dynamic/not-configured·§6.A-1 grep·환각 탈락·PII 미전송) 전부 충족, Safety/Security=5. §5.3 advance → **Phase A3**. (A1 잔여 "경로 not configured"도 #28 라우트 매핑으로 종단 충족.)
+
+---
+
+## #29 | phase4 | A3: `lib/client/advisor.ts` 온디맨드 fetcher
+
+**한 일**: `fetchAdvisor(accountSeq?)` — `POST /api/advisor` 온디맨드(버튼 트리거, **자동폴링 X**: SWR 미사용). `{data}` 언래핑, `{error}`/비JSON/non-ok는 기존 `ApiClientError`(hooks.ts) 재사용해 throw(`advisor-not-configured` 코드 보존). 클라이언트 타입(`AdvisorResult`/`ValidatedProposal`/`AdvisorProposal`) 라우트 페이로드 미러. **분리 근거**: `AiAdvisor` 카드는 `CollapsibleCard`(localStorage) 의존 → jsdom 테스트가 현 샌드박스 Node v26 환경에서 환경 실패하므로, fetcher는 **node-env 테스트(global fetch stub)** 로 분리해 green 검증성 확보. TDD: advisor.test.ts 5건(POST·accountSeq 쿼리·not-configured 코드·비JSON·non-ok).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0(테스트 fetch mock `Mock<(url,init?)=>Promise<Response>>` 타입 지정)
+- build exit 0 — **번들 가드 36파일 클린**
+- test — 신규 5건(node-env, **환경 무관 green**) 포함 **422 passed (438, 36 files)**. 실패 16건 동일 환경 아티팩트. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **4** — A3 fetcher 완료(카드 UI는 #30). 근거: client 5/5.
+- LLM 정합성 **N/A** — 클라이언트 fetch 계층(LLM 직접 무관).
+- Safety **5** — 클라이언트 fetcher는 제안 조회만, `placeOrder`/`createOrderRaw` 미참조(grep), trading 무수정. 근거: grep + git status.
+- Security & Privacy **5** — 클라이언트는 `/api/*`만 호출(시크릿 미접근), 번들 36파일 클린. 근거: build.
+- Determinism/Testability **5** — node-env·global fetch stub로 결정적 5건(환경 아티팩트 회피). 근거: advisor.test.ts.
+- UX **3** — 온디맨드 계약(자동폴링 없음·에러 코드 보존)으로 카드 UX 토대. 근거: not-configured/에러 테스트.
+- Code quality **5** — 기존 envelope/ApiClientError 관례 재사용, 외과적(신규 2파일·hooks.ts 무수정). 근거: git status.
+
+**최저축**: Functionality(카드 UI 미착수) → **다음 개선(#30)**: `app/_components/AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안목록·**disclaimer**·미설정/에러 상태). jsdom 테스트(현 샌드박스 env 아티팩트 가능 — 코드/환경 구분 보고).
+**Phase 전진 판정**: A3 종료조건(카드 렌더·prefill·자동폴링 없음·Playwright) 미충족 → advance 없음, A3 계속.

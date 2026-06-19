@@ -2,9 +2,9 @@
 
 ## 현재 위치
 - **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A3 진행 중** (A1·A2 완료) — advisor-loop-prompt.md, #19~.
-- **마지막 이터레이션**: #28 완료 (A2: `app/api/advisor/route.ts` POST → **A2 종료, A3 전진**). 수집→snapshot+validation→`runAdvisor`→`{data:{advice,proposals,model,generatedAt}}`. 에러 매핑(not-configured 503·invalid 502 sanitize). **§6.A-1: advisor+route order-exec 미참조(grep)**, **외부 전송 PII 미포함(테스트)**. `lib/server/trading/**` **무수정**. #28 시점 433 tests.
-- **현 상태**: **35 파일 433 tests**, lint·typecheck·build green(번들 가드 36파일). (test: 지원 Node에서 green; 현재 샌드박스 Node v26.3.0은 jsdom localStorage 미동작으로 UI 16건 환경 실패 — 코드 무관, 후속 분리.)
-- **다음 작업(#29, A3)**: `lib/client/advisor.ts`(온디맨드 fetcher) + `app/_components/AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안·disclaimer·미설정/에러). 이후 prefill→OrderForm.
+- **마지막 이터레이션**: #29 완료 (A3: `lib/client/advisor.ts` 온디맨드 fetcher). `fetchAdvisor` — POST /api/advisor(자동폴링 X), `{data}` 언래핑, `ApiClientError` 재사용(not-configured 코드 보존). node-env 테스트(환경 무관 green). `lib/server/trading/**` **무수정**. #29 시점 438 tests.
+- **현 상태**: **36 파일 438 tests**, lint·typecheck·build green(번들 가드 36파일). (test: 지원 Node에서 green; 현재 샌드박스 Node v26.3.0은 jsdom localStorage 미동작으로 UI 16건 환경 실패 — 코드 무관, 후속 분리.)
+- **다음 작업(#30, A3)**: `app/_components/AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안목록·disclaimer·미설정/에러). 이후 prefill→OrderForm.
 
 ## Phase 4 — AI 어드바이저 (진행 중)
 LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안. **LLM은 제안자, 집행자 아님** — 제안→사람 confirm→기존 §6 게이트. 상세: [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md).
@@ -32,7 +32,8 @@ LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안.
 - [x] 외부 전송 페이로드 PII 미포함 단언(#28 route 테스트), lint·typecheck·test·build green.
 
 ### A3 (진행 중)
-- [ ] `lib/client/advisor.ts`(온디맨드 fetcher, 자동폴링 X) + `AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안·disclaimer·미설정/에러) — #29.
+- [x] `lib/client/advisor.ts`(온디맨드 fetcher, 자동폴링 X) — #29(`fetchAdvisor`, node-env 5 테스트).
+- [ ] `AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안·disclaimer·미설정/에러) — #30.
 - [ ] "폼에 담기" prefill → 기존 OrderForm(자동 전송 X, confirm·§6 유지). 무효 제안은 표시만·prefill 불가.
 - [ ] Playwright 스모크(route-mock) 카드 렌더.
 
