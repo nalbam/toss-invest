@@ -2,9 +2,9 @@
 
 ## 현재 위치
 - **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A1 진행 중** — advisor-loop-prompt.md, #19~.
-- **마지막 이터레이션**: #22 완료 (A1: LLM `container.ts`). `getServerLlmProvider`(실 배선) + 순수 선택부 `resolveLlmProvider`(env·fetch 주입). `LLM_PROVIDER`로 openai/xai 선택, provider/key/model 미설정 시 `LlmNotConfiguredError`(어드바이저 경로만 "not configured", 거래/대시보드 무영향). `lib/server/trading/**` **무수정**, llm `placeOrder`/`createOrderRaw` 미참조. #22 시점 393 tests.
-- **현 상태**: **29 파일 393 tests**, lint·typecheck·build green. (test: 지원 Node에서 green; 현재 샌드박스 Node v26.3.0은 jsdom localStorage 미동작으로 UI 16건 환경 실패 — 코드 무관, 후속 분리.)
-- **다음 작업(#23)**: A1 — `lib/server/advisor/snapshot.ts` 순수 변환부(원시 데이터 → 마스킹 스냅샷, 화이트리스트·PII 제거) + 단위 테스트. 이후 schema/validate.
+- **마지막 이터레이션**: #23 완료 (A1: `advisor/snapshot.ts` 마스킹 순수 변환부). `buildAdvisorSnapshot` — 원시 holdings/buying-power/exchange-rate → 화이트리스트 마스킹 스냅샷(account PII 구조적 배제, 비중 결정적 계산). `lib/server/trading/**` **무수정**, advisor `placeOrder`/`createOrderRaw` 미참조. #23 시점 399 tests.
+- **현 상태**: **30 파일 399 tests**, lint·typecheck·build green. (test: 지원 Node에서 green; 현재 샌드박스 Node v26.3.0은 jsdom localStorage 미동작으로 UI 16건 환경 실패 — 코드 무관, 후속 분리.)
+- **다음 작업(#24)**: A1 — `advisor/schema.ts`(zod) LLM 구조화 출력 스키마(`proposals[]` + `advice`) parse 성공/실패 테스트. 이후 `validate.ts`.
 
 ## Phase 4 — AI 어드바이저 (진행 중)
 LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안. **LLM은 제안자, 집행자 아님** — 제안→사람 confirm→기존 §6 게이트. 상세: [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md).
@@ -12,12 +12,12 @@ LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안.
 ### 확정된 결정 (A1)
 - **env(선택값)**: `LLM_PROVIDER`(openai|xai)·`OPENAI_API_KEY`·`XAI_API_KEY`·`LLM_MODEL`. 미설정이어도 앱 정상 부팅, 어드바이저 경로만 "not configured"(예정). blank→undefined(.env.example 트랩).
 - **시크릿 격리**: LLM 키는 server-only, 번들 가드(`check-bundle-secrets.mjs`)에 LLM 패턴 추가 — client 번들 미노출 회귀 방지.
-- **디렉터리**: `lib/server/llm/`(provider 추상화 — `types.ts`·`chat-completions.ts`·`openai.ts`·`xai.ts`·`container.ts` **완료**)·`lib/server/advisor/`(snapshot·prompt·schema·validate·advisor 예정)·`app/api/advisor/route.ts`·`lib/client/advisor.ts`·`app/_components/AiAdvisor.tsx`(예정).
+- **디렉터리**: `lib/server/llm/`(provider 추상화 — `types.ts`·`chat-completions.ts`·`openai.ts`·`xai.ts`·`container.ts` **완료**)·`lib/server/advisor/`(`snapshot.ts` **완료**; prompt·schema·validate·advisor 예정)·`app/api/advisor/route.ts`·`lib/client/advisor.ts`·`app/_components/AiAdvisor.tsx`(예정).
 
 ### A1 종료조건 (UI 없음, provider 호출 전 결정적 코어)
 - [x] `LlmProvider` 인터페이스 + OpenAI·xAI 어댑터(mocked fetch 계약 테스트) — #20 인터페이스+OpenAI, #21 xAI+공유 코어(14 계약 테스트)
 - [x] `container.ts` `getServerLlmProvider`/`resolveLlmProvider` — #22(LLM_PROVIDER 선택 + LlmNotConfiguredError, 7 테스트)
-- [ ] `snapshot` 마스킹(식별자/PII 제거 + 화이트리스트 단위 테스트)
+- [x] `snapshot` 마스킹(식별자/PII 제거 + 화이트리스트 단위 테스트) — #23(`buildAdvisorSnapshot`, 6 테스트·PII 미직렬화 단언)
 - [ ] `schema`(zod) parse + `validate`(보유·매도가능수량·심볼 실재·정수·side) 단위 테스트
 - [x] LLM 키 클라이언트 번들 미노출(번들 가드 확장 + build 클린) — #19 패턴 추가
 - [~] env 미설정 시 부팅 정상(#19 env 선택값) + 어드바이저 경로만 "not configured"(#22 `LlmNotConfiguredError`; 라우트 매핑은 A2)

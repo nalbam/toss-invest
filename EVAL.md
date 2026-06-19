@@ -459,3 +459,26 @@
 
 **최저축**: Functionality(snapshot·schema·validate 미착수) → **다음 개선(#23)**: `lib/server/advisor/snapshot.ts` — 순수 변환부(원시 포트폴리오/시장데이터 → **마스킹 스냅샷**, 화이트리스트 필드만·식별자/PII 제거) + 단위 테스트(PII 미포함 단언).
 **Phase 전진 판정**: A1 "provider 추상화"·"키 번들 미노출"·"env 미설정 부팅" 충족, 남은 snapshot·schema/validate 미충족 → advance 없음, A1 계속.
+
+---
+
+## #23 | phase4 | A1: `advisor/snapshot.ts` 마스킹 순수 변환부
+
+**한 일**: `buildAdvisorSnapshot(inputs)` 순수 변환 — 원시 `HoldingsOverview`/`BuyingPowerResponse`/`ExchangeRateResponse` → **마스킹 스냅샷**. **입력 타입에 account(accountNo/Seq/Type) 미포함 + 출력은 화이트리스트 필드만 객체 리터럴 재구성**(raw spread 안 함) → PII가 구조적으로 도달 불가(§7). 화이트리스트: 보유 symbol·name·market·currency·quantity·현재가·평단·시가평가액·손익·손익률·**비중(weightPercent, 결정적 계산)** + 현금/매수여력 + 환율(rate·통화). 비중은 item marketValue 합으로 계산(별도 total 미신뢰), 합 0이면 0(div-by-zero 방지). TDD: snapshot.test.ts 6건(화이트리스트 키 정확·비중·0총액·현금/환율·환율 null·**PII/raw 필드 미직렬화 단언**).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0(초기 fixture overview 타입 불일치 `{krw,usd}` → 실제 스키마로 수정, 구현 무관)
+- build exit 0 — **번들 가드 35파일 클린**(advisor server-only)
+- test — 신규 6건 포함 **383 passed (399, 30 files)**. 실패 16건 동일 **환경 아티팩트**. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **4** — A1 snapshot 마스킹 종료조건 충족. 근거: snapshot 6/6. (schema·validate 남음.)
+- LLM 정합성 **N/A** — 이 증분은 LLM 호출/계약 무관(외부 전송 페이로드 형태 준비).
+- Safety **5** — `lib/server/trading/**` **무수정**(git status), advisor `placeOrder`/`createOrderRaw` **미참조**(grep none). 근거: git status + grep.
+- Security & Privacy **5** — **외부 전송 마스킹 핵심**: account 식별자/PII가 입력 타입·출력 직렬화 양쪽에서 배제(테스트로 accountSeq/No/Type + raw-only 필드 미포함 단언). server-only. 근거: 미포함 테스트 6건 중 1건.
+- Determinism/Testability **5** — 순수 변환(clock/network 없음), 비중 계산 결정적, 6건 전부 결정적. 근거: snapshot.test.ts.
+- UX **N/A** — UI 없음.
+- Code quality **5** — 객체 리터럴 재구성(안전한 마스킹), 외과적(신규 2파일·기존 무수정). 근거: git status(?? advisor만).
+
+**최저축**: Functionality(schema·validate 미착수) → **다음 개선(#24)**: `advisor/schema.ts`(zod) — LLM 구조화 출력 스키마(`proposals[]`(side·symbol·quantity·reason 등) + `advice` 서술) parse 성공/실패 단위 테스트. 이후 `validate.ts`(보유·매도가능수량·심볼 실재·정수·side).
+**Phase 전진 판정**: A1 남은 종료조건(schema·validate) 미충족 → advance 없음, A1 계속.
