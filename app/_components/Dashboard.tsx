@@ -9,7 +9,9 @@ import {
   useHoldings,
   useOrders,
 } from "@/lib/client/hooks";
+import type { AdvisorProposal } from "@/lib/client/advisor";
 import { AccountCash } from "./AccountCash";
+import { AiAdvisor } from "./AiAdvisor";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { HoldingsTable } from "./HoldingsTable";
 import { MarketQuote } from "./MarketQuote";
@@ -50,6 +52,12 @@ export function Dashboard() {
   const [selectedSymbol, setSelectedSymbol] = useState<string | undefined>(
     undefined,
   );
+  // Side + quantity from an accepted AI advisor proposal, handed to the order
+  // form to prefill. A fresh object per acceptance so re-accepting re-applies;
+  // it only fills inputs (the user still confirms and passes the §6 gate).
+  const [prefill, setPrefill] = useState<
+    { side: "BUY" | "SELL"; quantity: number } | undefined
+  >(undefined);
 
   // Default to the first account once the list arrives.
   useEffect(() => {
@@ -89,6 +97,13 @@ export function Dashboard() {
   function selectSymbol(symbol: string) {
     setSelectedSymbol(symbol);
     writeLastSymbol(symbol);
+  }
+
+  // "폼에 담기" from the advisor card: point the order form at the proposed
+  // symbol and prefill its side + quantity. Never sends an order.
+  function applyProposal(proposal: AdvisorProposal) {
+    selectSymbol(proposal.symbol);
+    setPrefill({ side: proposal.side, quantity: proposal.quantity });
   }
 
   if (accounts.isLoading) {
@@ -153,6 +168,7 @@ export function Dashboard() {
               name={selectedName}
               cash={cash}
               fxRate={fx.data?.rate}
+              prefill={prefill}
             />
           ) : (
             <CollapsibleCard title="주문하기" storageId="order-form">
@@ -163,8 +179,10 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* Right: account sidebar — cash, summary, holdings, orders. */}
+        {/* Right: account sidebar — advisor, cash, summary, holdings, orders. */}
         <div className={styles.column}>
+          <AiAdvisor accountSeq={selectedSeq} onSelectProposal={applyProposal} />
+
           {fx.data ? (
             <AccountCash
               rate={fx.data}

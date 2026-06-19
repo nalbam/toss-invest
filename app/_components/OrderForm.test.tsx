@@ -403,4 +403,22 @@ describe("OrderForm — general order", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("prefills side and quantity from a proposal without arming or confirming (§6.A-2)", () => {
+    fetchMock.mockImplementation(quoteFetch(() => jsonResponse({ data: {} })));
+    renderForm(
+      <OrderForm accountSeq={1} symbol="005930" prefill={{ side: "SELL", quantity: 7 }} />,
+    );
+    goGeneral();
+
+    expect(screen.getByRole("button", { name: "판매" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("수량")).toHaveDisplayValue("7");
+    // The confirm box is never auto-checked, and nothing is sent — the user must
+    // still confirm and pass the §6 gate.
+    expect(screen.getByLabelText("실주문 확인 (confirm)")).not.toBeChecked();
+    expect(hasPosted()).toBe(false);
+  });
 });

@@ -666,3 +666,26 @@
 
 **최저축**: Functionality(Dashboard prefill 배선 미완) → **다음 개선(#32)**: Dashboard에 `prefill` 상태 lift + `OrderForm`이 prefill prop 수용(자동 전송 X, confirm·§6 유지) + AiAdvisor를 대시보드에 배치. 무효 제안 prefill 불가 유지. 컴포넌트 테스트.
 **Phase 전진 판정**: A3 종료조건(prefill→OrderForm·Playwright) 미충족 → advance 없음, A3 계속.
+
+---
+
+## #32 | phase4 | A3: prefill 배선 (AiAdvisor → Dashboard → OrderForm)
+
+**한 일**: Dashboard에 `prefill` 상태 lift + `applyProposal`(「폼에 담기」 → `selectSymbol`(심볼 전환) + `setPrefill({side,quantity})`). AiAdvisor를 우측 사이드바에 배치(`onSelectProposal=applyProposal`). `OrderForm`에 `prefill` prop + effect 추가: **side·quantity만 채우고** `setPricingMode("QUANTITY")`·`setArmedSide(null)`·**`setConfirm(false)`** — **quick arm·confirm 자동체크·자동 전송 금지**(§6.A-2). 기존 OrderForm/Dashboard는 **연결점만 외과적 추가**(로직 무변경). TDD: OrderForm.test.tsx +1(prefill SELL/7 → 판매 aria-pressed·수량 7·confirm 미체크·**미전송 hasPosted=false**). Dashboard 기존 테스트 무수정 통과(AiAdvisor 추가가 깨지 않음).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — 번들 가드 36파일 클린
+- test — 신규 1건 포함 **444 passed (444, 37 files), 실패 0**. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **4** — A3 prefill 흐름 완성(카드→폼). Playwright(#33) 남음. 근거: OrderForm 16/16.
+- LLM 정합성 **N/A** — UI.
+- Safety **5(타협 불가 충족)** — **§6.A-2 코드+테스트 증명**: prefill이 `setConfirm(false)`·`setArmedSide(null)`만(자동 confirm/arm/전송 없음), 테스트 `hasPosted()===false`. grep: prefill 경로 `setConfirm(true)`/auto-arm 없음. 무효 제안은 #31대로 prefill 버튼 없음. `lib/server/trading/**` **무수정**. 근거: 미전송 테스트 + grep + git status.
+- Security & Privacy **5** — 클라이언트 배선만, 번들 36파일 클린. 근거: build.
+- Determinism/Testability **5** — prefill effect 결정적, 미전송 단언. 근거: OrderForm.test.tsx.
+- UX **4** — 카드 제안→폼 자동 채움→사용자 확인 흐름 완결(브라우저 시각 검증은 Playwright #33). 근거: 배선 테스트.
+- Code quality **5** — 외과적(연결점만: Dashboard 상태/배치 + OrderForm prop/effect), 기존 로직 무변경. 근거: git diff 범위.
+
+**최저축**: Functionality(Playwright 스모크 미완) → **다음 개선(#33)**: `e2e/` Playwright 스모크(route-mock) — 대시보드에 어드바이저 카드 렌더·"조언 받기"→제안 표시. → A3 종료조건 마무리 → **Phase 4(A1·A2·A3) 완료 판정**.
+**Phase 전진 판정**: A3 남은 종료조건(Playwright) 미충족 → advance 없음, A3 계속.

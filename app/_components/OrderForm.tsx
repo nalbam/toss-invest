@@ -59,12 +59,19 @@ export function OrderForm({
   name,
   cash,
   fxRate,
+  prefill,
 }: {
   accountSeq: number | undefined;
   symbol?: string;
   name?: string;
   cash?: { krw?: string; usd?: string };
   fxRate?: string;
+  /**
+   * Side + quantity proposed by the AI advisor ("폼에 담기"). Fills the inputs
+   * only — it never arms a quick order or checks the confirm box, so the user
+   * still reviews and passes the §6 gate (§6.A-2). A fresh object per selection.
+   */
+  prefill?: { side: Side; quantity: number };
 }) {
   const [mode, setMode] = useState<OrderMode>("QUICK");
   const [symbol, setSymbol] = useState(selectedSymbol ?? "");
@@ -124,6 +131,19 @@ export function OrderForm({
       setArmedSide(null);
     }
   }, [selectedSymbol]);
+
+  // Apply an advisor proposal selected via "폼에 담기": fill the side + quantity
+  // only. It never arms a quick order or checks the confirm box, so a prefilled
+  // order can never be sent without the user's explicit confirm + the §6 gate
+  // (§6.A-2). A new prefill object per selection re-applies the values.
+  useEffect(() => {
+    if (!prefill) return;
+    setSide(prefill.side);
+    setQuantity(String(prefill.quantity));
+    setPricingMode("QUANTITY");
+    setArmedSide(null);
+    setConfirm(false);
+  }, [prefill]);
 
   // Amount-based ordering is US MARKET only; LIMIT always uses quantity.
   const amountMode = pricingMode === "AMOUNT" && orderType === "MARKET";
