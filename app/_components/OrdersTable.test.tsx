@@ -25,6 +25,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/**
+ * Matcher for a money amount whose currency symbol is split into its own span by
+ * <Money>. Matching on the element's full textContent reassembles the symbol +
+ * digits so the expected string stays the same as the rendered amount.
+ */
+const byMoney =
+  (t: string) =>
+  (_: string, el: Element | null): boolean =>
+    el?.textContent === t;
+
 /** Builds a `Response`-like object exposing `.ok`, `.status`, and `.json()`. */
 function jsonResponse(body: unknown, status = 200) {
   return {
@@ -104,7 +114,7 @@ describe("OrdersTable", () => {
     expect(screen.getByText("PENDING")).toBeInTheDocument();
     expect(screen.getByText("PARTIAL_FILLED")).toBeInTheDocument();
     // KRW limit price formatted; market order with null price renders "-".
-    expect(screen.getByText("₩71,000")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩71,000"))).toBeInTheDocument();
     expect(screen.getByText("-")).toBeInTheDocument();
     // Ordered time trimmed to date + HH:mm.
     expect(screen.getByText("2026-03-25 09:30")).toBeInTheDocument();

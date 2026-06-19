@@ -1,5 +1,6 @@
 import type { ExchangeRateResponse } from "@/lib/client/types";
-import { formatDecimal } from "@/lib/client/format";
+import { formatDecimal, formatKrw, formatUsd } from "@/lib/client/format";
+import { Money } from "./Money";
 import styles from "./dashboard.module.css";
 
 /** Direction glyph + color class for the rate-change indicator. */
@@ -14,8 +15,18 @@ function changeIndicator(type: string): { label: string; className: string } {
   }
 }
 
-/** Shows the current exchange rate and its movement direction. */
-export function FxRate({ rate }: { rate: ExchangeRateResponse }) {
+/**
+ * Shows the current exchange rate and its movement direction. When `cash` is
+ * provided, the account's KRW/USD cash balances are shown below the rate, each
+ * currency rendered as-is (no FX conversion). A missing side shows "-".
+ */
+export function FxRate({
+  rate,
+  cash,
+}: {
+  rate: ExchangeRateResponse;
+  cash?: { krw?: string; usd?: string };
+}) {
   const indicator = changeIndicator(rate.rateChangeType);
 
   return (
@@ -32,6 +43,22 @@ export function FxRate({ rate }: { rate: ExchangeRateResponse }) {
           {indicator.label}
         </span>
       </div>
+      {cash ? (
+        <div className={styles.summaryGrid}>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>계좌 잔액 (원화)</span>
+            <span className={styles.metricSecondary}>
+              <Money value={formatKrw(cash.krw)} />
+            </span>
+          </div>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>계좌 잔액 (달러)</span>
+            <span className={styles.metricSecondary}>
+              <Money value={formatUsd(cash.usd)} />
+            </span>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

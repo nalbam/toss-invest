@@ -41,6 +41,16 @@ vi.mock("lightweight-charts", () => ({
 
 const { MarketQuote } = await import("./MarketQuote");
 
+/**
+ * Matcher for a money amount whose currency symbol is split into its own span by
+ * <Money>. Matching on the element's full textContent reassembles the symbol +
+ * digits so the expected string stays the same as the rendered amount.
+ */
+const byMoney =
+  (t: string) =>
+  (_: string, el: Element | null): boolean =>
+    el?.textContent === t;
+
 function loaded<T>(data: T): QueryResult<T> {
   return { data, error: undefined, isLoading: false };
 }
@@ -76,9 +86,9 @@ afterEach(() => {
 describe("MarketQuote", () => {
   it("renders the last price and KRW price limits", () => {
     render(<MarketQuote defaultSymbol="005930" />);
-    expect(screen.getByText("₩72,000")).toBeInTheDocument();
-    expect(screen.getByText("₩93,600")).toBeInTheDocument();
-    expect(screen.getByText("₩50,400")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩72,000"))).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩93,600"))).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩50,400"))).toBeInTheDocument();
   });
 
   it("renders '-' for null US price limits", () => {
@@ -94,7 +104,7 @@ describe("MarketQuote", () => {
       }),
     );
     render(<MarketQuote defaultSymbol="AAPL" />);
-    expect(screen.getByText("$190.50")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("$190.50"))).toBeInTheDocument();
     // Both limits unavailable -> two "-" placeholders.
     expect(screen.getAllByText("-")).toHaveLength(2);
   });

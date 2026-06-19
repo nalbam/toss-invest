@@ -88,6 +88,11 @@ export interface HoldingsOverview {
   items: HoldingsItem[];
 }
 
+export interface BuyingPower {
+  currency: "KRW" | "USD";
+  cashBuyingPower: string;
+}
+
 export interface ExchangeRateResponse {
   baseCurrency: Currency;
   quoteCurrency: Currency;

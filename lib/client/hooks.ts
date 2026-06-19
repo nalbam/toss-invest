@@ -3,6 +3,7 @@
 import useSWR, { type SWRConfiguration } from "swr";
 import type {
   Account,
+  BuyingPower,
   CancelOrderResult,
   CandlePageResponse,
   ExchangeRateResponse,
@@ -255,6 +256,50 @@ export function useExchangeRate(
     ApiClientError
   >(key, fetcher, sharedConfig);
   return { data, error, isLoading };
+}
+
+/**
+ * Loads the cash buying power for one currency of an account. There is no
+ * dedicated deposit endpoint, so cash buying power stands in for the cash
+ * balance. The request is paused (key is `null`) until an `accountSeq` is known.
+ */
+function useCashBalance(
+  accountSeq: number | undefined,
+  currency: "KRW" | "USD",
+): QueryResult<BuyingPower> {
+  const key =
+    accountSeq === undefined
+      ? null
+      : `/api/buying-power?accountSeq=${accountSeq}&currency=${currency}`;
+  const { data, error, isLoading } = useSWR<BuyingPower, ApiClientError>(
+    key,
+    fetcher,
+    sharedConfig,
+  );
+  return { data, error, isLoading: isLoading && key !== null };
+}
+
+export interface CashBalances {
+  krw?: string;
+  usd?: string;
+  isLoading: boolean;
+  error: ApiClientError | undefined;
+}
+
+/**
+ * Loads an account's KRW and USD cash balances as two independent requests, so
+ * one currency failing leaves the other (and the rest of the screen) usable —
+ * the failed side is simply left `undefined`. Paused until `accountSeq` is known.
+ */
+export function useCashBalances(accountSeq: number | undefined): CashBalances {
+  const krw = useCashBalance(accountSeq, "KRW");
+  const usd = useCashBalance(accountSeq, "USD");
+  return {
+    krw: krw.data?.cashBuyingPower,
+    usd: usd.data?.cashBuyingPower,
+    isLoading: krw.isLoading || usd.isLoading,
+    error: krw.error ?? usd.error,
+  };
 }
 
 /**

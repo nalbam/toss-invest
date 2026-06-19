@@ -67,6 +67,80 @@ function roundFraction(
   return { fracDigits: digits.join(""), carry: true };
 }
 
+/**
+ * Adds two decimal strings exactly, using `BigInt` so no value ever passes
+ * through a lossy JS float. Each operand is parsed into sign + integer digits +
+ * fraction digits, both fractions are zero-padded to a common length so the
+ * values become plain integers, the signed integers are summed as `BigInt`, the
+ * decimal point is reinserted, and trailing fraction zeros are trimmed. Invalid
+ * (or null/undefined) operands are treated as "0" so callers never get NaN.
+ */
+export function addDecimalStrings(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): string {
+  const pa = a === null || a === undefined ? null : splitDecimal(a);
+  const pb = b === null || b === undefined ? null : splitDecimal(b);
+  const left = pa ?? { negative: false, intDigits: "0", fracDigits: "" };
+  const right = pb ?? { negative: false, intDigits: "0", fracDigits: "" };
+
+  const scale = Math.max(left.fracDigits.length, right.fracDigits.length);
+  const toScaled = (parts: {
+    negative: boolean;
+    intDigits: string;
+    fracDigits: string;
+  }): bigint => {
+    const digits = parts.intDigits + parts.fracDigits.padEnd(scale, "0");
+    const magnitude = BigInt(digits);
+    return parts.negative ? -magnitude : magnitude;
+  };
+
+  const sum = toScaled(left) + toScaled(right);
+  return scaledBigIntToDecimal(sum, scale);
+}
+
+/** Renders a signed BigInt scaled by `scale` decimal places as a decimal string. */
+function scaledBigIntToDecimal(value: bigint, scale: number): string {
+  const negative = value < BigInt(0);
+  const absDigits = (negative ? -value : value).toString();
+
+  let intPart: string;
+  let fracPart: string;
+  if (scale === 0) {
+    intPart = absDigits;
+    fracPart = "";
+  } else {
+    const padded = absDigits.padStart(scale + 1, "0");
+    intPart = padded.slice(0, padded.length - scale);
+    fracPart = padded.slice(padded.length - scale).replace(/0+$/, "");
+  }
+  intPart = intPart.replace(/^0+(?=\d)/, "");
+
+  const body = fracPart.length > 0 ? `${intPart}.${fracPart}` : intPart;
+  const isZero = intPart === "0" && fracPart === "";
+  return negative && !isZero ? `-${body}` : body;
+}
+
+/**
+ * Multiplies two decimal strings precisely (no float). Used to convert a USD
+ * amount to KRW via an exchange rate. Invalid/null operands are treated as "0".
+ */
+export function mulDecimalStrings(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): string {
+  const zero = { negative: false, intDigits: "0", fracDigits: "" };
+  const pa = (a === null || a === undefined ? null : splitDecimal(a)) ?? zero;
+  const pb = (b === null || b === undefined ? null : splitDecimal(b)) ?? zero;
+  const magA = BigInt(pa.intDigits + pa.fracDigits);
+  const magB = BigInt(pb.intDigits + pb.fracDigits);
+  const product = (pa.negative ? -magA : magA) * (pb.negative ? -magB : magB);
+  return scaledBigIntToDecimal(
+    product,
+    pa.fracDigits.length + pb.fracDigits.length,
+  );
+}
+
 /** Adds 1 to an integer-digit string (used when fraction rounding carries). */
 function incrementIntegerDigits(intDigits: string): string {
   const digits = intDigits.split("");

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSWRConfig } from "swr";
 import {
   useAccounts,
+  useCashBalances,
   useExchangeRate,
   useHoldings,
   useOrders,
@@ -35,6 +36,8 @@ export function Dashboard() {
   const holdings = useHoldings(selectedSeq);
   const orders = useOrders(selectedSeq);
   const fx = useExchangeRate("USD", "KRW");
+  const cashBalances = useCashBalances(selectedSeq);
+  const cash = { krw: cashBalances.krw, usd: cashBalances.usd };
   const { mutate } = useSWRConfig();
 
   // After a SENT modify/cancel, revalidate any cached `/api/orders` queries so
@@ -79,7 +82,7 @@ export function Dashboard() {
         </select>
       </div>
 
-      {fx.data ? <FxRate rate={fx.data} /> : null}
+      {fx.data ? <FxRate rate={fx.data} cash={cash} /> : null}
 
       {holdings.isLoading ? (
         <p className={page.status}>보유 자산을 불러오는 중…</p>
@@ -89,7 +92,11 @@ export function Dashboard() {
         </p>
       ) : holdings.data ? (
         <>
-          <PortfolioSummary overview={holdings.data} />
+          <PortfolioSummary
+            overview={holdings.data}
+            cash={cash}
+            fxRate={fx.data?.rate}
+          />
           <HoldingsTable items={holdings.data.items} />
         </>
       ) : null}

@@ -36,11 +36,27 @@ const overview: HoldingsOverview = {
   items: [],
 };
 
+/** Account cash (from buying-power); account total = market value + cash. */
+const cash = { krw: "1000000", usd: "500.00" };
+
 describe("PortfolioSummary", () => {
   it("renders total market value with KRW and USD", () => {
-    render(<PortfolioSummary overview={overview} />);
+    render(<PortfolioSummary overview={overview} cash={cash} fxRate="1500" />);
     expect(screen.getByText(byMoney("₩11,516,000"))).toBeInTheDocument();
     expect(screen.getByText(byMoney("$8,060.50"))).toBeInTheDocument();
+  });
+
+  it("renders 총 자산 = holdings + cash converted to KRW via fxRate", () => {
+    render(<PortfolioSummary overview={overview} cash={cash} fxRate="1500" />);
+    // 11,516,000 + 8,060.50*1500 + 1,000,000 + 500.00*1500
+    //   = 11,516,000 + 12,090,750 + 1,000,000 + 750,000 = 25,356,750
+    expect(screen.getByText(byMoney("₩25,356,750"))).toBeInTheDocument();
+  });
+
+  it("degrades the total to KRW parts when fxRate is missing", () => {
+    render(<PortfolioSummary overview={overview} cash={cash} />);
+    // No rate => USD parts count as 0: 11,516,000 + 1,000,000 = 12,516,000
+    expect(screen.getByText(byMoney("₩12,516,000"))).toBeInTheDocument();
   });
 
   it("renders total profit/loss amount and percentage", () => {

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  addDecimalStrings,
   formatDecimal,
   formatKrw,
   formatPercent,
   formatUsd,
+  mulDecimalStrings,
   signOf,
 } from "@/lib/client/format";
 
@@ -37,6 +39,65 @@ describe("formatDecimal", () => {
     expect(formatDecimal(null)).toBe("-");
     expect(formatDecimal(undefined)).toBe("-");
     expect(formatDecimal("abc")).toBe("-");
+  });
+});
+
+describe("addDecimalStrings", () => {
+  it("adds large integer KRW amounts beyond Number.MAX_SAFE_INTEGER exactly", () => {
+    // 9_007_199_254_740_993 is MAX_SAFE_INTEGER + 2; a float add would lose it.
+    expect(addDecimalStrings("9007199254740993", "1")).toBe("9007199254740994");
+    expect(addDecimalStrings("11516000", "5000000")).toBe("16516000");
+  });
+
+  it("adds fractional USD amounts and trims trailing zeros", () => {
+    expect(addDecimalStrings("8060.50", "1200.25")).toBe("9260.75");
+    expect(addDecimalStrings("0.1", "0.2")).toBe("0.3");
+    expect(addDecimalStrings("1234.5", "0.50")).toBe("1235");
+  });
+
+  it("handles negative operands and the resulting sign", () => {
+    expect(addDecimalStrings("100", "-30")).toBe("70");
+    expect(addDecimalStrings("30", "-100")).toBe("-70");
+    expect(addDecimalStrings("-1.5", "-2.25")).toBe("-3.75");
+  });
+
+  it("aligns operands with different fraction lengths", () => {
+    expect(addDecimalStrings("1.5", "2.005")).toBe("3.505");
+    expect(addDecimalStrings("0.001", "0.0009")).toBe("0.0019");
+  });
+
+  it("returns 0 for zeros and avoids -0", () => {
+    expect(addDecimalStrings("0", "0")).toBe("0");
+    expect(addDecimalStrings("-0.00", "0")).toBe("0");
+    expect(addDecimalStrings("5", "-5")).toBe("0");
+  });
+
+  it("treats null/undefined/invalid operands as 0", () => {
+    expect(addDecimalStrings(null, "100")).toBe("100");
+    expect(addDecimalStrings("100", undefined)).toBe("100");
+    expect(addDecimalStrings("abc", "100")).toBe("100");
+    expect(addDecimalStrings("abc", "xyz")).toBe("0");
+  });
+});
+
+describe("mulDecimalStrings", () => {
+  it("multiplies precisely (USD * FX rate -> KRW)", () => {
+    expect(mulDecimalStrings("1940.49", "1500")).toBe("2910735");
+    expect(mulDecimalStrings("279.29", "1500")).toBe("418935");
+    expect(mulDecimalStrings("8060.50", "1500")).toBe("12090750");
+  });
+
+  it("preserves fractions without float error", () => {
+    expect(mulDecimalStrings("0.1", "0.2")).toBe("0.02");
+    expect(mulDecimalStrings("1.5", "2")).toBe("3");
+    expect(mulDecimalStrings("100", "0")).toBe("0");
+  });
+
+  it("handles negatives and null/invalid (treated as 0)", () => {
+    expect(mulDecimalStrings("-2", "3")).toBe("-6");
+    expect(mulDecimalStrings("-2", "-3")).toBe("6");
+    expect(mulDecimalStrings(null, "1500")).toBe("0");
+    expect(mulDecimalStrings("abc", "1500")).toBe("0");
   });
 });
 

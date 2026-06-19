@@ -1,5 +1,12 @@
 import type { HoldingsOverview } from "@/lib/client/types";
-import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
+import {
+  addDecimalStrings,
+  formatKrw,
+  formatPercent,
+  formatUsd,
+  mulDecimalStrings,
+  signOf,
+} from "@/lib/client/format";
 import { Money } from "./Money";
 import styles from "./dashboard.module.css";
 
@@ -9,21 +16,44 @@ function signClass(value: string | null | undefined): string {
 }
 
 /**
- * Portfolio headline metrics: total market value (KRW with USD breakdown),
- * total profit/loss (amount + rate), and the daily profit/loss. Gains and
- * losses are colored by sign.
+ * Portfolio headline metrics: total assets in KRW (holdings + cash, with USD
+ * converted via the exchange rate — mirrors Toss's account total), then the
+ * market value (KRW with USD breakdown) and total/daily profit-loss. Gains and
+ * losses are colored by sign. `fxRate` (USD->KRW) values USD assets; without it
+ * the total degrades to the KRW portions so nothing breaks while it loads.
  */
 export function PortfolioSummary({
   overview,
+  cash,
+  fxRate,
 }: {
   overview: HoldingsOverview;
+  cash?: { krw?: string; usd?: string };
+  fxRate?: string;
 }) {
   const { marketValue, profitLoss, dailyProfitLoss } = overview;
+
+  // USD -> KRW (0 when no rate yet, so the total degrades to KRW parts only).
+  const usdToKrw = (usd: string | null | undefined): string =>
+    fxRate ? mulDecimalStrings(usd ?? "0", fxRate) : "0";
+  const totalAssetsKrw = [
+    marketValue.amount.krw,
+    usdToKrw(marketValue.amount.usd),
+    cash?.krw ?? "0",
+    usdToKrw(cash?.usd),
+  ].reduce((acc, value) => addDecimalStrings(acc, value), "0");
 
   return (
     <section className={styles.card} aria-label="포트폴리오 요약">
       <h2 className={styles.cardTitle}>포트폴리오 요약</h2>
       <div className={styles.summaryGrid}>
+        <div className={styles.metric}>
+          <span className={styles.metricLabel}>총 자산 (원화 환산)</span>
+          <span className={styles.metricPrimary}>
+            <Money value={formatKrw(totalAssetsKrw)} />
+          </span>
+        </div>
+
         <div className={styles.metric}>
           <span className={styles.metricLabel}>총 평가금액</span>
           <span className={styles.metricPrimary}>

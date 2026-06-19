@@ -6,6 +6,12 @@ import type { OrderbookResponse } from "@/lib/client/types";
 
 afterEach(cleanup);
 
+/** Matches a money amount whose currency symbol is split into its own span by <Money>. */
+const byMoney =
+  (t: string) =>
+  (_: string, el: Element | null): boolean =>
+    el?.textContent === t;
+
 const book: OrderbookResponse = {
   timestamp: "2026-03-25T09:30:00+09:00",
   currency: "KRW",
@@ -24,10 +30,10 @@ const book: OrderbookResponse = {
 describe("Orderbook", () => {
   it("renders ask and bid rows with KRW prices and volumes", () => {
     render(<Orderbook book={book} />);
-    expect(screen.getByText("₩72,100")).toBeInTheDocument();
-    expect(screen.getByText("₩72,200")).toBeInTheDocument();
-    expect(screen.getByText("₩72,000")).toBeInTheDocument();
-    expect(screen.getByText("₩71,900")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩72,100"))).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩72,200"))).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩72,000"))).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩71,900"))).toBeInTheDocument();
     expect(screen.getAllByText("매도")).toHaveLength(2);
     expect(screen.getAllByText("매수")).toHaveLength(2);
     // header + 2 asks + 2 bids.
