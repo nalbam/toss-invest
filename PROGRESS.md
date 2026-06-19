@@ -1,10 +1,30 @@
 # PROGRESS — 토스증권 대시보드 (현재 상태만)
 
 ## 현재 위치
-- **Phase**: **전체 완료 (1·2·3 종료)** — dev-loop §0 "모든 Phase 완료 시 루프 종료".
-- **마지막 이터레이션**: #18 완료 (게이트된 자동 executor → **Phase 3 종료 → 로드맵 전체 완료**). `lib/server/trading/auto-executor.ts`(`intentToOrderRequest` 순수 + `runAutoTrade`: intent→§6 `placeOrder`, **confirm=AUTO_TRADE_ENABLED**(사람 env값 그대로))·`auto-trader.ts` facade(`runOnce` 1회 평가, 상시 루프 없음)·env `AUTO_TRADE_ENABLED`(기본 false). safety.ts 게이트/메타가드 **무수정**(호출만). #18 시점 306 tests.
-- **현 상태**: 루프(#18) 이후 사람 주도 UI 개선(EVAL 미기록) — 3-컬럼 대시보드 레이아웃·`CollapsibleCard`·`AccountCash`(현금·환율)·빠른주문 모드·캔들 interval 선택. 현 시점 **26 파일 368 tests**, lint·typecheck·test·build green.
-- **다음 작업**: 루프 종료. 추가 개선(아래 미해결)은 사람이 명시 요청 시 새 루프/이터로.
+- **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A1 진행 중** — advisor-loop-prompt.md, #19~.
+- **마지막 이터레이션**: #19 완료 (A1 첫 증분: LLM env 선택값 + 번들 가드 LLM 패턴). `env.ts`에 `LLM_PROVIDER`·`OPENAI_API_KEY`·`XAI_API_KEY`·`LLM_MODEL` **전부 선택값**(미설정 부팅 정상), `check-bundle-secrets.mjs`에 LLM 키 패턴 추가. `lib/server/trading/**` **무수정**(§6 보존). #19 시점 372 tests.
+- **현 상태**: **26 파일 372 tests**, lint·typecheck·build green. (test: 지원 Node에서 green; 현재 샌드박스 Node v26.3.0은 jsdom localStorage 미동작으로 UI 16건 환경 실패 — 코드 무관, 후속 분리.)
+- **다음 작업(#20)**: A1 — `LlmProvider` 인터페이스 + 첫 어댑터(OpenAI) 요청 형태(주입 `fetch`로 헤더·바디·structured output 단언, 실패 테스트부터). provider 계약은 Context7·공식 문서 확인 후.
+
+## Phase 4 — AI 어드바이저 (진행 중)
+LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안. **LLM은 제안자, 집행자 아님** — 제안→사람 confirm→기존 §6 게이트. 상세: [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md).
+
+### 확정된 결정 (A1)
+- **env(선택값)**: `LLM_PROVIDER`(openai|xai)·`OPENAI_API_KEY`·`XAI_API_KEY`·`LLM_MODEL`. 미설정이어도 앱 정상 부팅, 어드바이저 경로만 "not configured"(예정). blank→undefined(.env.example 트랩).
+- **시크릿 격리**: LLM 키는 server-only, 번들 가드(`check-bundle-secrets.mjs`)에 LLM 패턴 추가 — client 번들 미노출 회귀 방지.
+- **디렉터리(예정)**: `lib/server/llm/`(provider 추상화)·`lib/server/advisor/`(snapshot·prompt·schema·validate·advisor)·`app/api/advisor/route.ts`·`lib/client/advisor.ts`·`app/_components/AiAdvisor.tsx`.
+
+### A1 종료조건 (UI 없음, provider 호출 전 결정적 코어)
+- [ ] `LlmProvider` 인터페이스 + OpenAI·xAI 어댑터(mocked fetch 계약 테스트)
+- [ ] `snapshot` 마스킹(식별자/PII 제거 + 화이트리스트 단위 테스트)
+- [ ] `schema`(zod) parse + `validate`(보유·매도가능수량·심볼 실재·정수·side) 단위 테스트
+- [x] LLM 키 클라이언트 번들 미노출(번들 가드 확장 + build 클린) — #19 패턴 추가
+- [~] env 미설정 시 부팅 정상(#19 env 선택값) + 어드바이저 경로만 "not configured"(advisor 경로 생기면 A2)
+- [ ] lint·typecheck·test·build green
+
+### A2·A3 (예정)
+- **A2**: advisor 오케스트레이션(snapshot→prompt→provider→zod→validate) + `app/api/advisor/route.ts` POST. **어드바이저가 `placeOrder`/`createOrderRaw` 미import·미호출**(grep+의존성 테스트).
+- **A3**: `AiAdvisor.tsx` 카드 + "폼에 담기" prefill → 기존 OrderForm(자동 전송 X, confirm·§6 유지).
 
 ### Phase 3 종료 조건 (dev-loop §4) — ✅ 전부 충족
 - [x] 백테스트/시뮬레이션 하네스 결정적 검증(#17 runBacktest).

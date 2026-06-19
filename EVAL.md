@@ -365,3 +365,28 @@
 - 누적 **306 tests**, 4게이트+E2E green. 안전: DRY_RUN/AUTO_TRADE_ENABLED 기본 false·kill switch·한도·고액 confirm·통화-인지 notional·번들 시크릿 가드. 루프가 자체 안전 갭(#10 USD notional)을 발견·수정(#11)한 사례 포함.
 
 **남은 후속(사람 요청 시)**: DAILY_LOSS_LIMIT 강제, ORDER 피크 3/s, 자동 트리거 배선(라우트/cron, 사람 결정), modify/cancel·시세 E2E, 차트 페이지네이션·테마, 주문조회 CLOSED.
+
+---
+
+# Phase 4 — AI 어드바이저 (advisor-loop-prompt.md, #19~)
+
+## #19 | phase4 | A1 첫 증분: LLM env 설정(선택값) + 번들 시크릿 가드 LLM 패턴
+
+**한 일**: `env.ts`에 AI 어드바이저 env(`LLM_PROVIDER`(enum openai|xai)·`OPENAI_API_KEY`·`XAI_API_KEY`·`LLM_MODEL`)를 **전부 선택값**으로 추가(blank→undefined, .env.example 트랩 처리 재사용). 미설정이어도 앱 부팅 정상 — LLM은 어드바이저 경로에서만 필요. `check-bundle-secrets.mjs`에 LLM 키 패턴(`OPENAI_API_KEY`·`XAI_API_KEY`·`process.env.OPENAI`·`process.env.XAI`) 추가. `.env.example`에 주석 블록. TDD: env.test.ts 신규 4건(미설정 부팅·설정 파싱·빈문자열=미설정·unknown provider 거부).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — **번들 가드 35파일 스캔, LLM 패턴 포함 forbidden 0건**(`check-bundle-secrets: no forbidden strings found`)
+- test — 신규 env 4건 포함 **356 passed (372)**. 실패 16건은 trading/advisor와 무관한 **기존 환경 아티팩트**(Node v26.3.0 + jsdom 29.1.1 `localStorage` 미동작 → CollapsibleCard/MarketQuote/Dashboard). 지원 Node(20/22)에선 green. 근본수정(jsdom 업글/폴리필)은 후속 분리 — **테스트 무력화·skip 안 함.**
+
+**루브릭 점수 + 근거:**
+- Functionality **4** — A1 설정 토대(env 선택값 부팅 + 가드 패턴) 전진. 근거: env 16/16, build 가드 클린. (LLM 로직은 #20부터.)
+- LLM 정합성 **N/A** — 이번 증분은 provider 호출/계약 없음(어댑터 #20). 근거 없는 점수는 무효(§5.2)이므로 미채점.
+- Safety **5** — `lib/server/trading/**` **무수정**(git status 확인), env 추가는 전부 선택값으로 어떤 §6 게이트도 약화 안 함. 어드바이저는 §6 상류. 근거: git status(변경 4파일 전부 advisor 설정).
+- Security & Privacy **5** — LLM 키 선택값·server-only env·번들 가드에 LLM 패턴 추가 + build가 client 번들 클린 증명(35파일). 근거: build 가드 출력.
+- Determinism/Testability **5** — 순수 zod 파싱, 결정적 단위 테스트 4건. 근거: env.test.ts.
+- UX **N/A** — UI 없음(A1은 UI 없음, §4).
+- Code quality **5** — 외과적(4파일), 기존 blank→undefined 패턴 재사용, 무관 변경 없음. 근거: diff 범위.
+
+**최저축**: LLM 정합성(미착수) → **다음 개선(#20)**: §9-3 `LlmProvider` 인터페이스 + 첫 어댑터(OpenAI) 요청 형태 — 주입된 `fetch`로 헤더·바디·structured output(`response_format`) 단언하는 실패 테스트부터. **provider 계약은 Context7·공식 문서로 확인 후 작성**(§3).
+**Phase 전진 판정**: A1 종료조건 다수 미충족(어댑터·snapshot·schema·validate 남음) → advance 없음, A1 계속.
