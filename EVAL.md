@@ -482,3 +482,26 @@
 
 **최저축**: Functionality(schema·validate 미착수) → **다음 개선(#24)**: `advisor/schema.ts`(zod) — LLM 구조화 출력 스키마(`proposals[]`(side·symbol·quantity·reason 등) + `advice` 서술) parse 성공/실패 단위 테스트. 이후 `validate.ts`(보유·매도가능수량·심볼 실재·정수·side).
 **Phase 전진 판정**: A1 남은 종료조건(schema·validate) 미충족 → advance 없음, A1 계속.
+
+---
+
+## #24 | phase4 | A1: `advisor/schema.ts`(zod) LLM 구조화 출력 스키마
+
+**한 일**: `advisorResultSchema` = `{ advice: string(min1), proposals: AdvisorProposal[] }`. `advisorProposalSchema` = `{ kind: enum(buy|trim|exit|rebalance), symbol: min1, side: enum(BUY|SELL), quantity: int().positive(), rationale: min1 }`. **provider 응답은 신뢰경계 밖** → 사용 전 이 zod로 재파싱(추가/환각 필드 strip). 결정: hold는 주문 아님 → `advice` 서술로(proposals는 prefill 가능한 액션만). 교차검증(보유·심볼 실재)은 #25 validate. TDD: schema.test.ts 9건(유효·빈 proposals·extra strip·비정수/비양수 quantity·unknown side/kind·blank symbol·missing advice).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — **번들 가드 35파일 클린**(schema server-only)
+- test — 신규 9건 포함 **392 passed (408, 31 files)**. 실패 16건 동일 **환경 아티팩트**. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **4** — A1 schema 종료조건 충족. 근거: schema 9/9. (validate 남음.)
+- LLM 정합성 **5** — 구조화 출력 재검증 계약(zod) 정의, extra/환각 필드 strip·잘못된 side/kind/quantity 거부. 근거: parse 성공/실패 9건.
+- Safety **5** — `lib/server/trading/**` **무수정**(git status), advisor `placeOrder`/`createOrderRaw` **미참조**(grep none). proposals는 데이터일 뿐(집행 아님). 근거: git status + grep.
+- Security & Privacy **5** — schema server-only, 번들 35파일 클린. 근거: build.
+- Determinism/Testability **5** — 순수 zod, 9건 결정적. 근거: schema.test.ts.
+- UX **N/A** — UI 없음.
+- Code quality **5** — 단일 zod 모듈, 외과적(신규 2파일·기존 무수정). 근거: git status(?? schema만).
+
+**최저축**: Functionality(validate 미착수) → **다음 개선(#25)**: `advisor/validate.ts`(순수) — 제안을 실제와 대조: SELL은 보유·매도가능수량 이내, BUY/심볼은 실재(스냅샷/심볼셋 대조), quantity 정수>0, side 유효. **환각/무효는 자동보정 없이 탈락·플래그**(§6.A-3). 단위 테스트.
+**Phase 전진 판정**: A1 남은 종료조건(validate) 미충족 → advance 없음, A1 계속.
