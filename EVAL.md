@@ -505,3 +505,26 @@
 
 **최저축**: Functionality(validate 미착수) → **다음 개선(#25)**: `advisor/validate.ts`(순수) — 제안을 실제와 대조: SELL은 보유·매도가능수량 이내, BUY/심볼은 실재(스냅샷/심볼셋 대조), quantity 정수>0, side 유효. **환각/무효는 자동보정 없이 탈락·플래그**(§6.A-3). 단위 테스트.
 **Phase 전진 판정**: A1 남은 종료조건(validate) 미충족 → advance 없음, A1 계속.
+
+---
+
+## #25 | phase4 | A1: `advisor/validate.ts`(순수) 제안 실제 대조 검증
+
+**한 일**: `validateProposals(proposals, context)` 순수 — LLM 제안을 주입된 reality 컨텍스트(`holdings`{symbol,sellableQuantity}·`knownSymbols`)와 대조. 규칙: quantity 정수>0(방어적), kind↔side 정합(buy→BUY, trim/exit→SELL, rebalance 자유), 심볼 실재(`knownSymbols`), SELL은 보유 + 매도가능수량 이내. **환각/무효는 자동보정·클램프 없이 `valid:false`+reasons로 탈락**(§6.A-3·4, UI는 표시만·prefill 차단). 입력 순서대로 1:1 결과. TDD: validate.test.ts 8건(SELL 유효·BUY 유효·매도초과·미보유·미지심볼·kind/side 불일치·비정수/비양수·혼합 배치 독립 플래그).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0(kindSideConflict exhaustive switch)
+- build exit 0 — **번들 가드 35파일 클린**(validate server-only)
+- test — 신규 8건 포함 **400 passed (416, 32 files)**. 실패 16건 동일 **환경 아티팩트**. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — A1 schema/validate 종료조건 충족(결정적 검증 게이트 완성). 근거: validate 8/8.
+- LLM 정합성 **5** — 환각(미지 심볼·매도초과·incoherent kind/side) 탈락 증명. 근거: 8건.
+- Safety **5(타협 불가 충족)** — **§6.A-3 핵심**: 무효 제안 자동보정 없이 탈락(prefill 전 결정적 게이트). `lib/server/trading/**` **무수정**, advisor `placeOrder`/`createOrderRaw` **미참조**(grep). 근거: 탈락 테스트 + git status + grep.
+- Security & Privacy **5** — validate server-only, 번들 35파일 클린. 근거: build.
+- Determinism/Testability **5** — 순수(컨텍스트 주입, Toss 미호출), 8건 결정적. 근거: validate.test.ts.
+- UX **N/A** — UI 없음.
+- Code quality **5** — 순수·작은 단위, kind/side 정합 exhaustive, 외과적(신규 2파일). 근거: git status.
+
+**최저축**: 없음(핵심 축 5; UX 비해당) → **다음 개선(#26)**: `advisor/prompt.ts`(순수) — 마스킹 스냅샷 → system+user 프롬프트 빌드(§4 A1 결정적 코어, 체크리스트 누락분). 단위 테스트(스냅샷 반영·instruction 포함). → A1 결정적 코어 마무리.
+**Phase 전진 판정**: A1 결정적 코어 중 `prompt.ts` 미완 → advance 없음, A1 계속. (※ "어드바이저 경로 not configured"는 라우트 생기는 A2에서 종단 검증.)
