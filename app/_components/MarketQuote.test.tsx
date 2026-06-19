@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { QueryResult } from "@/lib/client/hooks";
 import type {
   CandlePageResponse,
@@ -8,6 +14,7 @@ import type {
   PriceLimitResponse,
   PriceResponse,
 } from "@/lib/client/types";
+import type { TossCandleInterval } from "@/lib/client/candles";
 
 // The SWR hooks hit `/api/*`; mock them so the component renders deterministic
 // states without a network. `lightweight-charts` is mocked because the rendered
@@ -19,14 +26,14 @@ const useOrderbook =
   vi.fn<(symbol?: string) => QueryResult<OrderbookResponse>>();
 const useCandles =
   vi.fn<
-    (symbol: string | undefined, interval: "1m" | "1d") => QueryResult<CandlePageResponse>
+    (symbol: string | undefined, interval: TossCandleInterval) => QueryResult<CandlePageResponse>
   >();
 
 vi.mock("@/lib/client/hooks", () => ({
   usePrices: (symbols: string[]) => usePrices(symbols),
   usePriceLimits: (symbol?: string) => usePriceLimits(symbol),
   useOrderbook: (symbol?: string) => useOrderbook(symbol),
-  useCandles: (symbol: string | undefined, interval: "1m" | "1d") =>
+  useCandles: (symbol: string | undefined, interval: TossCandleInterval) =>
     useCandles(symbol, interval),
 }));
 
@@ -80,6 +87,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -125,6 +133,53 @@ describe("MarketQuote", () => {
   it("shows the holding name in the header when provided", () => {
     render(<MarketQuote symbol="005930" name="삼성전자" />);
     expect(screen.getByText("삼성전자 (005930)")).toBeInTheDocument();
+  });
+
+  it("renders chart interval buttons and marks the selected interval", () => {
+    render(<MarketQuote symbol="005930" />);
+    expect(screen.getByRole("button", { name: "분" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "년" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "분" }));
+
+    expect(screen.getByRole("button", { name: "분" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(useCandles).toHaveBeenCalledWith("005930", "1m");
+    expect(window.localStorage.getItem("toss-invest:chart-interval")).toBe(
+      "1m",
+    );
+  });
+
+  it("restores the stored chart interval and marks it selected", async () => {
+    window.localStorage.setItem("toss-invest:chart-interval", "1w");
+
+    render(<MarketQuote symbol="005930" />);
+
+    const weekly = screen.getByRole("button", { name: "주" });
+    await waitFor(() => {
+      expect(weekly).toHaveAttribute("aria-pressed", "true");
+    });
+    expect(useCandles).toHaveBeenCalledWith("005930", "1d");
+  });
+
+  it("waits for the stored minute interval before requesting chart candles", async () => {
+    window.localStorage.setItem("toss-invest:chart-interval", "1m");
+
+    render(<MarketQuote symbol="005930" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "분" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+    expect(useCandles).toHaveBeenCalledWith(undefined, "1d");
+    expect(useCandles).toHaveBeenCalledWith("005930", "1m");
   });
 
   it("renders '-' for null US price limits", () => {

@@ -91,6 +91,16 @@ describe("CandleChart", () => {
     render(<CandleChart candles={[candle()]} />);
     expect(createChart).toHaveBeenCalledTimes(1);
     expect(addSeries).toHaveBeenCalledTimes(1);
+    const [, options] = addSeries.mock.calls[0] as unknown as [
+      unknown,
+      unknown,
+    ];
+    expect(options).toMatchObject({
+      upColor: "#ff4d6d",
+      downColor: "#3b82f6",
+      wickUpColor: "#ff4d6d",
+      wickDownColor: "#3b82f6",
+    });
     expect(setData).toHaveBeenCalledTimes(1);
     const [series] = setData.mock.calls[0];
     expect(series).toHaveLength(1);

@@ -313,6 +313,18 @@
   margin: 16px 0;
 }
 
+.chartControls {
+  flex-wrap: wrap;
+}
+
+.chartControls .activeControl,
+.chartControls button[aria-pressed="true"] {
+  background: var(--foreground);
+  border-color: var(--foreground);
+  color: var(--background);
+  font-weight: 700;
+}
+
 .orderForm {
   display: flex;
   flex-direction: column;

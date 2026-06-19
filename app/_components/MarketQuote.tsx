@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useCandles,
   useOrderbook,
   usePriceLimits,
   usePrices,
 } from "@/lib/client/hooks";
+import {
+  aggregateCandles,
+  CHART_INTERVALS,
+  sourceInterval,
+  type ChartInterval,
+} from "@/lib/client/candles";
 import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
 import { previousClose, priceChange } from "@/lib/client/quote";
 import { CollapsibleCard } from "./CollapsibleCard";
@@ -15,6 +21,8 @@ import { CandleChart } from "./CandleChart";
 import { Orderbook } from "./Orderbook";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
+
+const CHART_INTERVAL_KEY = "toss-invest:chart-interval";
 
 /** Formats a price in the given trading currency. */
 function formatPrice(value: string | null, currency: string): string {
@@ -26,9 +34,30 @@ function signClass(value: string | null | undefined): string {
   return styles[signOf(value)];
 }
 
+function isChartInterval(value: string | null): value is ChartInterval {
+  return CHART_INTERVALS.some((item) => item.value === value);
+}
+
+function readStoredInterval(): ChartInterval {
+  try {
+    const stored = window.localStorage.getItem(CHART_INTERVAL_KEY);
+    return isChartInterval(stored) ? stored : "1d";
+  } catch {
+    return "1d";
+  }
+}
+
+function writeStoredInterval(interval: ChartInterval): void {
+  try {
+    window.localStorage.setItem(CHART_INTERVAL_KEY, interval);
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
 /**
  * Market quote section for the selected symbol: its name/last price header, a
- * candlestick chart (1m/1d toggle), the orderbook, and the daily price limits.
+ * candlestick chart, the orderbook, and the daily price limits.
  * The symbol is controlled by the parent (driven by the holdings selection),
  * not an in-component input. `name` is shown in the header when known.
  */
@@ -39,12 +68,16 @@ export function MarketQuote({
   symbol: string;
   name?: string;
 }) {
-  const [interval, setInterval] = useState<"1m" | "1d">("1d");
+  const [interval, setIntervalState] = useState<ChartInterval>("1d");
+  const [loadedStoredInterval, setLoadedStoredInterval] = useState(false);
 
   const prices = usePrices([symbol]);
   const limits = usePriceLimits(symbol);
   const orderbook = useOrderbook(symbol);
-  const candles = useCandles(symbol, interval);
+  const candles = useCandles(
+    loadedStoredInterval ? symbol : undefined,
+    sourceInterval(interval),
+  );
   // Daily candles power the header's day change (vs previous close), regardless
   // of the chart's selected interval.
   const dailyCandles = useCandles(symbol, "1d");
@@ -55,6 +88,17 @@ export function MarketQuote({
     quote?.lastPrice,
     previousClose(dailyCandles.data?.candles ?? []),
   );
+  const chartCandles = aggregateCandles(candles.data?.candles ?? [], interval);
+
+  function setInterval(interval: ChartInterval) {
+    setIntervalState(interval);
+    writeStoredInterval(interval);
+  }
+
+  useEffect(() => {
+    setIntervalState(readStoredInterval());
+    setLoadedStoredInterval(true);
+  }, []);
 
   return (
     <CollapsibleCard title="시세" storageId="market-quote">
@@ -115,24 +159,19 @@ export function MarketQuote({
         </div>
       </div>
 
-      <div className={page.controls}>
+      <div className={`${page.controls} ${styles.chartControls}`}>
         <span className={page.controlLabel}>차트</span>
-        <button
-          type="button"
-          className={page.select}
-          aria-pressed={interval === "1m"}
-          onClick={() => setInterval("1m")}
-        >
-          1분
-        </button>
-        <button
-          type="button"
-          className={page.select}
-          aria-pressed={interval === "1d"}
-          onClick={() => setInterval("1d")}
-        >
-          1일
-        </button>
+        {CHART_INTERVALS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            className={`${page.select} ${interval === item.value ? styles.activeControl : ""}`}
+            aria-pressed={interval === item.value}
+            onClick={() => setInterval(item.value)}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       {candles.isLoading ? (
@@ -142,7 +181,7 @@ export function MarketQuote({
           차트를 불러오지 못했습니다: {candles.error.message}
         </p>
       ) : candles.data ? (
-        <CandleChart candles={candles.data.candles} />
+        <CandleChart candles={chartCandles} />
       ) : null}
 
       {orderbook.isLoading ? (

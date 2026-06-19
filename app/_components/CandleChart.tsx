@@ -92,19 +92,19 @@ export function CandleChart({ candles }: { candles: Candle[] }) {
     const chart = createChart(container, {
       height: 280,
       autoSize: true,
-      layout: { background: { color: "transparent" }, textColor: "#888" },
+      layout: { background: { color: "transparent" }, textColor: "#7b818c" },
       grid: {
-        vertLines: { color: "rgba(128,128,128,0.1)" },
-        horzLines: { color: "rgba(128,128,128,0.1)" },
+        vertLines: { color: "rgba(255,255,255,0.07)" },
+        horzLines: { color: "rgba(255,255,255,0.07)" },
       },
       timeScale: { timeVisible: true, secondsVisible: false },
     });
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e",
-      downColor: "#ef4444",
+      upColor: "#ff4d6d",
+      downColor: "#3b82f6",
       borderVisible: false,
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
+      wickUpColor: "#ff4d6d",
+      wickDownColor: "#3b82f6",
     });
     chartRef.current = chart;
     seriesRef.current = series;

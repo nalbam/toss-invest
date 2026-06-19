@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR, { type SWRConfiguration } from "swr";
+import type { TossCandleInterval } from "@/lib/client/candles";
 import { POLLING_INTERVAL_MS } from "@/lib/client/polling";
 import type {
   Account,
@@ -279,7 +280,7 @@ export function useOrderbook(
  */
 export function useCandles(
   symbol: string | undefined,
-  interval: "1m" | "1d",
+  interval: TossCandleInterval,
 ): QueryResult<CandlePageResponse> {
   const key =
     symbol === undefined
