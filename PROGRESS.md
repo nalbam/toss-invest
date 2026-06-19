@@ -2,7 +2,8 @@
 
 ## 현재 위치
 - **Phase**: **전체 완료 (1·2·3 종료)** — dev-loop §0 "모든 Phase 완료 시 루프 종료".
-- **마지막 이터레이션**: #18 완료 (게이트된 자동 executor → **Phase 3 종료 → 로드맵 전체 완료**). `lib/server/trading/auto-executor.ts`(`intentToOrderRequest` 순수 + `runAutoTrade`: intent→§6 `placeOrder`, **confirm=AUTO_TRADE_ENABLED**(사람 env값 그대로))·`auto-trader.ts` facade(`runOnce` 1회 평가, 상시 루프 없음)·env `AUTO_TRADE_ENABLED`(기본 false). safety.ts 게이트/메타가드 **무수정**(호출만). 306 tests.
+- **마지막 이터레이션**: #18 완료 (게이트된 자동 executor → **Phase 3 종료 → 로드맵 전체 완료**). `lib/server/trading/auto-executor.ts`(`intentToOrderRequest` 순수 + `runAutoTrade`: intent→§6 `placeOrder`, **confirm=AUTO_TRADE_ENABLED**(사람 env값 그대로))·`auto-trader.ts` facade(`runOnce` 1회 평가, 상시 루프 없음)·env `AUTO_TRADE_ENABLED`(기본 false). safety.ts 게이트/메타가드 **무수정**(호출만). #18 시점 306 tests.
+- **현 상태**: 루프(#18) 이후 사람 주도 UI 개선(EVAL 미기록) — 3-컬럼 대시보드 레이아웃·`CollapsibleCard`·`AccountCash`(현금·환율)·빠른주문 모드·캔들 interval 선택. 현 시점 **26 파일 359 tests**, lint·typecheck·test·build green.
 - **다음 작업**: 루프 종료. 추가 개선(아래 미해결)은 사람이 명시 요청 시 새 루프/이터로.
 
 ### Phase 3 종료 조건 (dev-loop §4) — ✅ 전부 충족
@@ -31,8 +32,8 @@
 - 테스트: **Vitest**(서버=node, UI=jsdom; 차트=`vi.mock('lightweight-charts')`). **Playwright E2E**(`test:e2e`, chromium 설치됨, `e2e/dashboard.spec.ts` route-mock 렌더 스모크, `webServer: next dev -p 3100` 더미 env, vitest는 `e2e/**` exclude).
 - **build 게이트**: `rm -rf .next && next build && node scripts/check-bundle-secrets.mjs`.
 - 시크릿 격리: 서버 전용 `lib/server/**` + `server-only`, env zod(`getEnv()`).
-- 서버 toss 계층: `auth`·`client`·`rate-limiter`(ACCOUNT1·ASSET5·MARKET_DATA10·MARKET_INFO3·ORDER_HISTORY5·MARKET_DATA_CHART5·STOCK5·ORDER_INFO6)·`schemas`(decimal=string, openEnum)·`endpoints`(GET 17)·`container`.
-- **API 프록시 라우트 17종**(`force-dynamic`, `{data}`/sanitized error). 클라이언트 `lib/client/{types,format,hooks}.ts`(서버 import 금지) + `app/_components/*`(대시보드 4섹션: PortfolioSummary·HoldingsTable·FxRate·OrdersTable·MarketQuote/Orderbook/CandleChart). 차트 lightweight-charts.
+- 서버 toss 계층: `auth`·`client`·`rate-limiter`(ACCOUNT1·ASSET5·MARKET_DATA10·MARKET_INFO3·ORDER6·ORDER_HISTORY5·MARKET_DATA_CHART5·STOCK5·ORDER_INFO6)·`schemas`(decimal=string, openEnum)·`endpoints`(GET 17)·`container`.
+- **API 프록시 라우트(GET 17 + POST 3: orders create/modify/cancel)**(`force-dynamic`, `{data}`/sanitized error). 클라이언트 `lib/client/{types,format,hooks,quote,candles,polling}.ts`(서버 import 금지) + `app/_components/*`(`Dashboard` 루트의 3-컬럼 레이아웃: 시세 `MarketQuote`/`Orderbook`/`CandleChart` · 주문 `OrderForm` · 사이드바 `AccountCash`(현금·환율)/`PortfolioSummary`/`HoldingsTable`/`OrdersTable`+`ModifyOrderForm`; 공용 `CollapsibleCard`·`Money`). 차트 lightweight-charts.
 
 ## 게이트 (4개) + E2E
 `pnpm run lint` · `pnpm run typecheck` · `pnpm run test` · `pnpm run build`(클린+번들 가드). 별도: `pnpm run test:e2e`(Playwright).

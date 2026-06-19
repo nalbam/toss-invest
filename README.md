@@ -71,7 +71,7 @@ lib/
     env.ts             # zod 환경 변수 검증
     toss/              # auth · client · rate-limiter · schemas · endpoints · container
     trading/           # safety(§6 게이트) · strategy · backtest · executor · auto-*
-  client/**            # types · format · hooks (서버 import 금지)
+  client/**            # types · format · hooks · quote · candles · polling (서버 import 금지)
 ```
 
 - **시크릿 격리**: 모든 서버 코드는 `lib/server/**` + `server-only`. `build` 시
