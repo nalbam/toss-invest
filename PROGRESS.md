@@ -1,10 +1,10 @@
 # PROGRESS — 토스증권 대시보드 (현재 상태만)
 
 ## 현재 위치
-- **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A2 진행 중** (A1 결정적 코어 완료) — advisor-loop-prompt.md, #19~.
-- **마지막 이터레이션**: #27 완료 (A2: `advisor/advisor.ts` 오케스트레이션). `runAdvisor` — prompt→provider(주입)→JSON.parse→zod safeParse→validateProposals→result. 파싱/스키마 실패 `AdvisorResponseError`, 무효 제안 탈락 아닌 플래그. **§6.A-1: advisor가 order-exec 미참조(grep)**. `lib/server/trading/**` **무수정**. #27 시점 427 tests.
-- **현 상태**: **34 파일 427 tests**, lint·typecheck·build green. (test: 지원 Node에서 green; 현재 샌드박스 Node v26.3.0은 jsdom localStorage 미동작으로 UI 16건 환경 실패 — 코드 무관, 후속 분리.)
-- **다음 작업(#28)**: A2 — `app/api/advisor/route.ts` POST(`force-dynamic`): 데이터 수집→`runAdvisor`→`{data}` 봉투, 에러 매핑(AdvisorResponseError sanitize·LlmNotConfiguredError not-configured). 라우트 테스트.
+- **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A3 진행 중** (A1·A2 완료) — advisor-loop-prompt.md, #19~.
+- **마지막 이터레이션**: #28 완료 (A2: `app/api/advisor/route.ts` POST → **A2 종료, A3 전진**). 수집→snapshot+validation→`runAdvisor`→`{data:{advice,proposals,model,generatedAt}}`. 에러 매핑(not-configured 503·invalid 502 sanitize). **§6.A-1: advisor+route order-exec 미참조(grep)**, **외부 전송 PII 미포함(테스트)**. `lib/server/trading/**` **무수정**. #28 시점 433 tests.
+- **현 상태**: **35 파일 433 tests**, lint·typecheck·build green(번들 가드 36파일). (test: 지원 Node에서 green; 현재 샌드박스 Node v26.3.0은 jsdom localStorage 미동작으로 UI 16건 환경 실패 — 코드 무관, 후속 분리.)
+- **다음 작업(#29, A3)**: `lib/client/advisor.ts`(온디맨드 fetcher) + `app/_components/AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안·disclaimer·미설정/에러). 이후 prefill→OrderForm.
 
 ## Phase 4 — AI 어드바이저 (진행 중)
 LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안. **LLM은 제안자, 집행자 아님** — 제안→사람 confirm→기존 §6 게이트. 상세: [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md).
@@ -26,13 +26,19 @@ LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안.
 
 **→ A1 결정적 코어 완료(#26). A2 진행 중.**
 
-### A2 (진행 중)
-- [x] advisor 오케스트레이션(snapshot→prompt→provider→zod→validate) — #27 `runAdvisor`(stub provider 5 테스트, 파싱실패/검증탈락). **§6.A-1: order-exec 미참조(grep)**.
-- [ ] `app/api/advisor/route.ts` POST(`force-dynamic`, `{data}` 봉투, 에러 매핑, not-configured) + 라우트 테스트 — #28.
-- [ ] 외부 전송 페이로드 PII 미포함 단언, lint·typecheck·test·build green.
+### A2 (완료)
+- [x] advisor 오케스트레이션(snapshot→prompt→provider→zod→validate) — #27 `runAdvisor`(stub 5 테스트). **§6.A-1: order-exec 미참조(grep)**.
+- [x] `app/api/advisor/route.ts` POST(`force-dynamic`, `{data}` 봉투, 에러 매핑, not-configured) + 라우트 테스트 — #28(6 테스트).
+- [x] 외부 전송 페이로드 PII 미포함 단언(#28 route 테스트), lint·typecheck·test·build green.
 
-### A3 (예정)
-- `AiAdvisor.tsx` 카드 + "폼에 담기" prefill → 기존 OrderForm(자동 전송 X, confirm·§6 유지).
+### A3 (진행 중)
+- [ ] `lib/client/advisor.ts`(온디맨드 fetcher, 자동폴링 X) + `AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안·disclaimer·미설정/에러) — #29.
+- [ ] "폼에 담기" prefill → 기존 OrderForm(자동 전송 X, confirm·§6 유지). 무효 제안은 표시만·prefill 불가.
+- [ ] Playwright 스모크(route-mock) 카드 렌더.
+
+### A2·A3 후속(사람 요청 시)
+- structured output `response_format`(zod→strict JSON schema 변환) 배선 — 현재 zod 재검증으로 대체(안전), provider 신뢰도 향상용.
+- BUY 제안 신규 심볼 Toss 실재 검증 라운드(현재 fail-closed 차단, §6.A-4).
 
 ### Phase 3 종료 조건 (dev-loop §4) — ✅ 전부 충족
 - [x] 백테스트/시뮬레이션 하네스 결정적 검증(#17 runBacktest).

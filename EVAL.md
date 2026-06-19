@@ -574,3 +574,26 @@
 
 **최저축**: 없음(핵심 축 5; UX 비해당) → **다음 개선(#28)**: `app/api/advisor/route.ts` POST(`force-dynamic`) — 데이터 수집(snapshot/validation: toss client)→`runAdvisor`→`{data:{advice,proposals,model,generatedAt}}` 봉투, 에러 매핑(`AdvisorResponseError`→sanitize, `LlmNotConfiguredError`→명확한 not-configured 코드). 라우트 테스트(advisor/container stub).
 **Phase 전진 판정**: A2 종료조건(라우트·§6.A-1 grep·PII 미전송 단언) 미충족 → advance 없음, A2 계속.
+
+---
+
+## #28 | phase4 | A2: `app/api/advisor/route.ts` POST → A2 종료, A3 전진
+
+**한 일**: advisor POST 라우트(`force-dynamic`). accountSeq 해석→holdings·buyingPower·(USD 시)exchangeRate·심볼별 sellableQuantity 수집→`buildAdvisorSnapshot`+validation(보유=knownSymbols, BUY 미검증 심볼 fail-closed §6.A-4)→`getServerLlmProvider`→`runAdvisor`→`{data:{advice,proposals(플래그),model,generatedAt}}`. 에러 매핑: `LlmNotConfiguredError`→503 `advisor-not-configured`, `AdvisorResponseError`→502 `advisor-response-invalid`(sanitize), 그 외 `handleError`. TDD: route.test.ts 6건(정상 봉투·환각 플래그·not-configured·invalid sanitize·**PII 미전송 단언**·accountSeq 해석).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — **번들 가드 36파일 클린**(advisor 라우트 추가, LLM 키 미노출)
+- test — 신규 6건 포함 **417 passed (433, 35 files)**. 실패 16건 동일 **환경 아티팩트**. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — A2 라우트 완성(수집→advisor→봉투·에러 매핑). 근거: route 6/6.
+- LLM 정합성 **5** — not-configured/invalid-response 명확 매핑, 응답 zod 재검증(runAdvisor). 근거: not-configured·invalid 테스트.
+- Safety **5(타협 불가 충족)** — **§6.A-1: advisor+route가 order-exec(placeOrder/createOrderRaw/executor/modify/cancel) 미참조**(grep none). 라우트는 제안 반환만(집행 없음), 무효는 플래그. `lib/server/trading/**` **무수정**. 근거: grep + git status + 플래그 테스트.
+- Security & Privacy **5(타협 불가 충족)** — **외부 전송 PII 미포함**(route 테스트: 프롬프트 페이로드에 accountSeq/No/Type 없음), 에러 sanitize(내부 미누출), LLM 키 번들 36파일 클린. 근거: PII 미전송 테스트 + build.
+- Determinism/Testability **5** — toss facade+provider stub로 라우트 전체 결정적(6건). 근거: route.test.ts.
+- UX **N/A** — UI는 A3.
+- Code quality **5** — 기존 라우트 관례(respond.ts·force-dynamic·container) 일치, 외과적(신규 라우트만). 근거: git status(?? advisor 라우트만).
+
+**최저축**: 없음(핵심 축 5; UX는 A3) → **다음 개선(#29, A3 시작)**: `lib/client/advisor.ts`(온디맨드 fetcher, 자동폴링 X) + `AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안목록·**disclaimer**·미설정/에러). 무효 제안 표시만·prefill 불가.
+**★ A2 종료 → A3 전진**: A2 종료조건(advisor stub 테스트·라우트 {data}/에러 매핑/force-dynamic/not-configured·§6.A-1 grep·환각 탈락·PII 미전송) 전부 충족, Safety/Security=5. §5.3 advance → **Phase A3**. (A1 잔여 "경로 not configured"도 #28 라우트 매핑으로 종단 충족.)
