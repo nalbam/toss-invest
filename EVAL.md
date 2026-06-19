@@ -390,3 +390,26 @@
 
 **최저축**: LLM 정합성(미착수) → **다음 개선(#20)**: §9-3 `LlmProvider` 인터페이스 + 첫 어댑터(OpenAI) 요청 형태 — 주입된 `fetch`로 헤더·바디·structured output(`response_format`) 단언하는 실패 테스트부터. **provider 계약은 Context7·공식 문서로 확인 후 작성**(§3).
 **Phase 전진 판정**: A1 종료조건 다수 미충족(어댑터·snapshot·schema·validate 남음) → advance 없음, A1 계속.
+
+---
+
+## #20 | phase4 | A1: `LlmProvider` 인터페이스 + OpenAI 어댑터(주입 fetch, structured output)
+
+**한 일**: `lib/server/llm/types.ts`(`LlmProvider`·`ChatRequest`/`ChatResponse`·`ChatMessage`·`JsonSchemaSpec`·`LlmFetchFn`) + `openai.ts`(`createOpenAiProvider`, auth.ts DI 패턴: `fetchFn` 주입·sanitized 에러·`AbortController` 타임아웃 비용가드). 요청은 `POST {base}/chat/completions` + `Authorization: Bearer` + `response_format:{type:"json_schema",json_schema:{name,strict:true,schema}}`(jsonSchema 있을 때만), 응답은 `choices[0].message.content`+`model` 파싱(미존재 시 throw — 신뢰경계 밖). **provider 계약 Context7 검증**(developers.openai.com): response_format json_schema strict·bearer·choices[].message.content. TDD: openai.test.ts 9건.
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0 (초기 TS2493 튜플 인덱스 → 테스트 mock에 `Mock<(url,init)=>Promise<Response>>` 타입 지정으로 근본수정, 구현 무관)
+- build exit 0 — **번들 가드 35파일, forbidden 0건**(llm은 server-only → client 번들 미포함)
+- test — 신규 9건 포함 **365 passed (381, 27 files)**. 실패 16건은 동일 **환경 아티팩트**(Node v26 jsdom localStorage). 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **4** — A1 "provider 추상화" 첫 어댑터 완료(인터페이스+OpenAI). 근거: openai 9/9. (xAI·container #21.)
+- LLM 정합성 **5** — 요청/응답이 OpenAI 문서 계약과 일치(Context7 확인): response_format json_schema strict·bearer·max_tokens·choices[0].message.content. 응답은 신뢰경계 밖 취급(파싱 실패 throw). 근거: 계약 테스트 9건(헤더/바디/structured/파싱/에러).
+- Safety **5** — `lib/server/trading/**` **무수정**(git status), llm이 `placeOrder`/`createOrderRaw` **미참조**(grep none). 어드바이저는 §6 상류. 근거: git status + grep.
+- Security & Privacy **5** — 어댑터 server-only, 키는 헤더에만(에러·로그 미노출, "status N"만 throw — 테스트로 키 미누출 단언), 번들 가드 35파일 클린. 근거: build + 키누출 테스트.
+- Determinism/Testability **5** — 비결정 LLM 호출을 주입 fetch 뒤로 격리, 9건 전부 결정적(mock fetch·고정 payload). 타임아웃도 signal instanceof로 결정 검증. 근거: openai.test.ts.
+- UX **N/A** — UI 없음.
+- Code quality **5** — 외과적(신규 3파일, 기존 무수정), auth.ts DI 관례 일치, parse 단일함수 격리. 근거: git status(?? llm/만).
+
+**최저축**: Functionality(어댑터 1/2·container 미완) → **다음 개선(#21)**: xAI 어댑터(OpenAI 호환, base `https://api.x.ai/v1`) + `container.ts`(`LLM_PROVIDER` env로 `getServerLlmProvider` 선택, 미설정 시 "not configured"). xAI 계약도 Context7 확인.
+**Phase 전진 판정**: A1 종료조건(snapshot·schema·validate·2어댑터) 미충족 → advance 없음, A1 계속.
