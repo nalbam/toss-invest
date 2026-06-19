@@ -11,6 +11,7 @@ import type {
   PaginatedOrderResponse,
   PriceLimitResponse,
   PriceResponse,
+  SellableQuantity,
 } from "@/lib/client/types";
 
 // Dashboard composes many SWR-backed children. Mock the whole hooks module so
@@ -34,6 +35,11 @@ vi.mock("@/lib/client/hooks", () => ({
   // Market panel hooks (used once a symbol is selected).
   usePrices: (): QueryResult<PriceResponse[]> => ({
     data: [{ symbol: "AAPL", lastPrice: "190.50", currency: "USD" }],
+    error: undefined,
+    isLoading: false,
+  }),
+  useSellableQuantity: (): QueryResult<SellableQuantity> => ({
+    data: { sellableQuantity: "5" },
     error: undefined,
     isLoading: false,
   }),
@@ -170,7 +176,9 @@ describe("Dashboard", () => {
     expect(
       screen.queryByText("보유 종목을 선택하세요."),
     ).not.toBeInTheDocument();
-    // Center order form is prefilled with the selected symbol.
+    // Center order form (defaults to 빠른주문) follows the selected symbol; the
+    // 일반주문 tab exposes the prefilled 종목코드 field.
+    fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
     expect(screen.getByLabelText("종목코드")).toHaveValue("AAPL");
     expect(window.localStorage.getItem("toss-invest:last-symbol")).toBe("AAPL");
   });

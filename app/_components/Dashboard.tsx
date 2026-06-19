@@ -147,7 +147,13 @@ export function Dashboard() {
         {/* Center: order form for the selected symbol (or a prompt). */}
         <div className={styles.column}>
           {selectedSymbol ? (
-            <OrderForm accountSeq={selectedSeq} symbol={selectedSymbol} />
+            <OrderForm
+              accountSeq={selectedSeq}
+              symbol={selectedSymbol}
+              name={selectedName}
+              cash={cash}
+              fxRate={fx.data?.rate}
+            />
           ) : (
             <CollapsibleCard title="주문하기" storageId="order-form">
               <p className={styles.placeholder}>

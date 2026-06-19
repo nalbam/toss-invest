@@ -18,6 +18,7 @@ import type {
   PaginatedOrderResponse,
   PriceLimitResponse,
   PriceResponse,
+  SellableQuantity,
 } from "@/lib/client/types";
 
 /**
@@ -386,6 +387,34 @@ export function useCashBalances(accountSeq: number | undefined): CashBalances {
     isLoading: krw.isLoading || usd.isLoading,
     isRefreshing: Boolean(krw.isRefreshing || usd.isRefreshing),
     error: krw.error ?? usd.error,
+  };
+}
+
+/**
+ * Loads the sellable (available-to-sell) quantity for a symbol on an account.
+ * The request is paused (key is `null`) until both an `accountSeq` and a symbol
+ * are known. Shares the cash-balance polling cadence since both inform order
+ * capacity. Used by the quick-order form to fill the SELL quantity in one tap.
+ */
+export function useSellableQuantity(
+  accountSeq: number | undefined,
+  symbol: string | undefined,
+): QueryResult<SellableQuantity> {
+  const key =
+    accountSeq === undefined || symbol === undefined
+      ? null
+      : `/api/sellable-quantity?accountSeq=${accountSeq}&symbol=${encodeURIComponent(
+          symbol,
+        )}`;
+  const { data, error, isLoading, isValidating } = useSWR<
+    SellableQuantity,
+    ApiClientError
+  >(key, fetcher, cashBalanceConfig);
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
   };
 }
 

@@ -93,6 +93,10 @@ export interface BuyingPower {
   cashBuyingPower: string;
 }
 
+export interface SellableQuantity {
+  sellableQuantity: string;
+}
+
 export interface ExchangeRateResponse {
   baseCurrency: Currency;
   quoteCurrency: Currency;

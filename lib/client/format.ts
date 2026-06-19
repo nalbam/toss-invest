@@ -141,6 +141,33 @@ export function mulDecimalStrings(
   );
 }
 
+/**
+ * Floor-divides two non-negative decimal strings to a whole integer, precisely
+ * (no float). Used to derive the maximum whole number of shares affordable for a
+ * given buying power and price: `floor(amount / price)`. Both operands are scaled
+ * to a common fraction length so they become plain integers, then divided as
+ * `BigInt` (which truncates toward zero — equal to floor for non-negatives).
+ * Returns `null` when either operand is invalid/negative or the divisor is zero,
+ * so callers can distinguish "unknown" from a real "0".
+ */
+export function floorDivToInteger(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): string | null {
+  const pa = a === null || a === undefined ? null : splitDecimal(a);
+  const pb = b === null || b === undefined ? null : splitDecimal(b);
+  if (!pa || !pb || pa.negative || pb.negative) {
+    return null;
+  }
+  const scale = Math.max(pa.fracDigits.length, pb.fracDigits.length);
+  const numerator = BigInt(pa.intDigits + pa.fracDigits.padEnd(scale, "0"));
+  const denominator = BigInt(pb.intDigits + pb.fracDigits.padEnd(scale, "0"));
+  if (denominator === BigInt(0)) {
+    return null;
+  }
+  return (numerator / denominator).toString();
+}
+
 /** Adds 1 to an integer-digit string (used when fraction rounding carries). */
 function incrementIntegerDigits(intDigits: string): string {
   const digits = intDigits.split("");

@@ -535,19 +535,6 @@
   font-weight: 700;
 }
 
-.quickQuote {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.quickQuote strong {
-  font-size: 18px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .quickOrderBox {
   display: flex;
   flex-direction: column;
@@ -560,41 +547,97 @@
   font-weight: 600;
 }
 
-.quickQuantityInput {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content max-content max-content max-content max-content;
-  gap: 6px;
+.quickHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.quickQuantityInput input,
-.quickQuantityInput span,
-.quickQuantityInput button {
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  background: var(--card-bg);
-  color: var(--foreground);
-  min-height: 40px;
-  padding: 8px 10px;
-}
-
-.quickQuantityInput input {
+.quickHeaderTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
-  width: 100%;
 }
 
-.quickQuantityInput span {
+.quickHeaderPrice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.quickHeaderPrice strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.currencyBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--gray-alpha);
   color: var(--muted);
 }
 
-.quickQuantityInput button {
-  cursor: pointer;
-  font: inherit;
-  font-weight: 700;
+.quickCapacityRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
-.quickQuantityInput button[aria-pressed="true"] {
-  background: var(--foreground);
-  color: var(--background);
+.quickCapacityChip {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--gray-alpha);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.quickCapacityChip strong {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.quickCapacityChip:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.quickBtnAmount {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.quickConfirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--loss);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--loss) 8%, var(--card-bg));
+}
+
+.quickConfirmText {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .quickPresets {
@@ -658,6 +701,11 @@
 .quickBuy,
 .quickSell {
   appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   border: 0;
   border-radius: 8px;
   color: var(--foreground);
@@ -667,6 +715,12 @@
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+}
+
+.quickBuy:disabled,
+.quickSell:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .quickBuy {

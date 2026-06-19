@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDecimalStrings,
+  floorDivToInteger,
   formatDecimal,
   formatKrw,
   formatPercent,
@@ -98,6 +99,44 @@ describe("mulDecimalStrings", () => {
     expect(mulDecimalStrings("-2", "-3")).toBe("6");
     expect(mulDecimalStrings(null, "1500")).toBe("0");
     expect(mulDecimalStrings("abc", "1500")).toBe("0");
+  });
+});
+
+describe("floorDivToInteger", () => {
+  it("floors the quotient to a whole number of shares", () => {
+    // Max buyable = floor(buying power / price).
+    expect(floorDivToInteger("1000000", "71000")).toBe("14");
+    expect(floorDivToInteger("710000", "71000")).toBe("10");
+    expect(floorDivToInteger("5000", "185.70")).toBe("26");
+  });
+
+  it("aligns operands with different fraction lengths", () => {
+    expect(floorDivToInteger("1000.50", "100.25")).toBe("9");
+    expect(floorDivToInteger("100", "33.33")).toBe("3");
+  });
+
+  it("returns '0' when the amount is below one share or zero", () => {
+    expect(floorDivToInteger("100", "71000")).toBe("0");
+    expect(floorDivToInteger("0", "71000")).toBe("0");
+  });
+
+  it("preserves precision beyond Number.MAX_SAFE_INTEGER", () => {
+    expect(floorDivToInteger("9007199254740993", "1")).toBe(
+      "9007199254740993",
+    );
+  });
+
+  it("returns null for a zero, negative, or invalid divisor", () => {
+    expect(floorDivToInteger("1000", "0")).toBeNull();
+    expect(floorDivToInteger("1000", "-5")).toBeNull();
+    expect(floorDivToInteger("1000", "abc")).toBeNull();
+  });
+
+  it("returns null for a negative, null, or invalid amount", () => {
+    expect(floorDivToInteger("-1000", "5")).toBeNull();
+    expect(floorDivToInteger(null, "5")).toBeNull();
+    expect(floorDivToInteger(undefined, "5")).toBeNull();
+    expect(floorDivToInteger("abc", "5")).toBeNull();
   });
 });
 

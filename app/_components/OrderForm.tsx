@@ -1,9 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiClientError, submitOrder, usePrices } from "@/lib/client/hooks";
+import {
+  ApiClientError,
+  submitOrder,
+  usePrices,
+  useSellableQuantity,
+} from "@/lib/client/hooks";
 import type { OrderCreateBody, OrderPlaceResult } from "@/lib/client/types";
-import { formatKrw, formatUsd } from "@/lib/client/format";
+import {
+  floorDivToInteger,
+  formatDecimal,
+  formatKrw,
+  formatUsd,
+  mulDecimalStrings,
+} from "@/lib/client/format";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
@@ -19,21 +30,43 @@ interface SubmitError {
   message: string;
 }
 
+/** Formats a price/amount in the given trading currency. */
+function formatPrice(
+  value: string | null | undefined,
+  currency: string,
+): string {
+  return currency === "USD" ? formatUsd(value) : formatKrw(value);
+}
+
 /**
- * Order entry form. Submits to `POST /api/orders` with the per-order `confirm`
- * flag taken straight from the checkbox — never forced to `true`. The server's
- * §6 safety gate makes the final call, so an unchecked confirm always comes
- * back as a DRY_RUN preview. The result is rendered per status (DRY_RUN / SENT /
- * BLOCKED) and any `{ error }` envelope surfaces as its code + message.
+ * Order entry form with two tabs. **빠른주문 (quick order)** is the default: it
+ * shows the live price + currency, the account's buying power, the max buyable
+ * and sellable quantities, and lets the user fill the quantity in one tap, then
+ * place a current-price LIMIT order via a two-step inline confirm (arm → 확정),
+ * mirroring the cancel flow in `OrdersTable`. **일반주문 (general order)** keeps
+ * the explicit confirm-checkbox + 미리보기/주문 flow.
+ *
+ * Every real order goes through the server's §6 safety gate, which is the source
+ * of truth: `confirm:true` is only sent on the user's explicit second click and
+ * is never forced. With `DRY_RUN=true` (the default) even a confirmed order comes
+ * back as a DRY_RUN preview. The result is rendered per status
+ * (DRY_RUN / SENT / BLOCKED) and any `{ error }` envelope surfaces as code +
+ * message.
  */
 export function OrderForm({
   accountSeq,
   symbol: selectedSymbol,
+  name,
+  cash,
+  fxRate,
 }: {
   accountSeq: number | undefined;
   symbol?: string;
+  name?: string;
+  cash?: { krw?: string; usd?: string };
+  fxRate?: string;
 }) {
-  const [mode, setMode] = useState<OrderMode>("GENERAL");
+  const [mode, setMode] = useState<OrderMode>("QUICK");
   const [symbol, setSymbol] = useState(selectedSymbol ?? "");
   const [side, setSide] = useState<Side>("BUY");
   const [orderType, setOrderType] = useState<OrderType>("LIMIT");
@@ -43,27 +76,52 @@ export function OrderForm({
   const [price, setPrice] = useState("");
   const [orderAmount, setOrderAmount] = useState("");
   const [confirm, setConfirm] = useState(false);
+  // Quick-order two-step confirm: the side that is armed and awaiting the
+  // explicit 확정 click, or null when no order is armed.
+  const [armedSide, setArmedSide] = useState<Side | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<OrderPlaceResult | null>(null);
   const [error, setError] = useState<SubmitError | null>(null);
-  const quickQuote = usePrices(
-    mode === "QUICK" && symbol.trim() ? [symbol.trim()] : [],
+
+  const trimmedSymbol = symbol.trim();
+  const quickActive = mode === "QUICK" && trimmedSymbol.length > 0;
+  const quickQuote = usePrices(quickActive ? [trimmedSymbol] : []);
+  const sellable = useSellableQuantity(
+    accountSeq,
+    quickActive ? trimmedSymbol : undefined,
   );
+
   const currentQuote = quickQuote.data?.[0];
-  const currentPriceLabel =
-    currentQuote === undefined
-      ? "-"
-      : currentQuote.currency === "USD"
-        ? formatUsd(currentQuote.lastPrice)
-        : formatKrw(currentQuote.lastPrice);
+  const lastPrice = currentQuote?.lastPrice;
+  // Currency drives KRW vs USD everywhere. Fall back to the symbol shape (6-digit
+  // = KRW) so buying power can show before the price arrives.
+  const currency =
+    currentQuote?.currency ?? (/^\d{6}$/.test(trimmedSymbol) ? "KRW" : "USD");
+  const buyingPower = currency === "USD" ? cash?.usd : cash?.krw;
+  const maxBuyable =
+    buyingPower !== undefined && lastPrice !== undefined
+      ? floorDivToInteger(buyingPower, lastPrice)
+      : null;
+  const sellableQty = sellable.data?.sellableQuantity;
+  const hasQuantity = quantity.trim().length > 0 && Number(quantity) > 0;
+  const estimated =
+    lastPrice !== undefined && hasQuantity
+      ? mulDecimalStrings(lastPrice, quantity.trim())
+      : null;
+  const estimatedKrw =
+    currency === "USD" && fxRate && estimated
+      ? mulDecimalStrings(estimated, fxRate)
+      : null;
 
   // Prefill the symbol from the dashboard selection. Selecting a new holding
   // overwrites the field so the form follows the chosen symbol; the user can
-  // still edit it freely afterwards.
+  // still edit it freely afterwards. A new symbol also disarms any pending
+  // quick-order confirmation so a stale price can never be confirmed.
   useEffect(() => {
     if (selectedSymbol) {
       setSymbol(selectedSymbol);
+      setArmedSide(null);
     }
   }, [selectedSymbol]);
 
@@ -79,18 +137,19 @@ export function OrderForm({
     }
   }
 
-  function setPresetQuantity(next: string) {
+  /** Sets the quantity and disarms any pending quick-order confirmation. */
+  function changeQuantity(next: string) {
     setQuantity(next);
+    setArmedSide(null);
   }
 
   function stepQuantity(delta: number) {
     const current = Number(quantity || "0");
     const next = Math.max(0, Math.floor(current + delta));
-    setQuantity(next === 0 ? "" : String(next));
+    changeQuantity(next === 0 ? "" : String(next));
   }
 
   function buildGeneralBody(
-    trimmedSymbol: string,
     submitSide: Side,
   ): OrderCreateBody | { error: string } {
     const base = {
@@ -122,53 +181,13 @@ export function OrderForm({
     return body;
   }
 
-  function buildQuickBody(
-    trimmedSymbol: string,
-    submitSide: Side,
-  ): OrderCreateBody | { error: string } {
-    if (quantity.trim().length === 0) {
-      return { error: "수량을 입력하세요." };
-    }
-    return {
-      symbol: trimmedSymbol,
-      side: submitSide,
-      orderType: "MARKET",
-      timeInForce: "DAY",
-      quantity: quantity.trim(),
-      confirm,
-    };
-  }
-
-  function buildBody(submitSide: Side): OrderCreateBody | { error: string } {
-    const trimmedSymbol = symbol.trim();
-    if (trimmedSymbol.length === 0) {
-      return { error: "종목코드를 입력하세요." };
-    }
-    return mode === "QUICK"
-      ? buildQuickBody(trimmedSymbol, submitSide)
-      : buildGeneralBody(trimmedSymbol, submitSide);
-  }
-
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const submitter = (event.nativeEvent as SubmitEvent).submitter;
-    const submitSide =
-      submitter instanceof HTMLButtonElement &&
-      (submitter.value === "BUY" || submitter.value === "SELL")
-        ? submitter.value
-        : side;
-    setSide(submitSide);
-    const built = buildBody(submitSide);
-    if ("error" in built) {
-      setResult(null);
-      setError({ code: "invalid-input", message: built.error });
-      return;
-    }
+  /** Sends an order body and renders its outcome / error. */
+  async function send(body: OrderCreateBody) {
     setSubmitting(true);
     setError(null);
     setResult(null);
     try {
-      const placed = await submitOrder(accountSeq, built);
+      const placed = await submitOrder(accountSeq, body);
       setResult(placed);
     } catch (err) {
       if (err instanceof ApiClientError) {
@@ -184,18 +203,76 @@ export function OrderForm({
     }
   }
 
+  // General order: confirm comes from the checkbox (DRY_RUN preview when off).
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (mode === "QUICK") {
+      // Quick order is driven by its own buttons (armQuick/confirmQuick); never
+      // submit it through the form (e.g. an Enter keypress in the qty field).
+      return;
+    }
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const submitSide =
+      submitter instanceof HTMLButtonElement &&
+      (submitter.value === "BUY" || submitter.value === "SELL")
+        ? submitter.value
+        : side;
+    setSide(submitSide);
+    if (trimmedSymbol.length === 0) {
+      setResult(null);
+      setError({ code: "invalid-input", message: "종목코드를 입력하세요." });
+      return;
+    }
+    const built = buildGeneralBody(submitSide);
+    if ("error" in built) {
+      setResult(null);
+      setError({ code: "invalid-input", message: built.error });
+      return;
+    }
+    await send(built);
+  }
+
+  /** Arms the quick-order confirmation for a side (no order is sent yet). */
+  function armQuick(armSide: Side) {
+    if (!hasQuantity) {
+      setResult(null);
+      setError({ code: "invalid-input", message: "수량을 입력하세요." });
+      return;
+    }
+    if (lastPrice === undefined) {
+      setResult(null);
+      setError({ code: "no-price", message: "현재가를 불러오지 못했습니다." });
+      return;
+    }
+    setError(null);
+    setResult(null);
+    setSide(armSide);
+    setArmedSide(armSide);
+  }
+
+  // Quick order: the explicit second click. Sends a current-price LIMIT order
+  // with confirm:true — the §6 gate still decides whether it sends or stays a
+  // DRY_RUN preview.
+  async function confirmQuick() {
+    if (armedSide === null || lastPrice === undefined) {
+      return;
+    }
+    const body: OrderCreateBody = {
+      symbol: trimmedSymbol,
+      side: armedSide,
+      orderType: "LIMIT",
+      timeInForce: "DAY",
+      quantity: quantity.trim(),
+      price: lastPrice,
+      confirm: true,
+    };
+    await send(body);
+    setArmedSide(null);
+  }
+
   return (
     <CollapsibleCard title="주문하기" storageId="order-form">
       <div className={styles.orderTabs} role="tablist" aria-label="주문 방식">
-        <button
-          type="button"
-          className={styles.orderTab}
-          role="tab"
-          aria-selected={mode === "GENERAL"}
-          onClick={() => setMode("GENERAL")}
-        >
-          일반주문
-        </button>
         <button
           type="button"
           className={styles.orderTab}
@@ -204,6 +281,15 @@ export function OrderForm({
           onClick={() => setMode("QUICK")}
         >
           빠른주문
+        </button>
+        <button
+          type="button"
+          className={styles.orderTab}
+          role="tab"
+          aria-selected={mode === "GENERAL"}
+          onClick={() => setMode("GENERAL")}
+        >
+          일반주문
         </button>
         <button type="button" className={styles.orderTab} disabled>
           조건주문
@@ -357,8 +443,6 @@ export function OrderForm({
                           inputMode="decimal"
                         />
                         <span>{currentQuote?.currency ?? ""}</span>
-                        <button type="button">-</button>
-                        <button type="button">+</button>
                       </div>
                     </>
                   ) : null}
@@ -388,28 +472,84 @@ export function OrderForm({
                 <strong>-</strong>
               </span>
             </div>
+
+            <div className={styles.formRow}>
+              <label className={styles.confirmLabel} htmlFor="order-confirm">
+                <input
+                  id="order-confirm"
+                  type="checkbox"
+                  checked={confirm}
+                  onChange={(event) => setConfirm(event.target.checked)}
+                />
+                실주문 확인 (confirm)
+              </label>
+              <button
+                type="submit"
+                name="order-side"
+                value={side}
+                className={`${styles.orderSubmit} ${
+                  side === "BUY" ? styles.buySubmit : styles.sellSubmit
+                }`}
+                disabled={submitting}
+              >
+                {submitting
+                  ? "전송 중…"
+                  : confirm
+                    ? side === "BUY"
+                      ? "구매하기"
+                      : "판매하기"
+                    : "미리보기"}
+              </button>
+            </div>
+
+            {!confirm ? (
+              <p className={styles.confirmHint}>
+                확인을 체크하지 않으면 dry-run 미리보기만 실행됩니다.
+              </p>
+            ) : null}
           </>
         ) : (
           <>
+            <div className={styles.quickHeader}>
+              <div className={styles.quickHeaderTitle}>
+                <span className={styles.symbolName}>
+                  {name ?? (trimmedSymbol || "-")}
+                </span>
+                {name ? (
+                  <span className={styles.symbolTicker}>{trimmedSymbol}</span>
+                ) : null}
+              </div>
+              <div className={styles.quickHeaderPrice}>
+                <span className={styles.currencyBadge}>
+                  {currency === "USD" ? "USD $" : "KRW ₩"}
+                </span>
+                <strong>
+                  {quickQuote.isLoading
+                    ? "불러오는 중…"
+                    : lastPrice !== undefined
+                      ? formatPrice(lastPrice, currency)
+                      : "-"}
+                </strong>
+              </div>
+            </div>
+
             <div className={styles.quickOrderBox}>
-              <label htmlFor="quick-order-quantity" className={styles.quickInputLabel}>
+              <label
+                htmlFor="quick-order-quantity"
+                className={styles.quickInputLabel}
+              >
                 몇 주 주문할까요?
               </label>
-              <div className={styles.quickQuantityInput}>
+              <div className={styles.stepperInput}>
                 <input
                   id="quick-order-quantity"
+                  className={page.select}
                   value={quantity}
-                  onChange={(event) => setQuantity(event.target.value)}
+                  onChange={(event) => changeQuantity(event.target.value)}
                   placeholder="수량"
                   inputMode="numeric"
                 />
                 <span>주</span>
-                <button type="button" aria-pressed>
-                  주
-                </button>
-                <button type="button" disabled>
-                  %
-                </button>
                 <button type="button" onClick={() => stepQuantity(-1)}>
                   -
                 </button>
@@ -419,121 +559,119 @@ export function OrderForm({
               </div>
             </div>
 
-            <div className={styles.quickPresets} aria-label="빠른 수량">
-              <button type="button" onClick={() => setPresetQuantity("1")}>
-                1주
+            <div className={styles.quickCapacityRow} aria-label="주문가능 수량">
+              <button
+                type="button"
+                className={styles.quickCapacityChip}
+                onClick={() => maxBuyable && changeQuantity(maxBuyable)}
+                disabled={!maxBuyable || maxBuyable === "0"}
+              >
+                <span className={styles.metricLabel}>구매가능</span>
+                <strong>
+                  {maxBuyable !== null ? `${formatDecimal(maxBuyable)}주` : "-"}
+                </strong>
               </button>
-              <button type="button" onClick={() => setPresetQuantity("10")}>
-                10주
-              </button>
-              <button type="button" onClick={() => setPresetQuantity("100")}>
-                100주
-              </button>
-              <button type="button" disabled>
-                최대
+              <button
+                type="button"
+                className={styles.quickCapacityChip}
+                onClick={() => sellableQty && changeQuantity(sellableQty)}
+                disabled={!sellableQty || Number(sellableQty) <= 0}
+              >
+                <span className={styles.metricLabel}>판매가능</span>
+                <strong>
+                  {sellableQty !== undefined
+                    ? `${formatDecimal(sellableQty, { maxFractionDigits: 4 })}주`
+                    : "-"}
+                </strong>
               </button>
             </div>
 
             <div className={styles.quickBalances}>
               <span>
-                <span className={styles.metricLabel}>판매가능</span>
-                <strong>-</strong>
+                <span className={styles.metricLabel}>주문가능금액</span>
+                <strong>{formatPrice(buyingPower, currency)}</strong>
               </span>
               <span>
-                <span className={styles.metricLabel}>구매가능</span>
-                <strong>-</strong>
-              </span>
-              <span>
-                <span className={styles.metricLabel}>판매예상</span>
-                <strong>0</strong>
-              </span>
-              <span>
-                <span className={styles.metricLabel}>구매예상</span>
-                <strong>0</strong>
+                <span className={styles.metricLabel}>예상 체결금액</span>
+                <strong>
+                  {estimated !== null ? formatPrice(estimated, currency) : "-"}
+                  {estimatedKrw !== null ? (
+                    <span className={styles.metricSecondary}>
+                      {" "}
+                      ≈ {formatKrw(estimatedKrw)}
+                    </span>
+                  ) : null}
+                </strong>
               </span>
             </div>
 
-            <div className={styles.quickQuote}>
-              <span className={styles.metricLabel}>{symbol || "-"}</span>
-              <strong>{quickQuote.isLoading ? "불러오는 중…" : currentPriceLabel}</strong>
-            </div>
+            {armedSide === null ? (
+              <div className={styles.quickActionGrid}>
+                <button
+                  type="button"
+                  className={styles.quickSell}
+                  onClick={() => armQuick("SELL")}
+                  disabled={lastPrice === undefined}
+                >
+                  현재가 판매
+                  {estimated !== null ? (
+                    <span className={styles.quickBtnAmount}>
+                      {formatPrice(estimated, currency)}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  className={styles.quickBuy}
+                  onClick={() => armQuick("BUY")}
+                  disabled={lastPrice === undefined}
+                >
+                  현재가 구매
+                  {estimated !== null ? (
+                    <span className={styles.quickBtnAmount}>
+                      {formatPrice(estimated, currency)}
+                    </span>
+                  ) : null}
+                </button>
+              </div>
+            ) : (
+              <div className={styles.quickConfirm} role="alert">
+                <p className={styles.quickConfirmText}>
+                  정말 {armedSide === "BUY" ? "구매" : "판매"}하시겠어요?{" "}
+                  {quantity.trim()}주 ·{" "}
+                  {estimated !== null ? formatPrice(estimated, currency) : "-"}
+                </p>
+                <div className={styles.quickActionGrid}>
+                  <button
+                    type="button"
+                    className={
+                      armedSide === "BUY" ? styles.quickBuy : styles.quickSell
+                    }
+                    onClick={confirmQuick}
+                    disabled={submitting}
+                  >
+                    {submitting
+                      ? "전송 중…"
+                      : `${armedSide === "BUY" ? "구매" : "판매"} 확정`}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.quickCancel}
+                    onClick={() => setArmedSide(null)}
+                    disabled={submitting}
+                  >
+                    되돌리기
+                  </button>
+                </div>
+              </div>
+            )}
 
-            <div className={styles.quickActionGrid}>
-              <button
-                type="submit"
-                name="quick-side"
-                value="SELL"
-                className={styles.quickSell}
-              >
-                현재가 판매
-              </button>
-              <button
-                type="submit"
-                name="quick-side"
-                value="BUY"
-                className={styles.quickBuy}
-              >
-                현재가 구매
-              </button>
-              <button
-                type="submit"
-                name="quick-side"
-                value="SELL"
-                className={styles.quickSell}
-              >
-                시장가 판매
-              </button>
-              <button
-                type="submit"
-                name="quick-side"
-                value="BUY"
-                className={styles.quickBuy}
-              >
-                시장가 구매
-              </button>
-              <button type="button" className={styles.quickCancel}>
-                전체 취소
-              </button>
-            </div>
+            <p className={styles.confirmHint}>
+              확정을 누르면 현재가 지정가(LIMIT)로 주문합니다. 서버 안전 게이트가
+              최종 판정하며, DRY_RUN 모드에서는 미리보기만 실행됩니다.
+            </p>
           </>
         )}
-
-        <div className={styles.formRow}>
-          <label className={styles.confirmLabel} htmlFor="order-confirm">
-            <input
-              id="order-confirm"
-              type="checkbox"
-              checked={confirm}
-              onChange={(event) => setConfirm(event.target.checked)}
-            />
-            실주문 확인 (confirm)
-          </label>
-          {mode === "GENERAL" ? (
-            <button
-              type="submit"
-              name="order-side"
-              value={side}
-              className={`${styles.orderSubmit} ${
-                side === "BUY" ? styles.buySubmit : styles.sellSubmit
-              }`}
-              disabled={submitting}
-            >
-              {submitting
-                ? "전송 중…"
-                : confirm
-                  ? side === "BUY"
-                    ? "구매하기"
-                    : "판매하기"
-                  : "미리보기"}
-            </button>
-          ) : null}
-        </div>
-
-        {!confirm ? (
-          <p className={styles.confirmHint}>
-            확인을 체크하지 않으면 dry-run 미리보기만 실행됩니다.
-          </p>
-        ) : null}
       </form>
 
       <OrderResult result={result} error={error} />
