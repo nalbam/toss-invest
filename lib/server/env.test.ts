@@ -69,4 +69,28 @@ describe("parseEnv", () => {
   it("rejects a non-url TOSS_API_BASE", () => {
     expect(() => parseEnv({ ...validRaw, TOSS_API_BASE: "not-a-url" })).toThrow();
   });
+
+  it("treats empty-string optional limits as unset (the .env.example trap)", () => {
+    // `cp .env.example .env.local` leaves `MAX_ORDER_AMOUNT=` / `DAILY_LOSS_LIMIT=`,
+    // which dotenv loads as "" (present, not undefined). These must parse as unset
+    // (=> fail-safe BLOCK in the gate), not crash getEnv() with a 500.
+    const env = parseEnv({
+      ...validRaw,
+      MAX_ORDER_AMOUNT: "",
+      DAILY_LOSS_LIMIT: "   ",
+    });
+    expect(env.MAX_ORDER_AMOUNT).toBeUndefined();
+    expect(env.DAILY_LOSS_LIMIT).toBeUndefined();
+  });
+
+  it("parses a valid MAX_ORDER_AMOUNT", () => {
+    expect(parseEnv({ ...validRaw, MAX_ORDER_AMOUNT: "1000000" }).MAX_ORDER_AMOUNT).toBe(
+      1_000_000,
+    );
+  });
+
+  it("still rejects a non-empty invalid amount", () => {
+    expect(() => parseEnv({ ...validRaw, MAX_ORDER_AMOUNT: "abc" })).toThrow();
+    expect(() => parseEnv({ ...validRaw, MAX_ORDER_AMOUNT: "0" })).toThrow();
+  });
 });

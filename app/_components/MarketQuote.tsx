@@ -8,6 +8,7 @@ import {
   usePrices,
 } from "@/lib/client/hooks";
 import { formatKrw, formatUsd } from "@/lib/client/format";
+import { Money } from "./Money";
 import { CandleChart } from "./CandleChart";
 import { Orderbook } from "./Orderbook";
 import styles from "./dashboard.module.css";
@@ -78,7 +79,7 @@ export function MarketQuote({ defaultSymbol }: { defaultSymbol?: string }) {
             </span>
           ) : quote ? (
             <span className={styles.metricPrimary}>
-              {formatPrice(quote.lastPrice, currency)}
+              <Money value={formatPrice(quote.lastPrice, currency)} />
             </span>
           ) : (
             <span className={styles.metricSecondary}>-</span>
@@ -88,18 +89,26 @@ export function MarketQuote({ defaultSymbol }: { defaultSymbol?: string }) {
         <div className={styles.metric}>
           <span className={styles.metricLabel}>상한가</span>
           <span className={styles.metricSecondary}>
-            {limits.isLoading
-              ? "불러오는 중…"
-              : formatPrice(limits.data?.upperLimitPrice ?? null, currency)}
+            {limits.isLoading ? (
+              "불러오는 중…"
+            ) : (
+              <Money
+                value={formatPrice(limits.data?.upperLimitPrice ?? null, currency)}
+              />
+            )}
           </span>
         </div>
 
         <div className={styles.metric}>
           <span className={styles.metricLabel}>하한가</span>
           <span className={styles.metricSecondary}>
-            {limits.isLoading
-              ? "불러오는 중…"
-              : formatPrice(limits.data?.lowerLimitPrice ?? null, currency)}
+            {limits.isLoading ? (
+              "불러오는 중…"
+            ) : (
+              <Money
+                value={formatPrice(limits.data?.lowerLimitPrice ?? null, currency)}
+              />
+            )}
           </span>
         </div>
       </div>

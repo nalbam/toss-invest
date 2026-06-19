@@ -49,6 +49,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.currencySymbol {
+  font-size: 0.82em;
+  opacity: 0.6;
+}
+
 .positive {
   color: var(--gain);
 }

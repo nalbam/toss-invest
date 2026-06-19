@@ -6,6 +6,16 @@ import type { HoldingsItem } from "@/lib/client/types";
 
 afterEach(cleanup);
 
+/**
+ * Matcher for a money amount whose currency symbol is split into its own span by
+ * <Money>. Matching on the element's full textContent reassembles the symbol +
+ * digits so the expected string stays the same as the rendered amount.
+ */
+const byMoney =
+  (t: string) =>
+  (_: string, el: Element | null): boolean =>
+    el?.textContent === t;
+
 const samsung: HoldingsItem = {
   symbol: "005930",
   name: "삼성전자",
@@ -33,14 +43,15 @@ const apple: HoldingsItem = {
   quantity: "5",
   lastPrice: "190.50",
   averagePurchasePrice: "210.00",
-  marketValue: { purchaseAmount: "1450000", amount: "1300000", amountAfterCost: "1298000" },
+  // USD holding: amounts are in the item's native currency (USD), not KRW.
+  marketValue: { purchaseAmount: "1050.00", amount: "952.50", amountAfterCost: "950.00" },
   profitLoss: {
-    amount: "-150000",
-    amountAfterCost: "-152000",
-    rate: "-0.1034",
-    rateAfterCost: "-0.1048",
+    amount: "-97.50",
+    amountAfterCost: "-100.00",
+    rate: "-0.0929",
+    rateAfterCost: "-0.0952",
   },
-  dailyProfitLoss: { amount: "-2000", rate: "-0.0015" },
+  dailyProfitLoss: { amount: "-7.50", rate: "-0.0078" },
   cost: { commission: "1.5", tax: null },
 };
 
@@ -50,10 +61,21 @@ describe("HoldingsTable", () => {
     expect(screen.getByText("삼성전자")).toBeInTheDocument();
     expect(screen.getByText("Apple")).toBeInTheDocument();
     // KR price formatted as KRW, US price formatted as USD.
-    expect(screen.getByText("₩72,000")).toBeInTheDocument();
-    expect(screen.getByText("$190.50")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩72,000"))).toBeInTheDocument();
+    expect(screen.getByText(byMoney("$190.50"))).toBeInTheDocument();
     // Two data rows rendered.
     expect(screen.getAllByRole("row")).toHaveLength(3); // header + 2 rows
+  });
+
+  it("formats USD holding amounts in USD ($), not KRW (currency-aware)", () => {
+    render(<HoldingsTable items={[samsung, apple]} />);
+    // Regression: market value, total P&L, and daily P&L of a USD holding were
+    // hardcoded to ₩ (showed e.g. ₩279 for a $279 position). Must use $.
+    expect(screen.getByText(byMoney("$952.50"))).toBeInTheDocument(); // market value
+    expect(screen.getByText(byMoney("-$97.50"))).toBeInTheDocument(); // total P&L amount
+    expect(screen.getByText(byMoney("-$7.50"))).toBeInTheDocument(); // daily P&L amount
+    // KRW holding's market value still uses ₩.
+    expect(screen.getByText(byMoney("₩720,000"))).toBeInTheDocument();
   });
 
   it("renders the empty state when there are no holdings", () => {

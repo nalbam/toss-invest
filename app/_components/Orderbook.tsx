@@ -1,5 +1,6 @@
 import type { OrderbookResponse } from "@/lib/client/types";
 import { formatDecimal, formatKrw, formatUsd } from "@/lib/client/format";
+import { Money } from "./Money";
 import styles from "./dashboard.module.css";
 
 /** Formats an orderbook price in the book's own trading currency. */
@@ -49,7 +50,7 @@ export function Orderbook({ book }: { book: OrderbookResponse }) {
                   </span>
                 </td>
                 <td className={styles.negative}>
-                  {formatPrice(ask.price, currency)}
+                  <Money value={formatPrice(ask.price, currency)} />
                 </td>
                 <td>{formatDecimal(ask.volume, { maxFractionDigits: 4 })}</td>
               </tr>
@@ -62,7 +63,7 @@ export function Orderbook({ book }: { book: OrderbookResponse }) {
                   </span>
                 </td>
                 <td className={styles.positive}>
-                  {formatPrice(bid.price, currency)}
+                  <Money value={formatPrice(bid.price, currency)} />
                 </td>
                 <td>{formatDecimal(bid.volume, { maxFractionDigits: 4 })}</td>
               </tr>

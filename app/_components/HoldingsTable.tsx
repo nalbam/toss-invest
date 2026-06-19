@@ -6,6 +6,7 @@ import {
   formatUsd,
   signOf,
 } from "@/lib/client/format";
+import { Money } from "./Money";
 import styles from "./dashboard.module.css";
 
 /** Formats a per-share price in the item's own trading currency. */
@@ -63,13 +64,19 @@ export function HoldingsTable({ items }: { items: HoldingsItem[] }) {
                   <span className={styles.marketBadge}>{item.marketCountry}</span>
                 </td>
                 <td>{formatDecimal(item.quantity, { maxFractionDigits: 4 })}</td>
-                <td>{formatPrice(item.averagePurchasePrice, item.currency)}</td>
-                <td>{formatPrice(item.lastPrice, item.currency)}</td>
-                <td>{formatKrw(item.marketValue.amount)}</td>
+                <td>
+                  <Money value={formatPrice(item.averagePurchasePrice, item.currency)} />
+                </td>
+                <td>
+                  <Money value={formatPrice(item.lastPrice, item.currency)} />
+                </td>
+                <td>
+                  <Money value={formatPrice(item.marketValue.amount, item.currency)} />
+                </td>
                 <td>
                   <span className={styles.stacked}>
                     <span className={signClass(item.profitLoss.amount)}>
-                      {formatKrw(item.profitLoss.amount)}
+                      <Money value={formatPrice(item.profitLoss.amount, item.currency)} />
                     </span>
                     <span className={signClass(item.profitLoss.rate)}>
                       {formatPercent(item.profitLoss.rate)}
@@ -79,7 +86,7 @@ export function HoldingsTable({ items }: { items: HoldingsItem[] }) {
                 <td>
                   <span className={styles.stacked}>
                     <span className={signClass(item.dailyProfitLoss.amount)}>
-                      {formatKrw(item.dailyProfitLoss.amount)}
+                      <Money value={formatPrice(item.dailyProfitLoss.amount, item.currency)} />
                     </span>
                     <span className={signClass(item.dailyProfitLoss.rate)}>
                       {formatPercent(item.dailyProfitLoss.rate)}

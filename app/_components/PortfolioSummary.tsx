@@ -1,5 +1,6 @@
 import type { HoldingsOverview } from "@/lib/client/types";
 import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
+import { Money } from "./Money";
 import styles from "./dashboard.module.css";
 
 /** Maps a decimal sign to the matching color class. */
@@ -26,17 +27,20 @@ export function PortfolioSummary({
         <div className={styles.metric}>
           <span className={styles.metricLabel}>총 평가금액</span>
           <span className={styles.metricPrimary}>
-            {formatKrw(marketValue.amount.krw)}
+            <Money value={formatKrw(marketValue.amount.krw)} />
           </span>
           <span className={styles.metricSecondary}>
-            {formatUsd(marketValue.amount.usd)}
+            <Money value={formatUsd(marketValue.amount.usd)} />
           </span>
         </div>
 
         <div className={styles.metric}>
           <span className={styles.metricLabel}>총 손익</span>
           <span className={`${styles.metricPrimary} ${signClass(profitLoss.amount.krw)}`}>
-            {formatKrw(profitLoss.amount.krw)}
+            <Money value={formatKrw(profitLoss.amount.krw)} />
+          </span>
+          <span className={`${styles.metricSecondary} ${signClass(profitLoss.amount.usd)}`}>
+            <Money value={formatUsd(profitLoss.amount.usd)} />
           </span>
           <span className={`${styles.metricChange} ${signClass(profitLoss.rate)}`}>
             {formatPercent(profitLoss.rate)}
@@ -48,7 +52,12 @@ export function PortfolioSummary({
           <span
             className={`${styles.metricPrimary} ${signClass(dailyProfitLoss.amount.krw)}`}
           >
-            {formatKrw(dailyProfitLoss.amount.krw)}
+            <Money value={formatKrw(dailyProfitLoss.amount.krw)} />
+          </span>
+          <span
+            className={`${styles.metricSecondary} ${signClass(dailyProfitLoss.amount.usd)}`}
+          >
+            <Money value={formatUsd(dailyProfitLoss.amount.usd)} />
           </span>
           <span className={`${styles.metricChange} ${signClass(dailyProfitLoss.rate)}`}>
             {formatPercent(dailyProfitLoss.rate)}

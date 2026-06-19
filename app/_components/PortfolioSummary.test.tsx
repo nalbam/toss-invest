@@ -7,6 +7,16 @@ import styles from "./dashboard.module.css";
 
 afterEach(cleanup);
 
+/**
+ * Matcher for a money amount whose currency symbol is split into its own span by
+ * <Money>. Matching on the element's full textContent reassembles the symbol +
+ * digits so the expected string stays the same as the rendered amount.
+ */
+const byMoney =
+  (t: string) =>
+  (_: string, el: Element | null): boolean =>
+    el?.textContent === t;
+
 const overview: HoldingsOverview = {
   totalPurchaseAmount: { krw: "10000000", usd: "7000.00" },
   marketValue: {
@@ -29,25 +39,32 @@ const overview: HoldingsOverview = {
 describe("PortfolioSummary", () => {
   it("renders total market value with KRW and USD", () => {
     render(<PortfolioSummary overview={overview} />);
-    expect(screen.getByText("₩11,516,000")).toBeInTheDocument();
-    expect(screen.getByText("$8,060.50")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩11,516,000"))).toBeInTheDocument();
+    expect(screen.getByText(byMoney("$8,060.50"))).toBeInTheDocument();
   });
 
   it("renders total profit/loss amount and percentage", () => {
     render(<PortfolioSummary overview={overview} />);
-    expect(screen.getByText("₩1,516,000")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩1,516,000"))).toBeInTheDocument();
     expect(screen.getByText("+15.16%")).toBeInTheDocument();
+  });
+
+  it("renders the USD portion of P/L, not just KRW (currency breakdown)", () => {
+    render(<PortfolioSummary overview={overview} />);
+    // Regression: total/daily P&L dropped the USD portion, hiding USD holdings' P&L.
+    expect(screen.getByText(byMoney("$1,060.50"))).toBeInTheDocument(); // total P&L USD
+    expect(screen.getByText(byMoney("-$35.00"))).toBeInTheDocument(); // daily P&L USD
   });
 
   it("renders daily profit/loss with its rate", () => {
     render(<PortfolioSummary overview={overview} />);
-    expect(screen.getByText("-₩50,000")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("-₩50,000"))).toBeInTheDocument();
     expect(screen.getByText("-0.43%")).toBeInTheDocument();
   });
 
   it("colors positive total P/L and negative daily P/L by sign", () => {
     render(<PortfolioSummary overview={overview} />);
-    expect(screen.getByText("₩1,516,000")).toHaveClass(styles.positive);
-    expect(screen.getByText("-₩50,000")).toHaveClass(styles.negative);
+    expect(screen.getByText(byMoney("₩1,516,000"))).toHaveClass(styles.positive);
+    expect(screen.getByText(byMoney("-₩50,000"))).toHaveClass(styles.negative);
   });
 });

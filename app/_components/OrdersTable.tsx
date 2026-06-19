@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ApiClientError, cancelOrder } from "@/lib/client/hooks";
 import type { CancelOrderResult, Order } from "@/lib/client/types";
 import { formatDecimal, formatKrw, formatUsd } from "@/lib/client/format";
+import { Money } from "./Money";
 import { ModifyOrderForm } from "./ModifyOrderForm";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
@@ -174,7 +175,9 @@ function OrderRow({
             maxFractionDigits: 4,
           })}
         </td>
-        <td>{formatPrice(order.price, order.currency)}</td>
+        <td>
+          <Money value={formatPrice(order.price, order.currency)} />
+        </td>
         <td>{formatOrderedAt(order.orderedAt)}</td>
         <td>
           {cancelable ? (

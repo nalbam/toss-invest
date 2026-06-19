@@ -44,6 +44,9 @@ export function handleError(error: unknown): NextResponse {
     };
     return NextResponse.json(body, { status: error.status });
   }
+  // Log server-side so an opaque 500 is diagnosable (e.g. a config/env failure).
+  // The client response stays generic; this never reaches the browser.
+  console.error("[api] unhandled error:", error);
   const body: ApiErrorBody = {
     error: { code: "internal-error", message: "Internal server error" },
   };

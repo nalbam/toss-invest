@@ -16,6 +16,18 @@ const positiveAmountFromString = z
   .transform((value) => Number(value))
   .refine((value) => value > 0, "must be a positive amount");
 
+/**
+ * Optional positive amount that treats an empty/whitespace string as unset.
+ * dotenv loads a bare `MAX_ORDER_AMOUNT=` line (as left by `.env.example`) as
+ * "" — present, not undefined — so a plain `.optional()` would run validation on
+ * "" and throw. Mapping blank to undefined makes it behave as unset (the gate
+ * then fail-safe BLOCKs real orders) instead of crashing config load.
+ */
+const optionalPositiveAmount = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  positiveAmountFromString.optional(),
+);
+
 const envSchema = z.object({
   TOSS_CLIENT_ID: z.string().min(1),
   TOSS_CLIENT_SECRET: z.string().min(1),
@@ -28,9 +40,9 @@ const envSchema = z.object({
   // auto-executor reads this and passes it as the §6 `confirm`; it does NOT
   // weaken any other gate (DRY_RUN / limits / kill switch still apply).
   AUTO_TRADE_ENABLED: booleanFromString.default(false),
-  // Hard limits (§6). Unset => the gate blocks real orders (fail-safe).
-  MAX_ORDER_AMOUNT: positiveAmountFromString.optional(),
-  DAILY_LOSS_LIMIT: positiveAmountFromString.optional(),
+  // Hard limits (§6). Unset/blank => the gate blocks real orders (fail-safe).
+  MAX_ORDER_AMOUNT: optionalPositiveAmount,
+  DAILY_LOSS_LIMIT: optionalPositiveAmount,
 });
 
 export type Env = z.infer<typeof envSchema>;
