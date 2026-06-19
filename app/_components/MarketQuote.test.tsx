@@ -91,6 +91,37 @@ describe("MarketQuote", () => {
     expect(screen.getByText(byMoney("₩50,400"))).toBeInTheDocument();
   });
 
+  it("shows the day change in the header vs the previous daily close", () => {
+    usePrices.mockReturnValue(
+      loaded([{ symbol: "005930", lastPrice: "72000", currency: "KRW" }]),
+    );
+    const bar = (timestamp: string, closePrice: string) => ({
+      timestamp,
+      openPrice: "0",
+      highPrice: "0",
+      lowPrice: "0",
+      closePrice,
+      volume: "0",
+      currency: "KRW" as const,
+    });
+    useCandles.mockReturnValue(
+      loaded({
+        candles: [
+          bar("2026-06-18T00:00:00+09:00", "70000"), // previous close
+          bar("2026-06-19T00:00:00+09:00", "71000"), // latest bar
+        ],
+        nextBefore: null,
+      }),
+    );
+    render(<MarketQuote symbol="005930" />);
+    // 72,000 - 70,000 = +2,000 ; 2000/70000 = +2.86%
+    expect(
+      screen.getByText(
+        (_, el) => el?.textContent?.replace(/\s/g, "") === "₩2,000(+2.86%)",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows the holding name in the header when provided", () => {
     render(<MarketQuote symbol="005930" name="삼성전자" />);
     expect(screen.getByText("삼성전자 (005930)")).toBeInTheDocument();

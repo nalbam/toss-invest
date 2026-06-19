@@ -7,7 +7,8 @@ import {
   usePriceLimits,
   usePrices,
 } from "@/lib/client/hooks";
-import { formatKrw, formatUsd } from "@/lib/client/format";
+import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
+import { previousClose, priceChange } from "@/lib/client/quote";
 import { Money } from "./Money";
 import { CandleChart } from "./CandleChart";
 import { Orderbook } from "./Orderbook";
@@ -17,6 +18,11 @@ import page from "@/app/page.module.css";
 /** Formats a price in the given trading currency. */
 function formatPrice(value: string | null, currency: string): string {
   return currency === "USD" ? formatUsd(value) : formatKrw(value);
+}
+
+/** Maps a decimal sign to the matching color class. */
+function signClass(value: string | null | undefined): string {
+  return styles[signOf(value)];
 }
 
 /**
@@ -38,9 +44,16 @@ export function MarketQuote({
   const limits = usePriceLimits(symbol);
   const orderbook = useOrderbook(symbol);
   const candles = useCandles(symbol, interval);
+  // Daily candles power the header's day change (vs previous close), regardless
+  // of the chart's selected interval.
+  const dailyCandles = useCandles(symbol, "1d");
 
   const quote = prices.data?.[0];
   const currency = quote?.currency ?? "KRW";
+  const change = priceChange(
+    quote?.lastPrice,
+    previousClose(dailyCandles.data?.candles ?? []),
+  );
 
   return (
     <section className={styles.card} aria-label="시세">
@@ -58,9 +71,19 @@ export function MarketQuote({
               {prices.error.message}
             </span>
           ) : quote ? (
-            <span className={styles.metricPrimary}>
-              <Money value={formatPrice(quote.lastPrice, currency)} />
-            </span>
+            <>
+              <span className={styles.metricPrimary}>
+                <Money value={formatPrice(quote.lastPrice, currency)} />
+              </span>
+              {change ? (
+                <span
+                  className={`${styles.metricChange} ${signClass(change.amount)}`}
+                >
+                  <Money value={formatPrice(change.amount, currency)} /> (
+                  {formatPercent(change.rate)})
+                </span>
+              ) : null}
+            </>
           ) : (
             <span className={styles.metricSecondary}>-</span>
           )}
