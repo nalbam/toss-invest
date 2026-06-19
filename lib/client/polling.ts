@@ -12,12 +12,12 @@ export const API_GROUP_TPS = {
 
 export const POLLING_INTERVAL_MS = {
   account: 60_000,
-  holdings: 2_000,
+  holdings: 4_000,
   orders: 5_000,
-  prices: 1_000,
+  prices: 2_000,
   priceLimits: 60_000,
-  orderbook: 1_000,
-  candles: 10_000,
+  orderbook: 2_000,
+  candles: 20_000,
   exchangeRate: 60_000,
-  cashBalance: 10_000,
+  cashBalance: 20_000,
 } as const;
