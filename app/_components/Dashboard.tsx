@@ -159,7 +159,7 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* Center: order form for the selected symbol (or a prompt). */}
+        {/* Center: order form, then the AI advisor and order history. */}
         <div className={styles.column}>
           {selectedSymbol ? (
             <OrderForm
@@ -177,12 +177,27 @@ export function Dashboard() {
               </p>
             </CollapsibleCard>
           )}
-        </div>
 
-        {/* Right: account sidebar — advisor, cash, summary, holdings, orders. */}
-        <div className={styles.column}>
           <AiAdvisor accountSeq={selectedSeq} onSelectProposal={applyProposal} />
 
+          {orders.isLoading ? (
+            <p className={page.status}>주문 내역을 불러오는 중…</p>
+          ) : orders.error ? (
+            <p className={`${page.status} ${page.error}`} role="alert">
+              주문 내역을 불러오지 못했습니다: {orders.error.message}
+            </p>
+          ) : orders.data ? (
+            <OrdersTable
+              orders={orders.data.orders}
+              accountSeq={selectedSeq}
+              onChanged={refreshOrders}
+              refreshing={Boolean(orders.isRefreshing)}
+            />
+          ) : null}
+        </div>
+
+        {/* Right: account sidebar — cash, summary, holdings. */}
+        <div className={styles.column}>
           {fx.data ? (
             <AccountCash
               rate={fx.data}
@@ -212,21 +227,6 @@ export function Dashboard() {
                 refreshing={Boolean(holdings.isRefreshing)}
               />
             </>
-          ) : null}
-
-          {orders.isLoading ? (
-            <p className={page.status}>주문 내역을 불러오는 중…</p>
-          ) : orders.error ? (
-            <p className={`${page.status} ${page.error}`} role="alert">
-              주문 내역을 불러오지 못했습니다: {orders.error.message}
-            </p>
-          ) : orders.data ? (
-            <OrdersTable
-              orders={orders.data.orders}
-              accountSeq={selectedSeq}
-              onChanged={refreshOrders}
-              refreshing={Boolean(orders.isRefreshing)}
-            />
           ) : null}
         </div>
       </div>
