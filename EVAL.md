@@ -413,3 +413,26 @@
 
 **최저축**: Functionality(어댑터 1/2·container 미완) → **다음 개선(#21)**: xAI 어댑터(OpenAI 호환, base `https://api.x.ai/v1`) + `container.ts`(`LLM_PROVIDER` env로 `getServerLlmProvider` 선택, 미설정 시 "not configured"). xAI 계약도 Context7 확인.
 **Phase 전진 판정**: A1 종료조건(snapshot·schema·validate·2어댑터) 미충족 → advance 없음, A1 계속.
+
+---
+
+## #21 | phase4 | A1: xAI 어댑터 + 공유 코어 추출(중복 제거) → "2 어댑터" 종료조건 충족
+
+**한 일**: `chat-completions.ts`(`createChatCompletionsProvider` — OpenAI 호환 코어: body 빌드·`response_format` json_schema·bearer·타임아웃·파싱) 추출. `openai.ts`/`xai.ts`는 name+기본 baseUrl만 다른 **얇은 위임**으로 슬림화. xAI 계약 **Context7 검증**(docs.x.ai): `POST https://api.x.ai/v1/chat/completions`·bearer·**OpenAI REST 완전 호환**(response_format 동일). TDD: xai.test.ts 5건(name·엔드포인트·structured·파싱·키누출). **openai.test.ts 9건 무수정 green → 리팩토링 동작 보존 증명.**
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — **번들 가드 35파일 클린**(llm server-only)
+- test — 신규 xai 5건 포함 **370 passed (386, 28 files)**. openai 9건 변경 없이 통과(회귀 가드). 실패 16건 동일 **환경 아티팩트**. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — A1 "provider 추상화" 핵심(2 어댑터+공유 코어) 완료. 근거: llm 14/14.
+- LLM 정합성 **5** — xAI 계약 Context7 일치(OpenAI 호환, response_format json_schema), 응답 신뢰경계 밖 파싱. 근거: 계약 테스트 5건.
+- Safety **5** — `lib/server/trading/**` **무수정**(git status), llm `placeOrder`/`createOrderRaw` **미참조**(grep none). 근거: git status + grep.
+- Security & Privacy **5** — 코어 server-only, 키 헤더 전용·에러 "status N"만(키누출 테스트 단언), 번들 35파일 클린. 근거: build + 테스트.
+- Determinism/Testability **5** — 비결정 호출 주입 fetch 뒤 격리, 14건 결정적. 근거: 테스트.
+- UX **N/A** — UI 없음.
+- Code quality **5** — **중복 제거 리팩토링**(공유 코어, 어댑터 ~15줄씩), openai.test 무수정으로 동작 보존 증명. 외과적(trading/기존 무수정). 근거: git status(openai.ts만 M, 나머지 신규).
+
+**최저축**: 없음(핵심 축 전부 5; UX는 A1 비해당) → **다음 개선(#22)**: `container.ts` `getServerLlmProvider(env)` — `LLM_PROVIDER`로 어댑터 선택, provider/key/model 미설정 시 `LlmNotConfiguredError`(어드바이저 경로만 "not configured"). 주입 fetch.
+**Phase 전진 판정**: A1 남은 종료조건(snapshot 마스킹·schema/validate·container) 미충족 → advance 없음, A1 계속.

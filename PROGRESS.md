@@ -2,9 +2,9 @@
 
 ## 현재 위치
 - **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A1 진행 중** — advisor-loop-prompt.md, #19~.
-- **마지막 이터레이션**: #20 완료 (A1: `LlmProvider` 인터페이스 + OpenAI 어댑터). `lib/server/llm/`(`types.ts`·`openai.ts`) — 주입 fetch DI(auth.ts 패턴)·`response_format` json_schema structured output·sanitized 에러·타임아웃 비용가드. provider 계약 Context7 검증. `lib/server/trading/**` **무수정**(§6 보존), llm이 `placeOrder`/`createOrderRaw` 미참조. #20 시점 381 tests.
-- **현 상태**: **27 파일 381 tests**, lint·typecheck·build green. (test: 지원 Node에서 green; 현재 샌드박스 Node v26.3.0은 jsdom localStorage 미동작으로 UI 16건 환경 실패 — 코드 무관, 후속 분리.)
-- **다음 작업(#21)**: A1 — xAI 어댑터(OpenAI 호환, base `https://api.x.ai/v1`) + `container.ts`(`LLM_PROVIDER`로 `getServerLlmProvider` 선택, 미설정 시 "not configured"). xAI 계약 Context7 확인.
+- **마지막 이터레이션**: #21 완료 (A1: xAI 어댑터 + 공유 코어 추출). `lib/server/llm/chat-completions.ts`(OpenAI 호환 코어) + `openai.ts`·`xai.ts`(name+기본 baseUrl만 다른 얇은 위임). xAI 계약 Context7 검증(OpenAI REST 호환). openai.test 무수정 green(리팩토링 동작 보존). `lib/server/trading/**` **무수정**, llm `placeOrder`/`createOrderRaw` 미참조. #21 시점 386 tests.
+- **현 상태**: **28 파일 386 tests**, lint·typecheck·build green. (test: 지원 Node에서 green; 현재 샌드박스 Node v26.3.0은 jsdom localStorage 미동작으로 UI 16건 환경 실패 — 코드 무관, 후속 분리.)
+- **다음 작업(#22)**: A1 — `container.ts` `getServerLlmProvider(env)`: `LLM_PROVIDER`로 어댑터 선택, provider/key/model 미설정 시 `LlmNotConfiguredError`(어드바이저 경로만 "not configured"). 이후 snapshot 마스킹·schema/validate.
 
 ## Phase 4 — AI 어드바이저 (진행 중)
 LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안. **LLM은 제안자, 집행자 아님** — 제안→사람 confirm→기존 §6 게이트. 상세: [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md).
@@ -12,10 +12,10 @@ LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안.
 ### 확정된 결정 (A1)
 - **env(선택값)**: `LLM_PROVIDER`(openai|xai)·`OPENAI_API_KEY`·`XAI_API_KEY`·`LLM_MODEL`. 미설정이어도 앱 정상 부팅, 어드바이저 경로만 "not configured"(예정). blank→undefined(.env.example 트랩).
 - **시크릿 격리**: LLM 키는 server-only, 번들 가드(`check-bundle-secrets.mjs`)에 LLM 패턴 추가 — client 번들 미노출 회귀 방지.
-- **디렉터리**: `lib/server/llm/`(provider 추상화 — `types.ts`·`openai.ts` 완료, `xai.ts`·`container.ts` 예정)·`lib/server/advisor/`(snapshot·prompt·schema·validate·advisor 예정)·`app/api/advisor/route.ts`·`lib/client/advisor.ts`·`app/_components/AiAdvisor.tsx`(예정).
+- **디렉터리**: `lib/server/llm/`(provider 추상화 — `types.ts`·`chat-completions.ts`·`openai.ts`·`xai.ts` 완료, `container.ts` 예정)·`lib/server/advisor/`(snapshot·prompt·schema·validate·advisor 예정)·`app/api/advisor/route.ts`·`lib/client/advisor.ts`·`app/_components/AiAdvisor.tsx`(예정).
 
 ### A1 종료조건 (UI 없음, provider 호출 전 결정적 코어)
-- [~] `LlmProvider` 인터페이스 + OpenAI·xAI 어댑터(mocked fetch 계약 테스트) — 인터페이스+OpenAI #20, xAI+container #21
+- [x] `LlmProvider` 인터페이스 + OpenAI·xAI 어댑터(mocked fetch 계약 테스트) — #20 인터페이스+OpenAI, #21 xAI+공유 코어(14 계약 테스트)
 - [ ] `snapshot` 마스킹(식별자/PII 제거 + 화이트리스트 단위 테스트)
 - [ ] `schema`(zod) parse + `validate`(보유·매도가능수량·심볼 실재·정수·side) 단위 테스트
 - [x] LLM 키 클라이언트 번들 미노출(번들 가드 확장 + build 클린) — #19 패턴 추가
