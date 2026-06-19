@@ -551,3 +551,26 @@
 
 **최저축**: LLM 정합성(structured output 강제 미배선) → **다음 개선(#27, A2 시작)**: `advisor/advisor.ts` — `snapshot→prompt→provider(주입)→zod parse→validate→result` 오케스트레이션. **stub provider로 정상·파싱실패·검증탈락 결정적 테스트.**
 **★ A1 결정적 코어 완료 → A2 전진**: A1 종료조건(provider 추상화·snapshot·schema/validate·prompt·키 번들 미노출·env 미설정 부팅) 충족, Safety/Security=5. 남은 "어드바이저 경로 not configured"는 라우트(A2)에서 종단 검증. §5.3 advance → **Phase A2**.
+
+---
+
+## #27 | phase4 | A2: `advisor/advisor.ts` 오케스트레이션 (provider stub)
+
+**한 일**: `runAdvisor({provider, snapshot, validation, jsonSchema})` — `prompt(snapshot)→provider.chat(주입)→JSON.parse→advisorResultSchema.safeParse→validateProposals→result{advice,proposals(플래그),model}`. provider 응답은 **신뢰경계 밖**: JSON 파싱/zod 실패는 `AdvisorResponseError`(typed)로 강등(크래시 아님), 무효 제안은 **탈락 아닌 플래그**(valid:false, drop 안 함). 비결정 provider는 stub으로 격리. TDD: advisor.test.ts 5건(정상·환각 제안 플래그·비JSON 파싱실패·스키마불일치·프롬프트/jsonSchema 전달).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — **번들 가드 35파일 클린**(advisor server-only)
+- test — 신규 5건 포함 **411 passed (427, 34 files)**. 실패 16건 동일 **환경 아티팩트**. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — A2 오케스트레이션 코어 완성(snapshot→...→validate). 근거: advisor 5/5.
+- LLM 정합성 **5** — 응답 zod 재검증(파싱/스키마 실패 typed 에러), structured output schema provider 전달 확인. 근거: 파싱실패·jsonSchema 전달 테스트.
+- Safety **5(타협 불가 충족)** — **§6.A-1 코드 증명**: advisor가 `placeOrder`/`createOrderRaw`/`getServerTradingExecutor`/`getServerAutoTrader` **미참조**(grep none). 무효 제안 자동집행 없이 플래그만. `lib/server/trading/**` **무수정**. 근거: grep + git status + 플래그 테스트.
+- Security & Privacy **5** — advisor server-only, 번들 35파일 클린. 근거: build.
+- Determinism/Testability **5** — 비결정 provider stub 격리, 5건 결정적(정상/실패/탈락). 근거: advisor.test.ts.
+- UX **N/A** — UI 없음(라우트는 #28).
+- Code quality **5** — 단일 오케스트레이션 함수, typed 에러, 외과적(신규 2파일). 근거: git status.
+
+**최저축**: 없음(핵심 축 5; UX 비해당) → **다음 개선(#28)**: `app/api/advisor/route.ts` POST(`force-dynamic`) — 데이터 수집(snapshot/validation: toss client)→`runAdvisor`→`{data:{advice,proposals,model,generatedAt}}` 봉투, 에러 매핑(`AdvisorResponseError`→sanitize, `LlmNotConfiguredError`→명확한 not-configured 코드). 라우트 테스트(advisor/container stub).
+**Phase 전진 판정**: A2 종료조건(라우트·§6.A-1 grep·PII 미전송 단언) 미충족 → advance 없음, A2 계속.
