@@ -689,3 +689,36 @@
 
 **최저축**: Functionality(Playwright 스모크 미완) → **다음 개선(#33)**: `e2e/` Playwright 스모크(route-mock) — 대시보드에 어드바이저 카드 렌더·"조언 받기"→제안 표시. → A3 종료조건 마무리 → **Phase 4(A1·A2·A3) 완료 판정**.
 **Phase 전진 판정**: A3 남은 종료조건(Playwright) 미충족 → advance 없음, A3 계속.
+
+---
+
+## #33 | phase4 | A3: Playwright 어드바이저 스모크 → ★ Phase 4 완료, 루프 종료
+
+**한 일**: `e2e/dashboard.spec.ts`에 어드바이저 스모크 추가(route-mock `/api/advisor` → advice+proposal). 테스트: 대시보드 로드 → "AI 어드바이저" region 보임 + disclaimer + (클릭 전 advice 없음) → "조언 받기" 클릭 → advice·제안("005930 · SELL 3")·"폼에 담기" 버튼 표시. 기존 spec에 fixture·route·테스트만 추가(기존 테스트 무수정).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — 번들 가드 36파일 클린
+- test(vitest) — **444 passed (444, 37 files), 실패 0**(e2e는 vitest 제외)
+- **Playwright e2e(별도 게이트)**: 브라우저 설치 후 **어드바이저 스모크 통과(1 passed)**.
+
+**⚠️ 발견(내 변경 무관, 기존 결함)**: 기존 `renders portfolio summary … market quote` e2e가 "현재가 (005930)"에서 실패. **#33 변경을 stash한 원본 커밋에서도 동일 실패** → 대시보드가 더 이상 심볼을 자동 선택하지 않는(사람 도입 3-컬럼 UI 변경) 기존 결함, 그간 브라우저 미설치로 미발견. 어드바이저 루프 범위 밖 → **후속 분리**(테스트가 보유 종목을 먼저 선택하도록 갱신하거나 대시보드 기본 선택 복원 — 사람 결정).
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — A3 Playwright 스모크 충족(카드 렌더·제안 표시 통과). 근거: e2e 1 passed.
+- LLM 정합성 **N/A** — route-mock UI 스모크.
+- Safety **5** — `lib/server/trading/**` **무수정**(git status: e2e spec 1파일), 스모크는 표시만 단언. 근거: git status.
+- Security & Privacy **5** — route-mock(라이브 자격증명 없음), 번들 36파일 클린. 근거: build.
+- Determinism/Testability **5** — route-mock 결정적 스모크. 근거: e2e 통과.
+- UX **4** — 카드→제안 흐름 브라우저 렌더 확인. 근거: e2e 통과.
+- Code quality **5** — 기존 spec 패턴 재사용, 외과적(fixture/route/테스트만). 근거: git diff.
+
+**최저축**: 없음(핵심 축 5; UX 4) — A3 전 종료조건 충족.
+**★★ Phase 4(AI 어드바이저) 완료 판정**: A1(provider 추상화·결정적 코어)·A2(오케스트레이션·라우트)·A3(fetcher·카드·prefill·Playwright) 종료조건 전부 충족, **Safety·Security 전 이터 5(타협 불가 유지)**, §6/§6.A 불변식 보존(trading 무수정·advisor order-exec 미참조·prefill 자동전송 없음). advisor-loop §0 "모든 Phase(A1·A2·A3) 완료 시 루프 종료" → **루프 종료(#19~#33).**
+
+## 🏁 Phase 4 완료 요약 (#19~#33)
+- **A1**(#19~#26): LLM env(선택값)+번들 가드, `LlmProvider`+OpenAI/xAI 어댑터+공유 코어, container(not-configured), snapshot 마스킹(PII 배제), schema(zod)·validate(환각 탈락)·prompt(순수). Context7로 provider 계약 검증.
+- **A2**(#27~#28): `runAdvisor`(provider stub 결정적), `POST /api/advisor`({data}·에러 매핑·not-configured·PII 미전송). **§6.A-1: order-exec 미참조(grep).**
+- **A3**(#29~#33): 온디맨드 fetcher, AiAdvisor 카드(disclaimer·미설정/에러), prefill→OrderForm(**§6.A-2 자동전송 없음**), Playwright 스모크. (#30 jsdom localStorage 폴리필로 스위트 전부 green.)
+- 누적 **444 vitest + e2e 스모크**, 4게이트 green. 안전: LLM은 §6 상류 제안자(집행자 아님), 무효 제안 prefill 불가, trading/§6 무수정.
+- **남은 후속(사람 요청 시)**: 기존 시세 e2e 수정(심볼 선택), structured output `response_format`(zod→strict JSON schema) 배선, BUY 신규 심볼 Toss 실재 검증 라운드.

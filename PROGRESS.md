@@ -1,10 +1,11 @@
 # PROGRESS — 토스증권 대시보드 (현재 상태만)
 
 ## 현재 위치
-- **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A3 진행 중** (A1·A2 완료) — advisor-loop-prompt.md, #19~.
-- **마지막 이터레이션**: #32 완료 (A3: prefill 배선). Dashboard `prefill` 상태 lift + `applyProposal`(「폼에 담기」→심볼 전환+side/quantity prefill), AiAdvisor 사이드바 배치, `OrderForm` prefill prop+effect(**side·quantity만, confirm/arm/전송 자동 금지 §6.A-2**). 연결점만 외과적 추가. `lib/server/trading/**` **무수정**. #32 시점 444 tests 전부 green.
-- **현 상태**: **37 파일 444 tests, lint·typecheck·test·build 전부 green**. 번들 가드 36파일.
-- **다음 작업(#33, A3)**: `e2e/` Playwright 스모크(route-mock) — 어드바이저 카드 렌더·"조언 받기"→제안 표시 → **A3 종료 → Phase 4 완료 판정**.
+- **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A1·A2·A3 전체 완료** — advisor-loop-prompt.md #19~#33, §0 따라 루프 종료.
+- **마지막 이터레이션**: #33 완료 (A3: Playwright 어드바이저 스모크 → **Phase 4 완료, 루프 종료**). `e2e/dashboard.spec.ts`에 route-mock 어드바이저 카드 렌더·"조언 받기"→제안 표시 스모크(통과). `lib/server/trading/**` **무수정**. #33 시점 444 vitest + e2e 스모크.
+- **현 상태**: **37 파일 444 vitest tests, lint·typecheck·test·build 전부 green**, 어드바이저 Playwright 스모크 통과. 번들 가드 36파일. **Phase 4(AI 어드바이저) 전체 완료 — advisor-loop 종료(#19~#33).**
+- **⚠️ 기존 e2e 결함(어드바이저 무관)**: `renders … market quote` e2e가 심볼 미자동선택으로 실패(원본 커밋에서도 동일). 후속 분리(테스트가 보유 종목 선택하도록 갱신 or 대시보드 기본 선택 — 사람 결정).
+- **다음 작업**: advisor-loop 종료. 추가 개선(아래 후속)은 사람 명시 요청 시 새 루프/이터로.
 
 ## Phase 4 — AI 어드바이저 (진행 중)
 LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안. **LLM은 제안자, 집행자 아님** — 제안→사람 confirm→기존 §6 게이트. 상세: [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md).
@@ -36,7 +37,9 @@ LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안.
 - [x] (인프라) jsdom `localStorage` 폴리필 — #30(`test/setup-jest-dom.ts`, 16건 환경 실패 해소 → 스위트 전부 green).
 - [x] `AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안·disclaimer·미설정/에러) — #31(5 테스트, 무효=prefill 불가).
 - [x] "폼에 담기" prefill → 기존 OrderForm(자동 전송 X, confirm·§6 유지) + Dashboard 배선 — #32(OrderForm prefill prop, §6.A-2 미전송 테스트).
-- [ ] Playwright 스모크(route-mock) 카드 렌더 — #33.
+- [x] Playwright 스모크(route-mock) 카드 렌더·제안 표시 — #33(통과).
+
+**→ A3 완료 → Phase 4(A1·A2·A3) 전체 완료 → advisor-loop 종료(§0).**
 
 ### A2·A3 후속(사람 요청 시)
 - structured output `response_format`(zod→strict JSON schema 변환) 배선 — 현재 zod 재검증으로 대체(안전), provider 신뢰도 향상용.
