@@ -217,25 +217,34 @@
 }
 
 .fxRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: max-content max-content max-content;
   align-items: baseline;
-  gap: 12px;
+  gap: 4px 12px;
+  margin-top: 16px;
+}
+
+.fxRow .metricLabel {
+  grid-column: 1 / -1;
 }
 
 .fxRate {
   font-size: 24px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .fxPair {
   font-size: 13px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .fxChange {
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .stacked {
@@ -268,11 +277,87 @@
   gap: 12px;
 }
 
+.orderTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.orderTab {
+  appearance: none;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--foreground);
+  min-height: 40px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.orderTab[aria-selected="true"] {
+  border-color: var(--foreground);
+}
+
 .formRow {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.quickSymbol,
+.quickQuote {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quickSymbol strong,
+.quickQuote strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.quickSideGroup {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.quickBuy,
+.quickSell {
+  appearance: none;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  min-height: 48px;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.quickBuy {
+  color: var(--gain);
+}
+
+.quickSell {
+  color: var(--loss);
+}
+
+.quickBuy[aria-pressed="true"] {
+  border-color: var(--gain);
+}
+
+.quickSell[aria-pressed="true"] {
+  border-color: var(--loss);
 }
 
 .confirmLabel {

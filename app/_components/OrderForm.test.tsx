@@ -51,6 +51,14 @@ function fillBuyLimit() {
 describe("OrderForm", () => {
   it("renders the core fields and the confirm checkbox", () => {
     render(<OrderForm accountSeq={1} />);
+    expect(screen.getByRole("tab", { name: "일반주문" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("tab", { name: "빠른주문" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
     expect(screen.getByLabelText("종목코드")).toBeInTheDocument();
     expect(screen.getByLabelText("구분")).toBeInTheDocument();
     expect(screen.getByLabelText("유형")).toBeInTheDocument();
@@ -69,6 +77,20 @@ describe("OrderForm", () => {
   it("prefills the symbol field from the symbol prop", () => {
     render(<OrderForm accountSeq={1} symbol="AAPL" />);
     expect(screen.getByLabelText("종목코드")).toHaveValue("AAPL");
+  });
+
+  it("switches to quick order mode", () => {
+    render(<OrderForm accountSeq={1} symbol="AAPL" />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "빠른주문" }));
+
+    expect(screen.getByRole("tab", { name: "빠른주문" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("AAPL")).toBeInTheDocument();
+    expect(screen.getByLabelText("매매 구분")).toBeInTheDocument();
+    expect(screen.queryByLabelText("유형")).not.toBeInTheDocument();
   });
 
   it("shows the price input for LIMIT and hides it for MARKET", () => {
@@ -118,6 +140,57 @@ describe("OrderForm", () => {
     expect(body.price).toBe("71000");
     expect(fetchMock.mock.calls[0][0]).toBe("/api/orders?accountSeq=1");
     expect(screen.getByText("dry-run-enabled")).toBeInTheDocument();
+  });
+
+  it("submits quick orders as DAY LIMIT orders using the current price", async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return jsonResponse({
+          data: {
+            status: "DRY_RUN",
+            wouldSend: {
+              symbol: "AAPL",
+              side: "SELL",
+              orderType: "LIMIT",
+              timeInForce: "DAY",
+              quantity: "3",
+              price: "185.70",
+            },
+            reasons: ["dry-run-enabled"],
+            prevalidation: {
+              side: "SELL",
+              available: "10",
+              requested: "3",
+              insufficient: false,
+            },
+          },
+        });
+      }
+      expect(url).toBe("/api/prices?symbols=AAPL");
+      return jsonResponse({
+        data: [{ symbol: "AAPL", lastPrice: "185.70", currency: "USD" }],
+      });
+    });
+
+    render(<OrderForm accountSeq={1} symbol="AAPL" />);
+    fireEvent.click(screen.getByRole("tab", { name: "빠른주문" }));
+    expect(await screen.findByText("$185.70")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "매도" }));
+    fireEvent.change(screen.getByLabelText("수량"), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "미리보기" }));
+
+    await screen.findByText("🔍 미리보기 (전송되지 않음)");
+    expect(lastSentBody()).toMatchObject({
+      symbol: "AAPL",
+      side: "SELL",
+      orderType: "LIMIT",
+      timeInForce: "DAY",
+      quantity: "3",
+      price: "185.70",
+      confirm: false,
+    });
   });
 
   it("submits confirm:true and renders SENT with the order id", async () => {

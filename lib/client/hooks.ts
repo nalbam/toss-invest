@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR, { type SWRConfiguration } from "swr";
+import { POLLING_INTERVAL_MS } from "@/lib/client/polling";
 import type {
   Account,
   BuyingPower,
@@ -110,12 +111,60 @@ const sharedConfig: SWRConfiguration = {
   shouldRetryOnError: false,
 };
 
+const accountConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.account,
+};
+
+const holdingsConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.holdings,
+};
+
+const ordersConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.orders,
+};
+
+const pricesConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.prices,
+  dedupingInterval: POLLING_INTERVAL_MS.prices,
+};
+
+const priceLimitsConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.priceLimits,
+};
+
+const orderbookConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.orderbook,
+  dedupingInterval: POLLING_INTERVAL_MS.orderbook,
+};
+
+const candlesConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.candles,
+  dedupingInterval: POLLING_INTERVAL_MS.candles,
+};
+
+const exchangeRateConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.exchangeRate,
+};
+
+const cashBalanceConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.cashBalance,
+};
+
 /** Loads the list of accounts. */
 export function useAccounts(): QueryResult<Account[]> {
   const { data, error, isLoading } = useSWR<Account[], ApiClientError>(
     "/api/accounts",
     fetcher,
-    sharedConfig,
+    accountConfig,
   );
   return { data, error, isLoading };
 }
@@ -135,7 +184,7 @@ export function useHoldings(
   const { data, error, isLoading } = useSWR<HoldingsOverview, ApiClientError>(
     key,
     fetcher,
-    sharedConfig,
+    holdingsConfig,
   );
   return { data, error, isLoading: isLoading && key !== null };
 }
@@ -164,7 +213,7 @@ export function useOrders(
   const { data, error, isLoading } = useSWR<
     PaginatedOrderResponse,
     ApiClientError
-  >(key, fetcher, sharedConfig);
+  >(key, fetcher, ordersConfig);
   return { data, error, isLoading: isLoading && key !== null };
 }
 
@@ -181,7 +230,7 @@ export function usePrices(symbols: string[]): QueryResult<PriceResponse[]> {
   const { data, error, isLoading } = useSWR<PriceResponse[], ApiClientError>(
     key,
     fetcher,
-    sharedConfig,
+    pricesConfig,
   );
   return { data, error, isLoading: isLoading && key !== null };
 }
@@ -201,7 +250,7 @@ export function usePriceLimits(
   const { data, error, isLoading } = useSWR<
     PriceLimitResponse,
     ApiClientError
-  >(key, fetcher, sharedConfig);
+  >(key, fetcher, priceLimitsConfig);
   return { data, error, isLoading: isLoading && key !== null };
 }
 
@@ -219,7 +268,7 @@ export function useOrderbook(
   const { data, error, isLoading } = useSWR<OrderbookResponse, ApiClientError>(
     key,
     fetcher,
-    sharedConfig,
+    orderbookConfig,
   );
   return { data, error, isLoading: isLoading && key !== null };
 }
@@ -239,7 +288,7 @@ export function useCandles(
   const { data, error, isLoading } = useSWR<
     CandlePageResponse,
     ApiClientError
-  >(key, fetcher, sharedConfig);
+  >(key, fetcher, candlesConfig);
   return { data, error, isLoading: isLoading && key !== null };
 }
 
@@ -254,7 +303,7 @@ export function useExchangeRate(
   const { data, error, isLoading } = useSWR<
     ExchangeRateResponse,
     ApiClientError
-  >(key, fetcher, sharedConfig);
+  >(key, fetcher, exchangeRateConfig);
   return { data, error, isLoading };
 }
 
@@ -274,7 +323,7 @@ function useCashBalance(
   const { data, error, isLoading } = useSWR<BuyingPower, ApiClientError>(
     key,
     fetcher,
-    sharedConfig,
+    cashBalanceConfig,
   );
   return { data, error, isLoading: isLoading && key !== null };
 }

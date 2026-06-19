@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiClientError, submitOrder } from "@/lib/client/hooks";
+import { ApiClientError, submitOrder, usePrices } from "@/lib/client/hooks";
 import type { OrderCreateBody, OrderPlaceResult } from "@/lib/client/types";
+import { formatKrw, formatUsd } from "@/lib/client/format";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
+type OrderMode = "GENERAL" | "QUICK";
 type Side = "BUY" | "SELL";
 type OrderType = "LIMIT" | "MARKET";
 type TimeInForce = "DAY" | "CLS";
@@ -30,6 +32,7 @@ export function OrderForm({
   accountSeq: number | undefined;
   symbol?: string;
 }) {
+  const [mode, setMode] = useState<OrderMode>("GENERAL");
   const [symbol, setSymbol] = useState(selectedSymbol ?? "");
   const [side, setSide] = useState<Side>("BUY");
   const [orderType, setOrderType] = useState<OrderType>("LIMIT");
@@ -43,6 +46,17 @@ export function OrderForm({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<OrderPlaceResult | null>(null);
   const [error, setError] = useState<SubmitError | null>(null);
+  const quickQuote = usePrices(
+    mode === "QUICK" && symbol.trim() ? [symbol.trim()] : [],
+  );
+  const currentQuote = quickQuote.data?.[0];
+  const currentPrice = currentQuote?.lastPrice;
+  const currentPriceLabel =
+    currentQuote === undefined
+      ? "-"
+      : currentQuote.currency === "USD"
+        ? formatUsd(currentQuote.lastPrice)
+        : formatKrw(currentQuote.lastPrice);
 
   // Prefill the symbol from the dashboard selection. Selecting a new holding
   // overwrites the field so the form follows the chosen symbol; the user can
@@ -65,11 +79,9 @@ export function OrderForm({
     }
   }
 
-  function buildBody(): OrderCreateBody | { error: string } {
-    const trimmedSymbol = symbol.trim();
-    if (trimmedSymbol.length === 0) {
-      return { error: "종목코드를 입력하세요." };
-    }
+  function buildGeneralBody(
+    trimmedSymbol: string,
+  ): OrderCreateBody | { error: string } {
     const base = {
       symbol: trimmedSymbol,
       side,
@@ -97,6 +109,37 @@ export function OrderForm({
       body.price = price.trim();
     }
     return body;
+  }
+
+  function buildQuickBody(
+    trimmedSymbol: string,
+  ): OrderCreateBody | { error: string } {
+    if (quantity.trim().length === 0) {
+      return { error: "수량을 입력하세요." };
+    }
+    const quickPrice = price.trim() || currentPrice;
+    if (quickPrice === undefined) {
+      return { error: "현재가를 불러오거나 가격을 입력하세요." };
+    }
+    return {
+      symbol: trimmedSymbol,
+      side,
+      orderType: "LIMIT",
+      timeInForce: "DAY",
+      quantity: quantity.trim(),
+      price: quickPrice,
+      confirm,
+    };
+  }
+
+  function buildBody(): OrderCreateBody | { error: string } {
+    const trimmedSymbol = symbol.trim();
+    if (trimmedSymbol.length === 0) {
+      return { error: "종목코드를 입력하세요." };
+    }
+    return mode === "QUICK"
+      ? buildQuickBody(trimmedSymbol)
+      : buildGeneralBody(trimmedSymbol);
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -131,134 +174,218 @@ export function OrderForm({
     <section className={styles.card} aria-label="주문하기">
       <h2 className={styles.cardTitle}>주문하기</h2>
 
+      <div className={styles.orderTabs} role="tablist" aria-label="주문 방식">
+        <button
+          type="button"
+          className={styles.orderTab}
+          role="tab"
+          aria-selected={mode === "GENERAL"}
+          onClick={() => setMode("GENERAL")}
+        >
+          일반주문
+        </button>
+        <button
+          type="button"
+          className={styles.orderTab}
+          role="tab"
+          aria-selected={mode === "QUICK"}
+          onClick={() => setMode("QUICK")}
+        >
+          빠른주문
+        </button>
+      </div>
+
       <form className={styles.orderForm} onSubmit={handleSubmit}>
-        <div className={styles.formRow}>
-          <label htmlFor="order-symbol" className={page.controlLabel}>
-            종목코드
-          </label>
-          <input
-            id="order-symbol"
-            className={page.select}
-            value={symbol}
-            onChange={(event) => setSymbol(event.target.value)}
-            placeholder="예: 005930 / AAPL"
-          />
-        </div>
-
-        <div className={styles.formRow}>
-          <label htmlFor="order-side" className={page.controlLabel}>
-            구분
-          </label>
-          <select
-            id="order-side"
-            className={page.select}
-            value={side}
-            onChange={(event) => setSide(event.target.value as Side)}
-          >
-            <option value="BUY">매수 (BUY)</option>
-            <option value="SELL">매도 (SELL)</option>
-          </select>
-
-          <label htmlFor="order-type" className={page.controlLabel}>
-            유형
-          </label>
-          <select
-            id="order-type"
-            className={page.select}
-            value={orderType}
-            onChange={(event) =>
-              handleOrderTypeChange(event.target.value as OrderType)
-            }
-          >
-            <option value="LIMIT">지정가 (LIMIT)</option>
-            <option value="MARKET">시장가 (MARKET)</option>
-          </select>
-
-          <label htmlFor="order-tif" className={page.controlLabel}>
-            유효기간
-          </label>
-          <select
-            id="order-tif"
-            className={page.select}
-            value={timeInForce}
-            onChange={(event) =>
-              setTimeInForce(event.target.value as TimeInForce)
-            }
-            disabled={amountMode}
-          >
-            <option value="DAY">당일 (DAY)</option>
-            <option value="CLS">종가 (CLS)</option>
-          </select>
-        </div>
-
-        {orderType === "MARKET" ? (
-          <div className={styles.formRow}>
-            <span className={page.controlLabel}>주문 방식</span>
-            <button
-              type="button"
-              className={page.select}
-              aria-pressed={pricingMode === "QUANTITY"}
-              onClick={() => setPricingMode("QUANTITY")}
-            >
-              수량
-            </button>
-            <button
-              type="button"
-              className={page.select}
-              aria-pressed={pricingMode === "AMOUNT"}
-              onClick={() => setPricingMode("AMOUNT")}
-            >
-              금액 (US)
-            </button>
-          </div>
-        ) : null}
-
-        <div className={styles.formRow}>
-          {amountMode ? (
-            <>
-              <label htmlFor="order-amount" className={page.controlLabel}>
-                주문금액
+        {mode === "GENERAL" ? (
+          <>
+            <div className={styles.formRow}>
+              <label htmlFor="order-symbol" className={page.controlLabel}>
+                종목코드
               </label>
               <input
-                id="order-amount"
+                id="order-symbol"
                 className={page.select}
-                value={orderAmount}
-                onChange={(event) => setOrderAmount(event.target.value)}
-                placeholder="예: 1000"
-                inputMode="decimal"
+                value={symbol}
+                onChange={(event) => setSymbol(event.target.value)}
+                placeholder="예: 005930 / AAPL"
               />
-            </>
-          ) : (
-            <>
-              <label htmlFor="order-quantity" className={page.controlLabel}>
+            </div>
+
+            <div className={styles.formRow}>
+              <label htmlFor="order-side" className={page.controlLabel}>
+                구분
+              </label>
+              <select
+                id="order-side"
+                className={page.select}
+                value={side}
+                onChange={(event) => setSide(event.target.value as Side)}
+              >
+                <option value="BUY">매수 (BUY)</option>
+                <option value="SELL">매도 (SELL)</option>
+              </select>
+
+              <label htmlFor="order-type" className={page.controlLabel}>
+                유형
+              </label>
+              <select
+                id="order-type"
+                className={page.select}
+                value={orderType}
+                onChange={(event) =>
+                  handleOrderTypeChange(event.target.value as OrderType)
+                }
+              >
+                <option value="LIMIT">지정가 (LIMIT)</option>
+                <option value="MARKET">시장가 (MARKET)</option>
+              </select>
+
+              <label htmlFor="order-tif" className={page.controlLabel}>
+                유효기간
+              </label>
+              <select
+                id="order-tif"
+                className={page.select}
+                value={timeInForce}
+                onChange={(event) =>
+                  setTimeInForce(event.target.value as TimeInForce)
+                }
+                disabled={amountMode}
+              >
+                <option value="DAY">당일 (DAY)</option>
+                <option value="CLS">종가 (CLS)</option>
+              </select>
+            </div>
+
+            {orderType === "MARKET" ? (
+              <div className={styles.formRow}>
+                <span className={page.controlLabel}>주문 방식</span>
+                <button
+                  type="button"
+                  className={page.select}
+                  aria-pressed={pricingMode === "QUANTITY"}
+                  onClick={() => setPricingMode("QUANTITY")}
+                >
+                  수량
+                </button>
+                <button
+                  type="button"
+                  className={page.select}
+                  aria-pressed={pricingMode === "AMOUNT"}
+                  onClick={() => setPricingMode("AMOUNT")}
+                >
+                  금액 (US)
+                </button>
+              </div>
+            ) : null}
+
+            <div className={styles.formRow}>
+              {amountMode ? (
+                <>
+                  <label htmlFor="order-amount" className={page.controlLabel}>
+                    주문금액
+                  </label>
+                  <input
+                    id="order-amount"
+                    className={page.select}
+                    value={orderAmount}
+                    onChange={(event) => setOrderAmount(event.target.value)}
+                    placeholder="예: 1000"
+                    inputMode="decimal"
+                  />
+                </>
+              ) : (
+                <>
+                  <label htmlFor="order-quantity" className={page.controlLabel}>
+                    수량
+                  </label>
+                  <input
+                    id="order-quantity"
+                    className={page.select}
+                    value={quantity}
+                    onChange={(event) => setQuantity(event.target.value)}
+                    placeholder="예: 10"
+                    inputMode="numeric"
+                  />
+                  {showPrice ? (
+                    <>
+                      <label htmlFor="order-price" className={page.controlLabel}>
+                        가격
+                      </label>
+                      <input
+                        id="order-price"
+                        className={page.select}
+                        value={price}
+                        onChange={(event) => setPrice(event.target.value)}
+                        placeholder="예: 71000"
+                        inputMode="decimal"
+                      />
+                    </>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={styles.quickSymbol}>
+              <span className={styles.metricLabel}>종목코드</span>
+              <strong>{symbol || "-"}</strong>
+            </div>
+
+            <div className={styles.quickQuote}>
+              <span className={styles.metricLabel}>현재가</span>
+              <strong>{quickQuote.isLoading ? "불러오는 중…" : currentPriceLabel}</strong>
+            </div>
+
+            <div className={styles.quickSideGroup} aria-label="매매 구분">
+              <button
+                type="button"
+                className={styles.quickBuy}
+                aria-pressed={side === "BUY"}
+                onClick={() => setSide("BUY")}
+              >
+                매수
+              </button>
+              <button
+                type="button"
+                className={styles.quickSell}
+                aria-pressed={side === "SELL"}
+                onClick={() => setSide("SELL")}
+              >
+                매도
+              </button>
+            </div>
+
+            <div className={styles.formRow}>
+              <label htmlFor="quick-order-quantity" className={page.controlLabel}>
                 수량
               </label>
               <input
-                id="order-quantity"
+                id="quick-order-quantity"
                 className={page.select}
                 value={quantity}
                 onChange={(event) => setQuantity(event.target.value)}
                 placeholder="예: 10"
                 inputMode="numeric"
               />
-              {showPrice ? (
-                <>
-                  <label htmlFor="order-price" className={page.controlLabel}>
-                    가격
-                  </label>
-                  <input
-                    id="order-price"
-                    className={page.select}
-                    value={price}
-                    onChange={(event) => setPrice(event.target.value)}
-                    placeholder="예: 71000"
-                    inputMode="decimal"
-                  />
-                </>
-              ) : null}
-            </>
-          )}
-        </div>
+            </div>
+
+            <div className={styles.formRow}>
+              <label htmlFor="quick-order-price" className={page.controlLabel}>
+                가격
+              </label>
+              <input
+                id="quick-order-price"
+                className={page.select}
+                value={price}
+                onChange={(event) => setPrice(event.target.value)}
+                placeholder={currentPrice ?? "현재가"}
+                inputMode="decimal"
+              />
+            </div>
+          </>
+        )}
 
         <div className={styles.formRow}>
           <label className={styles.confirmLabel} htmlFor="order-confirm">
