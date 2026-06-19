@@ -43,4 +43,21 @@ describe("CollapsibleCard", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("주문 목록")).not.toBeInTheDocument();
   });
+
+  it("shows summary content while collapsed", async () => {
+    window.localStorage.setItem("toss-invest:collapsed:cash", "true");
+
+    render(
+      <CollapsibleCard
+        title="주문 가능 금액"
+        storageId="cash"
+        summary={<span>총 주문가능 ₩1,000</span>}
+      >
+        <p>상세 금액</p>
+      </CollapsibleCard>,
+    );
+
+    expect(await screen.findByText("총 주문가능 ₩1,000")).toBeInTheDocument();
+    expect(screen.queryByText("상세 금액")).not.toBeInTheDocument();
+  });
 });

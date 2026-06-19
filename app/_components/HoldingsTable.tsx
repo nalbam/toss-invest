@@ -25,9 +25,9 @@ function signClass(value: string | null | undefined): string {
  * (amount + rate), and daily P/L. Renders an empty state when there are no
  * holdings.
  *
- * When `onSelectSymbol` is provided each row's symbol cell becomes a button:
- * clicking it (or activating it via the keyboard) selects that symbol so the
- * surrounding dashboard can drive the market panel and order form. The row for
+ * When `onSelectSymbol` is provided each row becomes selectable: clicking the
+ * row or pressing Enter/Space on it selects that symbol so the surrounding
+ * dashboard can drive the market panel and order form. The row for
  * `selectedSymbol` is highlighted.
  */
 export function HoldingsTable({
@@ -74,6 +74,20 @@ export function HoldingsTable({
                 key={item.symbol}
                 className={rowClass}
                 aria-selected={onSelectSymbol ? selected : undefined}
+                tabIndex={onSelectSymbol ? 0 : undefined}
+                onClick={
+                  onSelectSymbol ? () => onSelectSymbol(item.symbol) : undefined
+                }
+                onKeyDown={
+                  onSelectSymbol
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onSelectSymbol(item.symbol);
+                        }
+                      }
+                    : undefined
+                }
               >
                 <td>
                   {onSelectSymbol ? (

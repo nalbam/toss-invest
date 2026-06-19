@@ -111,23 +111,26 @@ export function Dashboard() {
 
   return (
     <div className={page.dashboard}>
-      <div className={page.controls}>
-        <label htmlFor="account-select" className={page.controlLabel}>
-          계좌
-        </label>
-        <select
-          id="account-select"
-          className={page.select}
-          value={selectedSeq ?? ""}
-          onChange={(event) => setSelectedSeq(Number(event.target.value))}
-        >
-          {accounts.data.map((account) => (
-            <option key={account.accountSeq} value={account.accountSeq}>
-              {account.accountNo} ({account.accountType})
-            </option>
-          ))}
-        </select>
-      </div>
+      <header className={page.header}>
+        <h1 className={page.title}>토스증권 대시보드</h1>
+        <div className={page.controls}>
+          <label htmlFor="account-select" className={page.controlLabel}>
+            계좌
+          </label>
+          <select
+            id="account-select"
+            className={page.select}
+            value={selectedSeq ?? ""}
+            onChange={(event) => setSelectedSeq(Number(event.target.value))}
+          >
+            {accounts.data.map((account) => (
+              <option key={account.accountSeq} value={account.accountSeq}>
+                {account.accountNo} ({account.accountType})
+              </option>
+            ))}
+          </select>
+        </div>
+      </header>
 
       <div className={styles.layout}>
         {/* Left: market data for the selected symbol (or a prompt). */}

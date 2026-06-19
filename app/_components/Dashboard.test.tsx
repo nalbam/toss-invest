@@ -163,8 +163,8 @@ describe("Dashboard", () => {
 
   it("selecting a holding drives the market panel and order form", () => {
     render(<Dashboard />);
-    // Click the holding row's name button to select it.
-    fireEvent.click(screen.getByRole("button", { name: /Apple/ }));
+    // Click the holding row to select it.
+    fireEvent.click(screen.getByText("Apple").closest("tr")!);
     // Left market panel now shows the symbol header instead of the prompt.
     expect(screen.getByText("Apple (AAPL)")).toBeInTheDocument();
     expect(

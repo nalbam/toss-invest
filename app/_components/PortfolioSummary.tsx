@@ -45,7 +45,18 @@ export function PortfolioSummary({
   ].reduce((acc, value) => addDecimalStrings(acc, value), "0");
 
   return (
-    <CollapsibleCard title="포트폴리오 요약" storageId="portfolio-summary">
+    <CollapsibleCard
+      title="포트폴리오 요약"
+      storageId="portfolio-summary"
+      summary={
+        <>
+          <span className={styles.metricLabel}>총 자산</span>
+          <span className={styles.metricPrimary}>
+            <Money value={formatKrw(totalAssetsKrw)} />
+          </span>
+        </>
+      }
+    >
       <div className={styles.summaryGrid}>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>총 자산 (원화 환산)</span>

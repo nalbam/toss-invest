@@ -31,10 +31,12 @@ function writeStoredCollapsed(key: string, collapsed: boolean): void {
 export function CollapsibleCard({
   title,
   storageId,
+  summary,
   children,
 }: {
   title: string;
   storageId: string;
+  summary?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const titleId = useId();
@@ -72,7 +74,13 @@ export function CollapsibleCard({
           </button>
         </h2>
       </div>
-      {collapsed ? null : children}
+      {collapsed ? (
+        summary === undefined ? null : (
+          <div className={styles.collapsedSummary}>{summary}</div>
+        )
+      ) : (
+        children
+      )}
     </section>
   );
 }

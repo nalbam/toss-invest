@@ -84,7 +84,7 @@ describe("HoldingsTable", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("calls onSelectSymbol with the row's symbol when its name button is clicked", () => {
+  it("calls onSelectSymbol with the row's symbol when the row is clicked", () => {
     const onSelectSymbol = vi.fn();
     render(
       <HoldingsTable
@@ -92,7 +92,21 @@ describe("HoldingsTable", () => {
         onSelectSymbol={onSelectSymbol}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Apple/ }));
+    fireEvent.click(screen.getByText("Apple").closest("tr")!);
+    expect(onSelectSymbol).toHaveBeenCalledWith("AAPL");
+  });
+
+  it("calls onSelectSymbol with the row's symbol when Enter is pressed on the row", () => {
+    const onSelectSymbol = vi.fn();
+    render(
+      <HoldingsTable
+        items={[samsung, apple]}
+        onSelectSymbol={onSelectSymbol}
+      />,
+    );
+    fireEvent.keyDown(screen.getByText("Apple").closest("tr")!, {
+      key: "Enter",
+    });
     expect(onSelectSymbol).toHaveBeenCalledWith("AAPL");
   });
 

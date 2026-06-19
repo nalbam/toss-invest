@@ -45,7 +45,18 @@ export function AccountCash({
     : null;
 
   return (
-    <CollapsibleCard title="주문 가능 금액" storageId="account-cash">
+    <CollapsibleCard
+      title="주문 가능 금액"
+      storageId="account-cash"
+      summary={
+        <>
+          <span className={styles.metricLabel}>총 주문가능</span>
+          <span className={styles.metricPrimary}>
+            <Money value={formatKrw(totalKrw)} />
+          </span>
+        </>
+      }
+    >
       <div className={styles.summaryGrid}>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>총 주문가능 (원화 환산)</span>
