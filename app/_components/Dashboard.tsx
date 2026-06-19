@@ -9,7 +9,7 @@ import {
   useHoldings,
   useOrders,
 } from "@/lib/client/hooks";
-import { FxRate } from "./FxRate";
+import { AccountCash } from "./AccountCash";
 import { HoldingsTable } from "./HoldingsTable";
 import { MarketQuote } from "./MarketQuote";
 import { OrderForm } from "./OrderForm";
@@ -82,7 +82,7 @@ export function Dashboard() {
         </select>
       </div>
 
-      {fx.data ? <FxRate rate={fx.data} cash={cash} /> : null}
+      {fx.data ? <AccountCash rate={fx.data} cash={cash} /> : null}
 
       {holdings.isLoading ? (
         <p className={page.status}>보유 자산을 불러오는 중…</p>
