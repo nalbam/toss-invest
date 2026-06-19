@@ -1,0 +1,855 @@
+.card {
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  background: var(--card-bg);
+}
+
+.refreshingCard {
+  border-color: color-mix(in srgb, var(--foreground) 4%, var(--card-border));
+  background: color-mix(in srgb, var(--foreground) 0.25%, var(--card-bg));
+}
+
+.cardHeader {
+  margin-bottom: 16px;
+}
+
+/*
+ * Toss-WTS-style full-width 3-column layout. The market panel (left) is the
+ * widest, the order form (center) is narrow, and the account sidebar (right)
+ * stacks its cards vertically. Falls back to 2 columns on medium screens
+ * (market spans both, form + sidebar share the second row) and a single column
+ * on narrow screens.
+ */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 58fr) minmax(0, 22fr) minmax(0, 20fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .marketColumn {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .marketColumn {
+    grid-column: auto;
+  }
+}
+
+.placeholder {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cardToggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.cardToggleIcon {
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  color: var(--foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.cardHeaderMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.collapsedSummary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metricLabel {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.metricPrimary {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.metricSecondary {
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.metricChange {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.currencySymbol {
+  font-size: 0.82em;
+  opacity: 0.6;
+}
+
+.positive {
+  color: var(--gain);
+}
+
+.negative {
+  color: var(--loss);
+}
+
+.zero {
+  color: var(--muted);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  padding: 10px 12px;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+}
+
+.table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--card-border);
+}
+
+.table tbody tr {
+  border-bottom: 1px solid var(--card-border);
+}
+
+.table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.selectableRow {
+  cursor: pointer;
+}
+
+.selectableRow:hover {
+  background: var(--gray-alpha);
+}
+
+.selectedRow {
+  background: var(--gray-alpha);
+}
+
+.symbolButton {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.symbolButton:focus-visible {
+  outline: 2px solid var(--loss);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.symbolCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.symbolName {
+  font-weight: 600;
+}
+
+.symbolTicker {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.marketBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--gray-alpha);
+  color: var(--muted);
+}
+
+.empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.holdingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.holdingItem {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--foreground) 2%, var(--card-bg));
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.selectableHoldingItem {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.selectableHoldingItem:hover,
+.selectedHoldingItem {
+  background: var(--gray-alpha);
+}
+
+.selectableHoldingItem:focus-visible {
+  outline: 2px solid var(--loss);
+  outline-offset: 2px;
+}
+
+.holdingMain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 12px;
+  align-items: start;
+}
+
+.holdingValue {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.holdingDetails {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.holdingDetails > span,
+.holdingProfit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.holdingLabel {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.holdingAmount,
+.holdingProfit {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.holdingAmount {
+  white-space: nowrap;
+}
+
+.fxRow {
+  display: grid;
+  grid-template-columns: max-content max-content max-content;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 16px;
+}
+
+.fxRow .metricLabel {
+  grid-column: 1 / -1;
+}
+
+.fxRate {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fxPair {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.fxChange {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+}
+
+.stacked.left {
+  align-items: flex-start;
+}
+
+.quoteRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 20px;
+  margin: 16px 0;
+}
+
+.chart {
+  width: 100%;
+  min-height: 280px;
+  margin: 16px 0;
+}
+
+.chartControls {
+  flex-wrap: wrap;
+}
+
+.chartControls .activeControl,
+.chartControls button[aria-pressed="true"] {
+  background: var(--foreground);
+  border-color: var(--foreground);
+  color: var(--background);
+  font-weight: 700;
+}
+
+.orderForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.orderTabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.orderTab {
+  appearance: none;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--foreground);
+  min-height: 40px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.orderTab[aria-selected="true"] {
+  border-color: var(--foreground);
+}
+
+.orderTab:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.formRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.orderSideTabs,
+.priceModeTabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--gray-alpha);
+}
+
+.priceModeTabs {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.orderSideTabs button,
+.priceModeTabs button {
+  min-height: 34px;
+}
+
+.orderBuyTab,
+.orderSellTab,
+.orderWaitTab {
+  appearance: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.orderBuyTab[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--loss) 34%, var(--card-bg));
+  color: var(--loss);
+}
+
+.orderSellTab[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--gain) 34%, var(--card-bg));
+  color: var(--gain);
+}
+
+.orderWaitTab:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.stepperInput {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content max-content max-content;
+  gap: 6px;
+  width: 100%;
+}
+
+.stepperInput input {
+  width: 100%;
+}
+
+.stepperInput span,
+.stepperInput button {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--muted);
+  min-width: 36px;
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.stepperInput button {
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.quickOrderBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quickInputLabel {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.quickHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quickHeaderTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.quickHeaderPrice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.quickHeaderPrice strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.currencyBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--gray-alpha);
+  color: var(--muted);
+}
+
+.quickCapacityRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.quickCapacityChip {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--gray-alpha);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.quickCapacityChip strong {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.quickCapacityChip:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.quickBtnAmount {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.quickConfirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--loss);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--loss) 8%, var(--card-bg));
+}
+
+.quickConfirmText {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.quickPresets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.quickPresets button {
+  appearance: none;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--gray-alpha);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 34px;
+}
+
+.quickPresets button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.quickBalances,
+.orderInfoPanel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--foreground) 3%, var(--card-bg));
+}
+
+.orderInfoPanel {
+  grid-template-columns: 1fr;
+}
+
+.quickBalances span,
+.orderInfoPanel span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quickBalances strong,
+.orderInfoPanel strong {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.quickActionGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.quickBuy,
+.quickSell {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--foreground);
+  min-height: 48px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.quickBuy:disabled,
+.quickSell:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.quickBuy {
+  background: color-mix(in srgb, var(--loss) 34%, var(--card-bg));
+  color: var(--loss);
+}
+
+.quickSell {
+  background: color-mix(in srgb, var(--gain) 34%, var(--card-bg));
+  color: var(--gain);
+}
+
+.quickCancel {
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  background: var(--gray-alpha);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  grid-column: 1 / -1;
+  min-height: 40px;
+}
+
+.orderSubmit {
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  flex: 1 1 180px;
+  font: inherit;
+  font-weight: 800;
+  min-height: 48px;
+  padding: 10px 16px;
+}
+
+.buySubmit {
+  background: var(--loss);
+}
+
+.sellSubmit {
+  background: var(--gain);
+}
+
+.confirmLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.confirmHint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.orderResult {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.resultTitle {
+  font-weight: 700;
+}
+
+.wouldSend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.wouldSend div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wouldSend dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.wouldSend dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.prevalidation {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.reasons {
+  font-size: 13px;
+}
+
+.reasonsLabel {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.reasons ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.confirmInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
