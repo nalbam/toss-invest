@@ -23,8 +23,21 @@ function signClass(value: string | null | undefined): string {
  * average/last price (in the item's currency), market value, total P/L
  * (amount + rate), and daily P/L. Renders an empty state when there are no
  * holdings.
+ *
+ * When `onSelectSymbol` is provided each row's symbol cell becomes a button:
+ * clicking it (or activating it via the keyboard) selects that symbol so the
+ * surrounding dashboard can drive the market panel and order form. The row for
+ * `selectedSymbol` is highlighted.
  */
-export function HoldingsTable({ items }: { items: HoldingsItem[] }) {
+export function HoldingsTable({
+  items,
+  selectedSymbol,
+  onSelectSymbol,
+}: {
+  items: HoldingsItem[];
+  selectedSymbol?: string;
+  onSelectSymbol?: (symbol: string) => void;
+}) {
   if (items.length === 0) {
     return (
       <section className={styles.card} aria-label="보유 종목">
@@ -52,13 +65,33 @@ export function HoldingsTable({ items }: { items: HoldingsItem[] }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={item.symbol}>
+            {items.map((item) => {
+              const selected = selectedSymbol === item.symbol;
+              const rowClass = onSelectSymbol
+                ? `${styles.selectableRow} ${selected ? styles.selectedRow : ""}`
+                : undefined;
+              return (
+              <tr
+                key={item.symbol}
+                className={rowClass}
+                aria-selected={onSelectSymbol ? selected : undefined}
+              >
                 <td>
-                  <span className={styles.symbolCell}>
-                    <span className={styles.symbolName}>{item.name}</span>
-                    <span className={styles.symbolTicker}>{item.symbol}</span>
-                  </span>
+                  {onSelectSymbol ? (
+                    <button
+                      type="button"
+                      className={styles.symbolButton}
+                      onClick={() => onSelectSymbol(item.symbol)}
+                    >
+                      <span className={styles.symbolName}>{item.name}</span>
+                      <span className={styles.symbolTicker}>{item.symbol}</span>
+                    </button>
+                  ) : (
+                    <span className={styles.symbolCell}>
+                      <span className={styles.symbolName}>{item.name}</span>
+                      <span className={styles.symbolTicker}>{item.symbol}</span>
+                    </span>
+                  )}
                 </td>
                 <td>
                   <span className={styles.marketBadge}>{item.marketCountry}</span>
@@ -94,7 +127,8 @@ export function HoldingsTable({ items }: { items: HoldingsItem[] }) {
                   </span>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

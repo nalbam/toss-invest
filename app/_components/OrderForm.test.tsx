@@ -66,6 +66,11 @@ describe("OrderForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("prefills the symbol field from the symbol prop", () => {
+    render(<OrderForm accountSeq={1} symbol="AAPL" />);
+    expect(screen.getByLabelText("종목코드")).toHaveValue("AAPL");
+  });
+
   it("shows the price input for LIMIT and hides it for MARKET", () => {
     render(<OrderForm accountSeq={1} />);
     expect(screen.getByLabelText("가격")).toBeInTheDocument();

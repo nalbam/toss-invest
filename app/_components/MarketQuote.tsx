@@ -14,22 +14,24 @@ import { Orderbook } from "./Orderbook";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
-const DEFAULT_SYMBOL = "005930";
-
 /** Formats a price in the given trading currency. */
 function formatPrice(value: string | null, currency: string): string {
   return currency === "USD" ? formatUsd(value) : formatKrw(value);
 }
 
 /**
- * Market quote section: pick a symbol, then view its last price, daily price
- * limits, orderbook, and a candlestick chart (1m/1d toggle). Defaults to the
- * first holding's symbol when available, otherwise `005930`.
+ * Market quote section for the selected symbol: its name/last price header, a
+ * candlestick chart (1m/1d toggle), the orderbook, and the daily price limits.
+ * The symbol is controlled by the parent (driven by the holdings selection),
+ * not an in-component input. `name` is shown in the header when known.
  */
-export function MarketQuote({ defaultSymbol }: { defaultSymbol?: string }) {
-  const initial = defaultSymbol ?? DEFAULT_SYMBOL;
-  const [symbol, setSymbol] = useState(initial);
-  const [input, setInput] = useState(initial);
+export function MarketQuote({
+  symbol,
+  name,
+}: {
+  symbol: string;
+  name?: string;
+}) {
   const [interval, setInterval] = useState<"1m" | "1d">("1d");
 
   const prices = usePrices([symbol]);
@@ -40,37 +42,15 @@ export function MarketQuote({ defaultSymbol }: { defaultSymbol?: string }) {
   const quote = prices.data?.[0];
   const currency = quote?.currency ?? "KRW";
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const next = input.trim();
-    if (next.length > 0) {
-      setSymbol(next);
-    }
-  }
-
   return (
     <section className={styles.card} aria-label="시세">
       <h2 className={styles.cardTitle}>시세</h2>
 
-      <form className={page.controls} onSubmit={handleSubmit}>
-        <label htmlFor="symbol-input" className={page.controlLabel}>
-          종목코드
-        </label>
-        <input
-          id="symbol-input"
-          className={page.select}
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="예: 005930"
-        />
-        <button type="submit" className={page.select}>
-          조회
-        </button>
-      </form>
-
       <div className={styles.quoteRow}>
         <div className={styles.metric}>
-          <span className={styles.metricLabel}>현재가 ({symbol})</span>
+          <span className={styles.metricLabel}>
+            {name ? `${name} (${symbol})` : `현재가 (${symbol})`}
+          </span>
           {prices.isLoading ? (
             <span className={styles.metricSecondary}>불러오는 중…</span>
           ) : prices.error ? (

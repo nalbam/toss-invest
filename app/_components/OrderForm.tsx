@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiClientError, submitOrder } from "@/lib/client/hooks";
 import type { OrderCreateBody, OrderPlaceResult } from "@/lib/client/types";
 import styles from "./dashboard.module.css";
@@ -23,8 +23,14 @@ interface SubmitError {
  * back as a DRY_RUN preview. The result is rendered per status (DRY_RUN / SENT /
  * BLOCKED) and any `{ error }` envelope surfaces as its code + message.
  */
-export function OrderForm({ accountSeq }: { accountSeq: number | undefined }) {
-  const [symbol, setSymbol] = useState("");
+export function OrderForm({
+  accountSeq,
+  symbol: selectedSymbol,
+}: {
+  accountSeq: number | undefined;
+  symbol?: string;
+}) {
+  const [symbol, setSymbol] = useState(selectedSymbol ?? "");
   const [side, setSide] = useState<Side>("BUY");
   const [orderType, setOrderType] = useState<OrderType>("LIMIT");
   const [timeInForce, setTimeInForce] = useState<TimeInForce>("DAY");
@@ -37,6 +43,15 @@ export function OrderForm({ accountSeq }: { accountSeq: number | undefined }) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<OrderPlaceResult | null>(null);
   const [error, setError] = useState<SubmitError | null>(null);
+
+  // Prefill the symbol from the dashboard selection. Selecting a new holding
+  // overwrites the field so the form follows the chosen symbol; the user can
+  // still edit it freely afterwards.
+  useEffect(() => {
+    if (selectedSymbol) {
+      setSymbol(selectedSymbol);
+    }
+  }, [selectedSymbol]);
 
   // Amount-based ordering is US MARKET only; LIMIT always uses quantity.
   const amountMode = pricingMode === "AMOUNT" && orderType === "MARKET";

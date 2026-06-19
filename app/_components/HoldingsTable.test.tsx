@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { HoldingsTable } from "./HoldingsTable";
 import type { HoldingsItem } from "@/lib/client/types";
 
@@ -82,5 +82,36 @@ describe("HoldingsTable", () => {
     render(<HoldingsTable items={[]} />);
     expect(screen.getByText("보유 종목 없음")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("calls onSelectSymbol with the row's symbol when its name button is clicked", () => {
+    const onSelectSymbol = vi.fn();
+    render(
+      <HoldingsTable
+        items={[samsung, apple]}
+        onSelectSymbol={onSelectSymbol}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Apple/ }));
+    expect(onSelectSymbol).toHaveBeenCalledWith("AAPL");
+  });
+
+  it("marks the selected row with aria-selected when selectedSymbol matches", () => {
+    render(
+      <HoldingsTable
+        items={[samsung, apple]}
+        selectedSymbol="AAPL"
+        onSelectSymbol={() => {}}
+      />,
+    );
+    const appleRow = screen.getByText("Apple").closest("tr");
+    const samsungRow = screen.getByText("삼성전자").closest("tr");
+    expect(appleRow).toHaveAttribute("aria-selected", "true");
+    expect(samsungRow).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("renders non-interactive symbol cells when no onSelectSymbol is given", () => {
+    render(<HoldingsTable items={[samsung]} />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

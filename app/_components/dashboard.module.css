@@ -5,6 +5,54 @@
   background: var(--card-bg);
 }
 
+/*
+ * Toss-WTS-style full-width 3-column layout. The market panel (left) is the
+ * widest, the order form (center) is narrow, and the account sidebar (right)
+ * stacks its cards vertically. Falls back to 2 columns on medium screens
+ * (market spans both, form + sidebar share the second row) and a single column
+ * on narrow screens.
+ */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 58fr) minmax(0, 22fr) minmax(0, 20fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .marketColumn {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .marketColumn {
+    grid-column: auto;
+  }
+}
+
+.placeholder {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+}
+
 .cardTitle {
   font-size: 13px;
   font-weight: 600;
@@ -98,6 +146,39 @@
 
 .table tbody tr:last-child {
   border-bottom: none;
+}
+
+.selectableRow {
+  cursor: pointer;
+}
+
+.selectableRow:hover {
+  background: var(--gray-alpha);
+}
+
+.selectedRow {
+  background: var(--gray-alpha);
+}
+
+.symbolButton {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.symbolButton:focus-visible {
+  outline: 2px solid var(--loss);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .symbolCell {

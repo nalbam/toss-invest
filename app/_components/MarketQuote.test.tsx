@@ -85,10 +85,15 @@ afterEach(() => {
 
 describe("MarketQuote", () => {
   it("renders the last price and KRW price limits", () => {
-    render(<MarketQuote defaultSymbol="005930" />);
+    render(<MarketQuote symbol="005930" />);
     expect(screen.getByText(byMoney("₩72,000"))).toBeInTheDocument();
     expect(screen.getByText(byMoney("₩93,600"))).toBeInTheDocument();
     expect(screen.getByText(byMoney("₩50,400"))).toBeInTheDocument();
+  });
+
+  it("shows the holding name in the header when provided", () => {
+    render(<MarketQuote symbol="005930" name="삼성전자" />);
+    expect(screen.getByText("삼성전자 (005930)")).toBeInTheDocument();
   });
 
   it("renders '-' for null US price limits", () => {
@@ -103,7 +108,7 @@ describe("MarketQuote", () => {
         currency: "USD",
       }),
     );
-    render(<MarketQuote defaultSymbol="AAPL" />);
+    render(<MarketQuote symbol="AAPL" />);
     expect(screen.getByText(byMoney("$190.50"))).toBeInTheDocument();
     // Both limits unavailable -> two "-" placeholders.
     expect(screen.getAllByText("-")).toHaveLength(2);
@@ -111,7 +116,7 @@ describe("MarketQuote", () => {
 
   it("shows the loading state while the price is loading", () => {
     usePrices.mockReturnValue(loading());
-    render(<MarketQuote defaultSymbol="005930" />);
+    render(<MarketQuote symbol="005930" />);
     expect(screen.getAllByText("불러오는 중…").length).toBeGreaterThan(0);
   });
 
@@ -124,7 +129,7 @@ describe("MarketQuote", () => {
         status = 502;
       })("시세를 불러오지 못했습니다") as never,
     });
-    render(<MarketQuote defaultSymbol="005930" />);
+    render(<MarketQuote symbol="005930" />);
     expect(
       screen.getByText("시세를 불러오지 못했습니다"),
     ).toBeInTheDocument();
