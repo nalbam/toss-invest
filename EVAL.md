@@ -620,3 +620,26 @@
 
 **최저축**: Functionality(카드 UI 미착수) → **다음 개선(#30)**: `app/_components/AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안목록·**disclaimer**·미설정/에러 상태). jsdom 테스트(현 샌드박스 env 아티팩트 가능 — 코드/환경 구분 보고).
 **Phase 전진 판정**: A3 종료조건(카드 렌더·prefill·자동폴링 없음·Playwright) 미충족 → advance 없음, A3 계속.
+
+---
+
+## #30 | phase4 | A3(인프라): jsdom localStorage 폴리필 → 테스트 환경 경계 수정
+
+**한 일**: #19~#29 내내 누적되던 **16건 환경 실패**(Node v26.3.0 + jsdom 29.1.1이 `window.localStorage` 미노출 → CollapsibleCard/MarketQuote/Dashboard 크래시)의 **근본 원인을 테스트 셋업에서 수정**(§5.5 "결정성 결함은 mock/경계를 고친다"). `test/setup-jest-dom.ts`에 `window.localStorage` 부재 시 in-memory `Storage` 폴리필 추가(node-env는 `window` 없어 skip, jsdom 파일마다 fresh store). A3 UI 단계의 모든 jsdom 테스트가 이를 필요로 하므로 카드 구현 전 선행. **단일 목적**(코드 로직 무변경, 테스트 인프라만).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — 번들 가드 36파일 클린
+- test — **438 passed (438, 36 files), 실패 0** ← 기존 16건 환경 실패 **전부 green 전환**(폴리필 효과). 테스트 무력화·skip 아님(실제 localStorage 동작 제공).
+
+**루브릭 점수 + 근거:**
+- Functionality **4** — A3 진척은 아니나 UI 테스트 검증성 차단 해소(후속 전부 green 검증 가능). 근거: 438/438.
+- LLM 정합성 **N/A** — 무관.
+- Safety **5** — 테스트 인프라만, `lib/server/trading/**` 등 프로덕션 코드 **무수정**(git status: setup-jest-dom.ts 1파일). 근거: git status.
+- Security & Privacy **5** — 영향 없음(테스트 전용 in-memory). 근거: 변경 범위.
+- Determinism/Testability **5** — **결정성 핵심 개선**: 환경 의존 실패 제거, 파일마다 fresh store(격리). 근거: 0 실패.
+- UX **N/A** — UI 무관.
+- Code quality **5** — 외과적 1파일, 최소 Storage 구현, node-env 가드. 근거: git status.
+
+**최저축**: Functionality(카드 UI 미착수) → **다음 개선(#31)**: `app/_components/AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안목록·**disclaimer**·미설정/에러). **이제 jsdom 테스트가 green 검증 가능.**
+**Phase 전진 판정**: A3 종료조건(카드·prefill·Playwright) 미충족 → advance 없음, A3 계속.
