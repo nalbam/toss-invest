@@ -643,3 +643,26 @@
 
 **최저축**: Functionality(카드 UI 미착수) → **다음 개선(#31)**: `app/_components/AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안목록·**disclaimer**·미설정/에러). **이제 jsdom 테스트가 green 검증 가능.**
 **Phase 전진 판정**: A3 종료조건(카드·prefill·Playwright) 미충족 → advance 없음, A3 계속.
+
+---
+
+## #31 | phase4 | A3: `AiAdvisor.tsx` 카드 UI
+
+**한 일**: `app/_components/AiAdvisor.tsx`(`"use client"`, CollapsibleCard). "조언 받기" 버튼→`fetchAdvisor`(온디맨드)→로딩("분석 중…")→조언 서술 + 제안목록. **유효 제안=「폼에 담기」버튼**(`onSelectProposal` 콜백, Dashboard 배선은 #32), **무효 제안=검증 실패 사유 표시·버튼 없음**(§6.A-3). 상시 **disclaimer**("AI 제안은 참고용…§6 게이트 경유"). 에러: not-configured(`ApiClientError.code`)→"설정되지 않았습니다", 그 외→"불러오지 못했습니다". 자동 fetch 없음(버튼만). dashboard.module.css에 advisor 클래스(기존 토큰 재사용) 추가. TDD: AiAdvisor.test.tsx 5건(버튼·disclaimer·미자동fetch / 클릭→조언·제안 / 유효만 prefill·무효 사유·콜백 / not-configured / 일반 에러).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — 번들 가드 36파일 클린
+- test — 신규 5건 포함 **443 passed (443, 37 files), 실패 0**(#30 폴리필로 jsdom green 검증). 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **4** — A3 카드 렌더·제안·prefill 콜백 완료(Dashboard 배선·Playwright 남음). 근거: AiAdvisor 5/5.
+- LLM 정합성 **N/A** — UI 계층.
+- Safety **5** — **무효 제안 prefill 버튼 없음(표시만)** 테스트로 증명(§6.A-3 UI 차단), AiAdvisor `placeOrder`/`createOrderRaw` 미참조(grep), prefill은 콜백만(주문 전송 아님). `lib/server/trading/**` **무수정**. 근거: 무효-no-button 테스트 + grep + git status.
+- Security & Privacy **5** — 클라이언트 카드, `/api/advisor`만 호출. 번들 36파일 클린. 근거: build.
+- Determinism/Testability **5** — `fetchAdvisor` mock으로 결정적 5건(로딩/조언/에러/not-configured). 근거: AiAdvisor.test.tsx.
+- UX **4** — 버튼·로딩·조언·제안·**disclaimer**·미설정/에러 전 상태 + 유효/무효 시각 구분. (실제 브라우저 시각 검증 미완 — Playwright #33.) 근거: 5 상태 테스트.
+- Code quality **5** — 기존 CollapsibleCard/CSS 토큰 재사용, 외과적(신규 2파일 + CSS append). 근거: git status.
+
+**최저축**: Functionality(Dashboard prefill 배선 미완) → **다음 개선(#32)**: Dashboard에 `prefill` 상태 lift + `OrderForm`이 prefill prop 수용(자동 전송 X, confirm·§6 유지) + AiAdvisor를 대시보드에 배치. 무효 제안 prefill 불가 유지. 컴포넌트 테스트.
+**Phase 전진 판정**: A3 종료조건(prefill→OrderForm·Playwright) 미충족 → advance 없음, A3 계속.

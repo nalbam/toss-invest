@@ -2,9 +2,9 @@
 
 ## 현재 위치
 - **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A3 진행 중** (A1·A2 완료) — advisor-loop-prompt.md, #19~.
-- **마지막 이터레이션**: #30 완료 (A3 인프라: jsdom localStorage 폴리필). `test/setup-jest-dom.ts`에 `window.localStorage` 부재 시 in-memory Storage 폴리필 → **기존 16건 환경 실패 전부 green**(Node v26 + jsdom 29 미노출 근본 수정). 프로덕션 코드 무변경. #30 시점 438 tests **전부 green**.
-- **현 상태**: **36 파일 438 tests, lint·typecheck·test·build 전부 green**(샌드박스 Node v26 포함 — #30 폴리필로 환경 아티팩트 해소). 번들 가드 36파일.
-- **다음 작업(#31, A3)**: `app/_components/AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안목록·disclaimer·미설정/에러). 이후 prefill→OrderForm.
+- **마지막 이터레이션**: #31 완료 (A3: `AiAdvisor.tsx` 카드 UI). CollapsibleCard — "조언 받기" 버튼→`fetchAdvisor`→로딩→조언+제안목록(유효=「폼에 담기」, 무효=사유·버튼 없음), 상시 disclaimer, not-configured/에러 상태. 자동 fetch 없음. `lib/server/trading/**` **무수정**, AiAdvisor order-exec 미참조. #31 시점 443 tests 전부 green.
+- **현 상태**: **37 파일 443 tests, lint·typecheck·test·build 전부 green**. 번들 가드 36파일.
+- **다음 작업(#32, A3)**: Dashboard에 `prefill` 상태 lift + `OrderForm` prefill prop 수용(자동 전송 X, confirm·§6 유지) + AiAdvisor 대시보드 배치. 이후 Playwright 스모크.
 
 ## Phase 4 — AI 어드바이저 (진행 중)
 LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안. **LLM은 제안자, 집행자 아님** — 제안→사람 confirm→기존 §6 게이트. 상세: [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md).
@@ -34,9 +34,9 @@ LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안.
 ### A3 (진행 중)
 - [x] `lib/client/advisor.ts`(온디맨드 fetcher, 자동폴링 X) — #29(`fetchAdvisor`, node-env 5 테스트).
 - [x] (인프라) jsdom `localStorage` 폴리필 — #30(`test/setup-jest-dom.ts`, 16건 환경 실패 해소 → 스위트 전부 green).
-- [ ] `AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안·disclaimer·미설정/에러) — #31.
-- [ ] "폼에 담기" prefill → 기존 OrderForm(자동 전송 X, confirm·§6 유지). 무효 제안은 표시만·prefill 불가.
-- [ ] Playwright 스모크(route-mock) 카드 렌더.
+- [x] `AiAdvisor.tsx`(CollapsibleCard: 버튼·로딩·조언·제안·disclaimer·미설정/에러) — #31(5 테스트, 무효=prefill 불가).
+- [ ] "폼에 담기" prefill → 기존 OrderForm(자동 전송 X, confirm·§6 유지) + Dashboard 배선 — #32.
+- [ ] Playwright 스모크(route-mock) 카드 렌더 — #33.
 
 ### A2·A3 후속(사람 요청 시)
 - structured output `response_format`(zod→strict JSON schema 변환) 배선 — 현재 zod 재검증으로 대체(안전), provider 신뢰도 향상용.
