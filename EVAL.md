@@ -436,3 +436,26 @@
 
 **최저축**: 없음(핵심 축 전부 5; UX는 A1 비해당) → **다음 개선(#22)**: `container.ts` `getServerLlmProvider(env)` — `LLM_PROVIDER`로 어댑터 선택, provider/key/model 미설정 시 `LlmNotConfiguredError`(어드바이저 경로만 "not configured"). 주입 fetch.
 **Phase 전진 판정**: A1 남은 종료조건(snapshot 마스킹·schema/validate·container) 미충족 → advance 없음, A1 계속.
+
+---
+
+## #22 | phase4 | A1: LLM `container.ts`(getServerLlmProvider + not-configured)
+
+**한 일**: `container.ts` — **순수 선택부 `resolveLlmProvider(env·fetch 주입)`** + **`getServerLlmProvider()`(실 env+global fetch 배선·캐시)** 분리(trading 순수/facade 동형). `LLM_PROVIDER`로 openai/xai 어댑터 선택, provider/model/매칭 key 미설정 시 `LlmNotConfiguredError` throw(어드바이저 경로만 "not configured", 대시보드/거래 무영향). **선택은 `LLM_PROVIDER` 기준만**(key 존재로 추론 안 함 — 오설정 조용히 흡수 금지). 에러는 캐시 안 함(env 설정 시 복구). TDD: container.test.ts 7건(provider/model/key 미설정 throw·openai·xai 빌드·선택 정확성).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0(exhaustive switch — "openai"|"xai" 두 분기 return, default 불필요)
+- build exit 0 — **번들 가드 35파일 클린**(container server-only)
+- test — 신규 7건 포함 **377 passed (393, 29 files)**. 실패 16건 동일 **환경 아티팩트**. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **4** — A1 "provider 추상화" 완료(인터페이스+2어댑터+container). 근거: llm 21건(openai9+xai5+container7). (snapshot·schema·validate 남음.)
+- LLM 정합성 **5** — 어댑터 계약은 #20/#21에서 Context7 검증; container는 그 위 결정적 선택부. 근거: 선택 테스트 7건.
+- Safety **5** — `lib/server/trading/**` **무수정**(git status), llm `placeOrder`/`createOrderRaw` **미참조**(grep none). 미설정 시 throw로 어드바이저 경로만 차단(거래 무영향). 근거: git status + grep.
+- Security & Privacy **5** — container server-only, 키는 어댑터 헤더로만 전달(선택부는 존재만 확인), 번들 35파일 클린. 근거: build.
+- Determinism/Testability **5** — `resolveLlmProvider` 순수(env·fetch 주입), 7건 결정적·오프라인(fetch stub 미호출). 실 배선은 `getServerLlmProvider`로 격리. 근거: container.test.ts.
+- UX **N/A** — UI 없음.
+- Code quality **5** — 순수/facade 분리(toss container 관례), 외과적(신규 2파일·기존 무수정). 근거: git status(?? container만).
+
+**최저축**: Functionality(snapshot·schema·validate 미착수) → **다음 개선(#23)**: `lib/server/advisor/snapshot.ts` — 순수 변환부(원시 포트폴리오/시장데이터 → **마스킹 스냅샷**, 화이트리스트 필드만·식별자/PII 제거) + 단위 테스트(PII 미포함 단언).
+**Phase 전진 판정**: A1 "provider 추상화"·"키 번들 미노출"·"env 미설정 부팅" 충족, 남은 snapshot·schema/validate 미충족 → advance 없음, A1 계속.
