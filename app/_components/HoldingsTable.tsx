@@ -34,116 +34,101 @@ export function HoldingsTable({
   items,
   selectedSymbol,
   onSelectSymbol,
+  refreshing,
 }: {
   items: HoldingsItem[];
   selectedSymbol?: string;
   onSelectSymbol?: (symbol: string) => void;
+  refreshing?: boolean;
 }) {
   if (items.length === 0) {
     return (
-      <CollapsibleCard title="보유 종목" storageId="holdings">
+      <CollapsibleCard
+        title="보유 종목"
+        storageId="holdings"
+        refreshing={refreshing}
+      >
         <p className={styles.empty}>보유 종목 없음</p>
       </CollapsibleCard>
     );
   }
 
   return (
-    <CollapsibleCard title="보유 종목" storageId="holdings">
-      <div className={styles.tableScroll}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">종목</th>
-              <th scope="col">시장</th>
-              <th scope="col">수량</th>
-              <th scope="col">평균가</th>
-              <th scope="col">현재가</th>
-              <th scope="col">평가금액</th>
-              <th scope="col">손익</th>
-              <th scope="col">일간손익</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => {
-              const selected = selectedSymbol === item.symbol;
-              const rowClass = onSelectSymbol
-                ? `${styles.selectableRow} ${selected ? styles.selectedRow : ""}`
-                : undefined;
-              return (
-              <tr
-                key={item.symbol}
-                className={rowClass}
-                aria-selected={onSelectSymbol ? selected : undefined}
-                tabIndex={onSelectSymbol ? 0 : undefined}
-                onClick={
-                  onSelectSymbol ? () => onSelectSymbol(item.symbol) : undefined
-                }
-                onKeyDown={
-                  onSelectSymbol
-                    ? (event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          onSelectSymbol(item.symbol);
-                        }
-                      }
-                    : undefined
-                }
-              >
-                <td>
-                  {onSelectSymbol ? (
-                    <button
-                      type="button"
-                      className={styles.symbolButton}
-                      onClick={() => onSelectSymbol(item.symbol)}
-                    >
-                      <span className={styles.symbolName}>{item.name}</span>
-                      <span className={styles.symbolTicker}>{item.symbol}</span>
-                    </button>
-                  ) : (
-                    <span className={styles.symbolCell}>
-                      <span className={styles.symbolName}>{item.name}</span>
-                      <span className={styles.symbolTicker}>{item.symbol}</span>
-                    </span>
-                  )}
-                </td>
-                <td>
-                  <span className={styles.marketBadge}>{item.marketCountry}</span>
-                </td>
-                <td>{formatDecimal(item.quantity, { maxFractionDigits: 4 })}</td>
-                <td>
-                  <Money value={formatPrice(item.averagePurchasePrice, item.currency)} />
-                </td>
-                <td>
-                  <Money value={formatPrice(item.lastPrice, item.currency)} />
-                </td>
-                <td>
+    <CollapsibleCard
+      title="보유 종목"
+      storageId="holdings"
+      refreshing={refreshing}
+    >
+      <div className={styles.holdingsList}>
+        {items.map((item) => {
+          const selected = selectedSymbol === item.symbol;
+          const itemClass = `${styles.holdingItem} ${
+            onSelectSymbol ? styles.selectableHoldingItem : ""
+          } ${selected ? styles.selectedHoldingItem : ""}`;
+          const content = (
+            <>
+              <span className={styles.holdingMain}>
+                <span className={styles.symbolCell}>
+                  <span className={styles.symbolName}>{item.name}</span>
+                  <span className={styles.symbolTicker}>
+                    {item.symbol} · {item.marketCountry} ·{" "}
+                    {formatDecimal(item.quantity, { maxFractionDigits: 4 })}주
+                  </span>
+                </span>
+                <span className={styles.holdingValue}>
                   <Money value={formatPrice(item.marketValue.amount, item.currency)} />
-                </td>
-                <td>
-                  <span className={styles.stacked}>
-                    <span className={signClass(item.profitLoss.amount)}>
-                      <Money value={formatPrice(item.profitLoss.amount, item.currency)} />
-                    </span>
-                    <span className={signClass(item.profitLoss.rate)}>
-                      {formatPercent(item.profitLoss.rate)}
-                    </span>
+                </span>
+              </span>
+              <span className={styles.holdingDetails}>
+                <span>
+                  <span className={styles.holdingLabel}>현재가</span>
+                  <span className={styles.holdingAmount}>
+                    <Money value={formatPrice(item.lastPrice, item.currency)} />
                   </span>
-                </td>
-                <td>
-                  <span className={styles.stacked}>
-                    <span className={signClass(item.dailyProfitLoss.amount)}>
-                      <Money value={formatPrice(item.dailyProfitLoss.amount, item.currency)} />
-                    </span>
-                    <span className={signClass(item.dailyProfitLoss.rate)}>
-                      {formatPercent(item.dailyProfitLoss.rate)}
-                    </span>
+                </span>
+                <span>
+                  <span className={styles.holdingLabel}>평균단가</span>
+                  <span className={styles.holdingAmount}>
+                    <Money value={formatPrice(item.averagePurchasePrice, item.currency)} />
                   </span>
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                </span>
+                <span>
+                  <span className={styles.holdingLabel}>매입금액</span>
+                  <span className={styles.holdingAmount}>
+                    <Money value={formatPrice(item.marketValue.purchaseAmount, item.currency)} />
+                  </span>
+                </span>
+              </span>
+              <span className={styles.holdingProfit}>
+                <span className={styles.holdingLabel}>손익</span>
+                <span className={signClass(item.profitLoss.amount)}>
+                  <Money value={formatPrice(item.profitLoss.amount, item.currency)} />{" "}
+                  ({formatPercent(item.profitLoss.rate)})
+                </span>
+              </span>
+            </>
+          );
+
+          if (onSelectSymbol) {
+            return (
+              <button
+                key={item.symbol}
+                type="button"
+                className={itemClass}
+                aria-pressed={selected}
+                onClick={() => onSelectSymbol(item.symbol)}
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <div key={item.symbol} className={itemClass}>
+              {content}
+            </div>
+          );
+        })}
       </div>
     </CollapsibleCard>
   );

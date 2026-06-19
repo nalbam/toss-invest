@@ -32,11 +32,13 @@ export function CollapsibleCard({
   title,
   storageId,
   summary,
+  refreshing,
   children,
 }: {
   title: string;
   storageId: string;
   summary?: React.ReactNode;
+  refreshing?: boolean;
   children: React.ReactNode;
 }) {
   const titleId = useId();
@@ -58,7 +60,10 @@ export function CollapsibleCard({
   }
 
   return (
-    <section className={styles.card} aria-labelledby={titleId}>
+    <section
+      className={`${styles.card} ${refreshing ? styles.refreshingCard : ""}`}
+      aria-labelledby={titleId}
+    >
       <div className={styles.cardHeader}>
         <h2 id={titleId} className={styles.cardTitle}>
           <button
@@ -68,8 +73,10 @@ export function CollapsibleCard({
             onClick={toggle}
           >
             <span>{title}</span>
-            <span className={styles.cardToggleIcon} aria-hidden="true">
-              {collapsed ? "▸" : "▾"}
+            <span className={styles.cardHeaderMeta}>
+              <span className={styles.cardToggleIcon} aria-hidden="true">
+                {collapsed ? "▸" : "▾"}
+              </span>
             </span>
           </button>
         </h2>

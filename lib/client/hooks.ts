@@ -105,6 +105,7 @@ export interface QueryResult<T> {
   data: T | undefined;
   error: ApiClientError | undefined;
   isLoading: boolean;
+  isRefreshing?: boolean;
 }
 
 const sharedConfig: SWRConfiguration = {
@@ -162,12 +163,15 @@ const cashBalanceConfig: SWRConfiguration = {
 
 /** Loads the list of accounts. */
 export function useAccounts(): QueryResult<Account[]> {
-  const { data, error, isLoading } = useSWR<Account[], ApiClientError>(
+  const { data, error, isLoading, isValidating } = useSWR<
+    Account[],
+    ApiClientError
+  >(
     "/api/accounts",
     fetcher,
     accountConfig,
   );
-  return { data, error, isLoading };
+  return { data, error, isLoading, isRefreshing: isValidating && !isLoading };
 }
 
 /**
@@ -182,12 +186,16 @@ export function useHoldings(
     accountSeq === undefined
       ? null
       : `/api/holdings?accountSeq=${accountSeq}`;
-  const { data, error, isLoading } = useSWR<HoldingsOverview, ApiClientError>(
-    key,
-    fetcher,
-    holdingsConfig,
-  );
-  return { data, error, isLoading: isLoading && key !== null };
+  const { data, error, isLoading, isValidating } = useSWR<
+    HoldingsOverview,
+    ApiClientError
+  >(key, fetcher, holdingsConfig);
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
 }
 
 /**
@@ -211,11 +219,16 @@ export function useOrders(
     }
     key = `/api/orders?${params.toString()}`;
   }
-  const { data, error, isLoading } = useSWR<
+  const { data, error, isLoading, isValidating } = useSWR<
     PaginatedOrderResponse,
     ApiClientError
   >(key, fetcher, ordersConfig);
-  return { data, error, isLoading: isLoading && key !== null };
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
 }
 
 /**
@@ -228,12 +241,16 @@ export function usePrices(symbols: string[]): QueryResult<PriceResponse[]> {
     symbols.length === 0
       ? null
       : `/api/prices?symbols=${encodeURIComponent(symbols.join(","))}`;
-  const { data, error, isLoading } = useSWR<PriceResponse[], ApiClientError>(
-    key,
-    fetcher,
-    pricesConfig,
-  );
-  return { data, error, isLoading: isLoading && key !== null };
+  const { data, error, isLoading, isValidating } = useSWR<
+    PriceResponse[],
+    ApiClientError
+  >(key, fetcher, pricesConfig);
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
 }
 
 /**
@@ -248,11 +265,16 @@ export function usePriceLimits(
     symbol === undefined
       ? null
       : `/api/price-limits?symbol=${encodeURIComponent(symbol)}`;
-  const { data, error, isLoading } = useSWR<
+  const { data, error, isLoading, isValidating } = useSWR<
     PriceLimitResponse,
     ApiClientError
   >(key, fetcher, priceLimitsConfig);
-  return { data, error, isLoading: isLoading && key !== null };
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
 }
 
 /**
@@ -266,12 +288,16 @@ export function useOrderbook(
     symbol === undefined
       ? null
       : `/api/orderbook?symbol=${encodeURIComponent(symbol)}`;
-  const { data, error, isLoading } = useSWR<OrderbookResponse, ApiClientError>(
-    key,
-    fetcher,
-    orderbookConfig,
-  );
-  return { data, error, isLoading: isLoading && key !== null };
+  const { data, error, isLoading, isValidating } = useSWR<
+    OrderbookResponse,
+    ApiClientError
+  >(key, fetcher, orderbookConfig);
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
 }
 
 /**
@@ -286,11 +312,16 @@ export function useCandles(
     symbol === undefined
       ? null
       : `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}`;
-  const { data, error, isLoading } = useSWR<
+  const { data, error, isLoading, isValidating } = useSWR<
     CandlePageResponse,
     ApiClientError
   >(key, fetcher, candlesConfig);
-  return { data, error, isLoading: isLoading && key !== null };
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
 }
 
 /** Loads the exchange rate for a base/quote currency pair. */
@@ -301,11 +332,11 @@ export function useExchangeRate(
   const key = `/api/exchange-rate?baseCurrency=${encodeURIComponent(
     baseCurrency,
   )}&quoteCurrency=${encodeURIComponent(quoteCurrency)}`;
-  const { data, error, isLoading } = useSWR<
+  const { data, error, isLoading, isValidating } = useSWR<
     ExchangeRateResponse,
     ApiClientError
   >(key, fetcher, exchangeRateConfig);
-  return { data, error, isLoading };
+  return { data, error, isLoading, isRefreshing: isValidating && !isLoading };
 }
 
 /**
@@ -321,18 +352,23 @@ function useCashBalance(
     accountSeq === undefined
       ? null
       : `/api/buying-power?accountSeq=${accountSeq}&currency=${currency}`;
-  const { data, error, isLoading } = useSWR<BuyingPower, ApiClientError>(
-    key,
-    fetcher,
-    cashBalanceConfig,
-  );
-  return { data, error, isLoading: isLoading && key !== null };
+  const { data, error, isLoading, isValidating } = useSWR<
+    BuyingPower,
+    ApiClientError
+  >(key, fetcher, cashBalanceConfig);
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
 }
 
 export interface CashBalances {
   krw?: string;
   usd?: string;
   isLoading: boolean;
+  isRefreshing?: boolean;
   error: ApiClientError | undefined;
 }
 
@@ -348,6 +384,7 @@ export function useCashBalances(accountSeq: number | undefined): CashBalances {
     krw: krw.data?.cashBuyingPower,
     usd: usd.data?.cashBuyingPower,
     isLoading: krw.isLoading || usd.isLoading,
+    isRefreshing: Boolean(krw.isRefreshing || usd.isRefreshing),
     error: krw.error ?? usd.error,
   };
 }

@@ -16,6 +16,11 @@ const byMoney =
   (_: string, el: Element | null): boolean =>
     el?.textContent === t;
 
+const byTextContent =
+  (t: string) =>
+  (_: string, el: Element | null): boolean =>
+    el?.textContent === t;
+
 const samsung: HoldingsItem = {
   symbol: "005930",
   name: "삼성전자",
@@ -63,19 +68,30 @@ describe("HoldingsTable", () => {
     // KR price formatted as KRW, US price formatted as USD.
     expect(screen.getByText(byMoney("₩72,000"))).toBeInTheDocument();
     expect(screen.getByText(byMoney("$190.50"))).toBeInTheDocument();
-    // Two data rows rendered.
-    expect(screen.getAllByRole("row")).toHaveLength(3); // header + 2 rows
+    expect(screen.getByText(byTextContent("005930 · KR · 10주"))).toBeInTheDocument();
+    expect(screen.getByText(byTextContent("AAPL · US · 5주"))).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("formats USD holding amounts in USD ($), not KRW (currency-aware)", () => {
     render(<HoldingsTable items={[samsung, apple]} />);
-    // Regression: market value, total P&L, and daily P&L of a USD holding were
+    // Regression: market value and total P&L of a USD holding were
     // hardcoded to ₩ (showed e.g. ₩279 for a $279 position). Must use $.
     expect(screen.getByText(byMoney("$952.50"))).toBeInTheDocument(); // market value
-    expect(screen.getByText(byMoney("-$97.50"))).toBeInTheDocument(); // total P&L amount
-    expect(screen.getByText(byMoney("-$7.50"))).toBeInTheDocument(); // daily P&L amount
+    expect(screen.getByText(byTextContent("-$97.50 (-9.29%)"))).toBeInTheDocument(); // total P&L amount
     // KRW holding's market value still uses ₩.
     expect(screen.getByText(byMoney("₩720,000"))).toBeInTheDocument();
+  });
+
+  it("shows quantity, current price, average price, and purchase amount", () => {
+    render(<HoldingsTable items={[samsung]} />);
+    expect(screen.getByText(byTextContent("005930 · KR · 10주"))).toBeInTheDocument();
+    expect(screen.getByText("현재가")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩72,000"))).toBeInTheDocument();
+    expect(screen.getByText("평균단가")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩65,000"))).toBeInTheDocument();
+    expect(screen.getByText("매입금액")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩650,000"))).toBeInTheDocument();
   });
 
   it("renders the empty state when there are no holdings", () => {
@@ -92,25 +108,11 @@ describe("HoldingsTable", () => {
         onSelectSymbol={onSelectSymbol}
       />,
     );
-    fireEvent.click(screen.getByText("Apple").closest("tr")!);
+    fireEvent.click(screen.getByRole("button", { name: /Apple/ }));
     expect(onSelectSymbol).toHaveBeenCalledWith("AAPL");
   });
 
-  it("calls onSelectSymbol with the row's symbol when Enter is pressed on the row", () => {
-    const onSelectSymbol = vi.fn();
-    render(
-      <HoldingsTable
-        items={[samsung, apple]}
-        onSelectSymbol={onSelectSymbol}
-      />,
-    );
-    fireEvent.keyDown(screen.getByText("Apple").closest("tr")!, {
-      key: "Enter",
-    });
-    expect(onSelectSymbol).toHaveBeenCalledWith("AAPL");
-  });
-
-  it("marks the selected row with aria-selected when selectedSymbol matches", () => {
+  it("marks the selected holding with aria-pressed when selectedSymbol matches", () => {
     render(
       <HoldingsTable
         items={[samsung, apple]}
@@ -118,10 +120,14 @@ describe("HoldingsTable", () => {
         onSelectSymbol={() => {}}
       />,
     );
-    const appleRow = screen.getByText("Apple").closest("tr");
-    const samsungRow = screen.getByText("삼성전자").closest("tr");
-    expect(appleRow).toHaveAttribute("aria-selected", "true");
-    expect(samsungRow).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("button", { name: /Apple/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /삼성전자/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("renders non-interactive symbol cells when no onSelectSymbol is given", () => {

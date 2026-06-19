@@ -5,6 +5,11 @@
   background: var(--card-bg);
 }
 
+.refreshingCard {
+  border-color: color-mix(in srgb, var(--foreground) 4%, var(--card-border));
+  background: color-mix(in srgb, var(--foreground) 0.25%, var(--card-bg));
+}
+
 .cardHeader {
   margin-bottom: 16px;
 }
@@ -95,6 +100,13 @@
   flex: 0 0 auto;
   font-size: 14px;
   line-height: 1;
+}
+
+.cardHeaderMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .collapsedSummary {
@@ -258,6 +270,84 @@
   overflow-x: auto;
 }
 
+.holdingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.holdingItem {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--foreground) 2%, var(--card-bg));
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.selectableHoldingItem {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.selectableHoldingItem:hover,
+.selectedHoldingItem {
+  background: var(--gray-alpha);
+}
+
+.selectableHoldingItem:focus-visible {
+  outline: 2px solid var(--loss);
+  outline-offset: 2px;
+}
+
+.holdingMain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 12px;
+  align-items: start;
+}
+
+.holdingValue {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.holdingDetails {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.holdingDetails > span,
+.holdingProfit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.holdingLabel {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.holdingAmount,
+.holdingProfit {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.holdingAmount {
+  white-space: nowrap;
+}
+
 .fxRow {
   display: grid;
   grid-template-columns: max-content max-content max-content;
@@ -333,7 +423,7 @@
 
 .orderTabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -356,6 +446,12 @@
   border-color: var(--foreground);
 }
 
+.orderTab:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .formRow {
   display: flex;
   align-items: center;
@@ -363,7 +459,82 @@
   gap: 12px;
 }
 
-.quickSymbol,
+.orderSideTabs,
+.priceModeTabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--gray-alpha);
+}
+
+.priceModeTabs {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.orderSideTabs button,
+.priceModeTabs button {
+  min-height: 34px;
+}
+
+.orderBuyTab,
+.orderSellTab,
+.orderWaitTab {
+  appearance: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.orderBuyTab[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--loss) 34%, var(--card-bg));
+  color: var(--loss);
+}
+
+.orderSellTab[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--gain) 34%, var(--card-bg));
+  color: var(--gain);
+}
+
+.orderWaitTab:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.stepperInput {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content max-content max-content;
+  gap: 6px;
+  width: 100%;
+}
+
+.stepperInput input {
+  width: 100%;
+}
+
+.stepperInput span,
+.stepperInput button {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--muted);
+  min-width: 36px;
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.stepperInput button {
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
 .quickQuote {
   display: flex;
   align-items: baseline;
@@ -371,14 +542,114 @@
   gap: 12px;
 }
 
-.quickSymbol strong,
 .quickQuote strong {
   font-size: 18px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.quickSideGroup {
+.quickOrderBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quickInputLabel {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.quickQuantityInput {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content max-content max-content max-content max-content;
+  gap: 6px;
+}
+
+.quickQuantityInput input,
+.quickQuantityInput span,
+.quickQuantityInput button {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--foreground);
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.quickQuantityInput input {
+  min-width: 0;
+  width: 100%;
+}
+
+.quickQuantityInput span {
+  color: var(--muted);
+}
+
+.quickQuantityInput button {
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.quickQuantityInput button[aria-pressed="true"] {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.quickPresets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.quickPresets button {
+  appearance: none;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--gray-alpha);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 34px;
+}
+
+.quickPresets button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.quickBalances,
+.orderInfoPanel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--foreground) 3%, var(--card-bg));
+}
+
+.orderInfoPanel {
+  grid-template-columns: 1fr;
+}
+
+.quickBalances span,
+.orderInfoPanel span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quickBalances strong,
+.orderInfoPanel strong {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.quickActionGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
@@ -387,31 +658,59 @@
 .quickBuy,
 .quickSell {
   appearance: none;
-  border: 1px solid var(--card-border);
+  border: 0;
   border-radius: 8px;
-  background: var(--card-bg);
+  color: var(--foreground);
   min-height: 48px;
   font: inherit;
-  font-size: 18px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
 }
 
 .quickBuy {
-  color: var(--gain);
-}
-
-.quickSell {
+  background: color-mix(in srgb, var(--loss) 34%, var(--card-bg));
   color: var(--loss);
 }
 
-.quickBuy[aria-pressed="true"] {
-  border-color: var(--gain);
+.quickSell {
+  background: color-mix(in srgb, var(--gain) 34%, var(--card-bg));
+  color: var(--gain);
 }
 
-.quickSell[aria-pressed="true"] {
-  border-color: var(--loss);
+.quickCancel {
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  background: var(--gray-alpha);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  grid-column: 1 / -1;
+  min-height: 40px;
+}
+
+.orderSubmit {
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  flex: 1 1 180px;
+  font: inherit;
+  font-weight: 800;
+  min-height: 48px;
+  padding: 10px 16px;
+}
+
+.buySubmit {
+  background: var(--loss);
+}
+
+.sellSubmit {
+  background: var(--gain);
 }
 
 .confirmLabel {

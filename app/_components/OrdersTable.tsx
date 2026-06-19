@@ -54,21 +54,31 @@ export function OrdersTable({
   orders,
   accountSeq,
   onChanged,
+  refreshing,
 }: {
   orders: Order[];
   accountSeq?: number | undefined;
   onChanged?: () => void;
+  refreshing?: boolean;
 }) {
   if (orders.length === 0) {
     return (
-      <CollapsibleCard title="주문 내역 (대기 중)" storageId="orders">
+      <CollapsibleCard
+        title="주문 내역 (대기 중)"
+        storageId="orders"
+        refreshing={refreshing}
+      >
         <p className={styles.empty}>주문 없음</p>
       </CollapsibleCard>
     );
   }
 
   return (
-    <CollapsibleCard title="주문 내역 (대기 중)" storageId="orders">
+    <CollapsibleCard
+      title="주문 내역 (대기 중)"
+      storageId="orders"
+      refreshing={refreshing}
+    >
       <div className={styles.tableScroll}>
         <table className={styles.table}>
           <thead>

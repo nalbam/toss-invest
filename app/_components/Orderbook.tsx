@@ -14,12 +14,18 @@ function formatPrice(value: string, currency: string): string {
  * the best ask sits next to the bids, and bids (buy orders) highest-first.
  * Renders an empty state when both sides are empty.
  */
-export function Orderbook({ book }: { book: OrderbookResponse }) {
+export function Orderbook({
+  book,
+  refreshing,
+}: {
+  book: OrderbookResponse;
+  refreshing?: boolean;
+}) {
   const { asks, bids, currency } = book;
 
   if (asks.length === 0 && bids.length === 0) {
     return (
-      <CollapsibleCard title="호가" storageId="orderbook">
+      <CollapsibleCard title="호가" storageId="orderbook" refreshing={refreshing}>
         <p className={styles.empty}>호가 정보 없음</p>
       </CollapsibleCard>
     );
@@ -30,7 +36,7 @@ export function Orderbook({ book }: { book: OrderbookResponse }) {
   const displayAsks = [...asks].reverse();
 
   return (
-    <CollapsibleCard title="호가" storageId="orderbook">
+    <CollapsibleCard title="호가" storageId="orderbook" refreshing={refreshing}>
       <div className={styles.tableScroll}>
         <table className={styles.table}>
           <thead>

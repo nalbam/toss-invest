@@ -159,7 +159,13 @@ export function Dashboard() {
 
         {/* Right: account sidebar — cash, summary, holdings, orders. */}
         <div className={styles.column}>
-          {fx.data ? <AccountCash rate={fx.data} cash={cash} /> : null}
+          {fx.data ? (
+            <AccountCash
+              rate={fx.data}
+              cash={cash}
+              refreshing={Boolean(fx.isRefreshing || cashBalances.isRefreshing)}
+            />
+          ) : null}
 
           {holdings.isLoading ? (
             <p className={page.status}>보유 자산을 불러오는 중…</p>
@@ -173,11 +179,13 @@ export function Dashboard() {
                 overview={holdings.data}
                 cash={cash}
                 fxRate={fx.data?.rate}
+                refreshing={Boolean(holdings.isRefreshing)}
               />
               <HoldingsTable
                 items={holdings.data.items}
                 selectedSymbol={selectedSymbol}
                 onSelectSymbol={selectSymbol}
+                refreshing={Boolean(holdings.isRefreshing)}
               />
             </>
           ) : null}
@@ -193,6 +201,7 @@ export function Dashboard() {
               orders={orders.data.orders}
               accountSeq={selectedSeq}
               onChanged={refreshOrders}
+              refreshing={Boolean(orders.isRefreshing)}
             />
           ) : null}
         </div>

@@ -43,7 +43,7 @@ function fillBuyLimit() {
     target: { value: "005930" },
   });
   fireEvent.change(screen.getByLabelText("수량"), { target: { value: "10" } });
-  fireEvent.change(screen.getByLabelText("가격"), {
+  fireEvent.change(screen.getByLabelText("구매 가격"), {
     target: { value: "71000" },
   });
 }
@@ -60,8 +60,9 @@ describe("OrderForm", () => {
       "false",
     );
     expect(screen.getByLabelText("종목코드")).toBeInTheDocument();
-    expect(screen.getByLabelText("구분")).toBeInTheDocument();
-    expect(screen.getByLabelText("유형")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "구매" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "판매" })).toBeInTheDocument();
+    expect(screen.getByLabelText("주문 유형")).toBeInTheDocument();
     expect(screen.getByLabelText("수량")).toBeInTheDocument();
     expect(
       screen.getByLabelText("실주문 확인 (confirm)"),
@@ -89,17 +90,20 @@ describe("OrderForm", () => {
       "true",
     );
     expect(screen.getByText("AAPL")).toBeInTheDocument();
-    expect(screen.getByLabelText("매매 구분")).toBeInTheDocument();
-    expect(screen.queryByLabelText("유형")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("몇 주 주문할까요?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "시장가 판매" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "시장가 구매" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("주문 유형")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("구매 가격")).not.toBeInTheDocument();
   });
 
   it("shows the price input for LIMIT and hides it for MARKET", () => {
     render(<OrderForm accountSeq={1} />);
-    expect(screen.getByLabelText("가격")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("유형"), {
+    expect(screen.getByLabelText("구매 가격")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("주문 유형"), {
       target: { value: "MARKET" },
     });
-    expect(screen.queryByLabelText("가격")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("구매 가격")).not.toBeInTheDocument();
   });
 
   it("submits confirm:false and renders the DRY_RUN preview", async () => {
@@ -142,7 +146,7 @@ describe("OrderForm", () => {
     expect(screen.getByText("dry-run-enabled")).toBeInTheDocument();
   });
 
-  it("submits quick orders as DAY LIMIT orders using the current price", async () => {
+  it("submits quick orders as DAY MARKET orders using quantity only", async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (init?.method === "POST") {
         return jsonResponse({
@@ -151,10 +155,9 @@ describe("OrderForm", () => {
             wouldSend: {
               symbol: "AAPL",
               side: "SELL",
-              orderType: "LIMIT",
+              orderType: "MARKET",
               timeInForce: "DAY",
               quantity: "3",
-              price: "185.70",
             },
             reasons: ["dry-run-enabled"],
             prevalidation: {
@@ -175,22 +178,21 @@ describe("OrderForm", () => {
     render(<OrderForm accountSeq={1} symbol="AAPL" />);
     fireEvent.click(screen.getByRole("tab", { name: "빠른주문" }));
     expect(await screen.findByText("$185.70")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "매도" }));
-    fireEvent.change(screen.getByLabelText("수량"), {
+    fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
       target: { value: "3" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "미리보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "시장가 판매" }));
 
     await screen.findByText("🔍 미리보기 (전송되지 않음)");
     expect(lastSentBody()).toMatchObject({
       symbol: "AAPL",
       side: "SELL",
-      orderType: "LIMIT",
+      orderType: "MARKET",
       timeInForce: "DAY",
       quantity: "3",
-      price: "185.70",
       confirm: false,
     });
+    expect(lastSentBody()).not.toHaveProperty("price");
   });
 
   it("submits confirm:true and renders SENT with the order id", async () => {
@@ -213,7 +215,7 @@ describe("OrderForm", () => {
     render(<OrderForm accountSeq={1} />);
     fillBuyLimit();
     fireEvent.click(screen.getByLabelText("실주문 확인 (confirm)"));
-    fireEvent.click(screen.getByRole("button", { name: "주문 전송" }));
+    fireEvent.click(screen.getByRole("button", { name: "구매하기" }));
 
     expect(await screen.findByText("✅ 전송됨")).toBeInTheDocument();
     expect(screen.getByText("주문번호: ord-123")).toBeInTheDocument();

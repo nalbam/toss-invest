@@ -27,10 +27,12 @@ export function PortfolioSummary({
   overview,
   cash,
   fxRate,
+  refreshing,
 }: {
   overview: HoldingsOverview;
   cash?: { krw?: string; usd?: string };
   fxRate?: string;
+  refreshing?: boolean;
 }) {
   const { marketValue, profitLoss, dailyProfitLoss } = overview;
 
@@ -48,6 +50,7 @@ export function PortfolioSummary({
     <CollapsibleCard
       title="포트폴리오 요약"
       storageId="portfolio-summary"
+      refreshing={refreshing}
       summary={
         <>
           <span className={styles.metricLabel}>총 자산</span>

@@ -60,4 +60,14 @@ describe("CollapsibleCard", () => {
     expect(await screen.findByText("총 주문가능 ₩1,000")).toBeInTheDocument();
     expect(screen.queryByText("상세 금액")).not.toBeInTheDocument();
   });
+
+  it("does not show refresh text while refreshing", () => {
+    render(
+      <CollapsibleCard title="시세" storageId="market-quote" refreshing>
+        <p>본문</p>
+      </CollapsibleCard>,
+    );
+
+    expect(screen.queryByText("새로고침")).not.toBeInTheDocument();
+  });
 });

@@ -37,7 +37,7 @@ export function OrderForm({
   const [symbol, setSymbol] = useState(selectedSymbol ?? "");
   const [side, setSide] = useState<Side>("BUY");
   const [orderType, setOrderType] = useState<OrderType>("LIMIT");
-  const [timeInForce, setTimeInForce] = useState<TimeInForce>("DAY");
+  const timeInForce: TimeInForce = "DAY";
   const [pricingMode, setPricingMode] = useState<PricingMode>("QUANTITY");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
@@ -51,7 +51,6 @@ export function OrderForm({
     mode === "QUICK" && symbol.trim() ? [symbol.trim()] : [],
   );
   const currentQuote = quickQuote.data?.[0];
-  const currentPrice = currentQuote?.lastPrice;
   const currentPriceLabel =
     currentQuote === undefined
       ? "-"
@@ -80,12 +79,23 @@ export function OrderForm({
     }
   }
 
+  function setPresetQuantity(next: string) {
+    setQuantity(next);
+  }
+
+  function stepQuantity(delta: number) {
+    const current = Number(quantity || "0");
+    const next = Math.max(0, Math.floor(current + delta));
+    setQuantity(next === 0 ? "" : String(next));
+  }
+
   function buildGeneralBody(
     trimmedSymbol: string,
+    submitSide: Side,
   ): OrderCreateBody | { error: string } {
     const base = {
       symbol: trimmedSymbol,
-      side,
+      side: submitSide,
       orderType,
       confirm,
     };
@@ -114,38 +124,41 @@ export function OrderForm({
 
   function buildQuickBody(
     trimmedSymbol: string,
+    submitSide: Side,
   ): OrderCreateBody | { error: string } {
     if (quantity.trim().length === 0) {
       return { error: "수량을 입력하세요." };
     }
-    const quickPrice = price.trim() || currentPrice;
-    if (quickPrice === undefined) {
-      return { error: "현재가를 불러오거나 가격을 입력하세요." };
-    }
     return {
       symbol: trimmedSymbol,
-      side,
-      orderType: "LIMIT",
+      side: submitSide,
+      orderType: "MARKET",
       timeInForce: "DAY",
       quantity: quantity.trim(),
-      price: quickPrice,
       confirm,
     };
   }
 
-  function buildBody(): OrderCreateBody | { error: string } {
+  function buildBody(submitSide: Side): OrderCreateBody | { error: string } {
     const trimmedSymbol = symbol.trim();
     if (trimmedSymbol.length === 0) {
       return { error: "종목코드를 입력하세요." };
     }
     return mode === "QUICK"
-      ? buildQuickBody(trimmedSymbol)
-      : buildGeneralBody(trimmedSymbol);
+      ? buildQuickBody(trimmedSymbol, submitSide)
+      : buildGeneralBody(trimmedSymbol, submitSide);
   }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const built = buildBody();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const submitSide =
+      submitter instanceof HTMLButtonElement &&
+      (submitter.value === "BUY" || submitter.value === "SELL")
+        ? submitter.value
+        : side;
+    setSide(submitSide);
+    const built = buildBody(submitSide);
     if ("error" in built) {
       setResult(null);
       setError({ code: "invalid-input", message: built.error });
@@ -192,6 +205,9 @@ export function OrderForm({
         >
           빠른주문
         </button>
+        <button type="button" className={styles.orderTab} disabled>
+          조건주문
+        </button>
       </div>
 
       <form className={styles.orderForm} onSubmit={handleSubmit}>
@@ -210,22 +226,31 @@ export function OrderForm({
               />
             </div>
 
-            <div className={styles.formRow}>
-              <label htmlFor="order-side" className={page.controlLabel}>
-                구분
-              </label>
-              <select
-                id="order-side"
-                className={page.select}
-                value={side}
-                onChange={(event) => setSide(event.target.value as Side)}
+            <div className={styles.orderSideTabs} aria-label="매매 구분">
+              <button
+                type="button"
+                className={styles.orderBuyTab}
+                aria-pressed={side === "BUY"}
+                onClick={() => setSide("BUY")}
               >
-                <option value="BUY">매수 (BUY)</option>
-                <option value="SELL">매도 (SELL)</option>
-              </select>
+                구매
+              </button>
+              <button
+                type="button"
+                className={styles.orderSellTab}
+                aria-pressed={side === "SELL"}
+                onClick={() => setSide("SELL")}
+              >
+                판매
+              </button>
+              <button type="button" className={styles.orderWaitTab} disabled>
+                대기
+              </button>
+            </div>
 
+            <div className={styles.formRow}>
               <label htmlFor="order-type" className={page.controlLabel}>
-                유형
+                주문 유형
               </label>
               <select
                 id="order-type"
@@ -237,22 +262,6 @@ export function OrderForm({
               >
                 <option value="LIMIT">지정가 (LIMIT)</option>
                 <option value="MARKET">시장가 (MARKET)</option>
-              </select>
-
-              <label htmlFor="order-tif" className={page.controlLabel}>
-                유효기간
-              </label>
-              <select
-                id="order-tif"
-                className={page.select}
-                value={timeInForce}
-                onChange={(event) =>
-                  setTimeInForce(event.target.value as TimeInForce)
-                }
-                disabled={amountMode}
-              >
-                <option value="DAY">당일 (DAY)</option>
-                <option value="CLS">종가 (CLS)</option>
               </select>
             </div>
 
@@ -278,6 +287,25 @@ export function OrderForm({
               </div>
             ) : null}
 
+            <div className={styles.priceModeTabs} aria-label="가격 방식">
+              <button
+                type="button"
+                className={page.select}
+                aria-pressed={orderType === "LIMIT"}
+                onClick={() => handleOrderTypeChange("LIMIT")}
+              >
+                지정가
+              </button>
+              <button
+                type="button"
+                className={page.select}
+                aria-pressed={orderType === "MARKET"}
+                onClick={() => handleOrderTypeChange("MARKET")}
+              >
+                시장가
+              </button>
+            </div>
+
             <div className={styles.formRow}>
               {amountMode ? (
                 <>
@@ -298,90 +326,174 @@ export function OrderForm({
                   <label htmlFor="order-quantity" className={page.controlLabel}>
                     수량
                   </label>
-                  <input
-                    id="order-quantity"
-                    className={page.select}
-                    value={quantity}
-                    onChange={(event) => setQuantity(event.target.value)}
-                    placeholder="예: 10"
-                    inputMode="numeric"
-                  />
+                  <div className={styles.stepperInput}>
+                    <input
+                      id="order-quantity"
+                      className={page.select}
+                      value={quantity}
+                      onChange={(event) => setQuantity(event.target.value)}
+                      placeholder="최대 수량 입력"
+                      inputMode="numeric"
+                    />
+                    <button type="button" onClick={() => stepQuantity(-1)}>
+                      -
+                    </button>
+                    <button type="button" onClick={() => stepQuantity(1)}>
+                      +
+                    </button>
+                  </div>
                   {showPrice ? (
                     <>
                       <label htmlFor="order-price" className={page.controlLabel}>
-                        가격
+                        구매 가격
                       </label>
-                      <input
-                        id="order-price"
-                        className={page.select}
-                        value={price}
-                        onChange={(event) => setPrice(event.target.value)}
-                        placeholder="예: 71000"
-                        inputMode="decimal"
-                      />
+                      <div className={styles.stepperInput}>
+                        <input
+                          id="order-price"
+                          className={page.select}
+                          value={price}
+                          onChange={(event) => setPrice(event.target.value)}
+                          placeholder="예: 71000"
+                          inputMode="decimal"
+                        />
+                        <span>{currentQuote?.currency ?? ""}</span>
+                        <button type="button">-</button>
+                        <button type="button">+</button>
+                      </div>
                     </>
                   ) : null}
                 </>
               )}
             </div>
+
+            <div className={styles.quickPresets} aria-label="주문 비율">
+              {["10%", "25%", "50%", "최대"].map((label) => (
+                <button key={label} type="button" disabled>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.orderInfoPanel}>
+              <span>
+                <span className={styles.metricLabel}>내 주식 평단가</span>
+                <strong>-</strong>
+              </span>
+              <span>
+                <span className={styles.metricLabel}>구매 후 예상 평단가</span>
+                <strong>-</strong>
+              </span>
+              <span>
+                <span className={styles.metricLabel}>현재 수익</span>
+                <strong>-</strong>
+              </span>
+            </div>
           </>
         ) : (
           <>
-            <div className={styles.quickSymbol}>
-              <span className={styles.metricLabel}>종목코드</span>
-              <strong>{symbol || "-"}</strong>
+            <div className={styles.quickOrderBox}>
+              <label htmlFor="quick-order-quantity" className={styles.quickInputLabel}>
+                몇 주 주문할까요?
+              </label>
+              <div className={styles.quickQuantityInput}>
+                <input
+                  id="quick-order-quantity"
+                  value={quantity}
+                  onChange={(event) => setQuantity(event.target.value)}
+                  placeholder="수량"
+                  inputMode="numeric"
+                />
+                <span>주</span>
+                <button type="button" aria-pressed>
+                  주
+                </button>
+                <button type="button" disabled>
+                  %
+                </button>
+                <button type="button" onClick={() => stepQuantity(-1)}>
+                  -
+                </button>
+                <button type="button" onClick={() => stepQuantity(1)}>
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.quickPresets} aria-label="빠른 수량">
+              <button type="button" onClick={() => setPresetQuantity("1")}>
+                1주
+              </button>
+              <button type="button" onClick={() => setPresetQuantity("10")}>
+                10주
+              </button>
+              <button type="button" onClick={() => setPresetQuantity("100")}>
+                100주
+              </button>
+              <button type="button" disabled>
+                최대
+              </button>
+            </div>
+
+            <div className={styles.quickBalances}>
+              <span>
+                <span className={styles.metricLabel}>판매가능</span>
+                <strong>-</strong>
+              </span>
+              <span>
+                <span className={styles.metricLabel}>구매가능</span>
+                <strong>-</strong>
+              </span>
+              <span>
+                <span className={styles.metricLabel}>판매예상</span>
+                <strong>0</strong>
+              </span>
+              <span>
+                <span className={styles.metricLabel}>구매예상</span>
+                <strong>0</strong>
+              </span>
             </div>
 
             <div className={styles.quickQuote}>
-              <span className={styles.metricLabel}>현재가</span>
+              <span className={styles.metricLabel}>{symbol || "-"}</span>
               <strong>{quickQuote.isLoading ? "불러오는 중…" : currentPriceLabel}</strong>
             </div>
 
-            <div className={styles.quickSideGroup} aria-label="매매 구분">
+            <div className={styles.quickActionGrid}>
               <button
-                type="button"
-                className={styles.quickBuy}
-                aria-pressed={side === "BUY"}
-                onClick={() => setSide("BUY")}
-              >
-                매수
-              </button>
-              <button
-                type="button"
+                type="submit"
+                name="quick-side"
+                value="SELL"
                 className={styles.quickSell}
-                aria-pressed={side === "SELL"}
-                onClick={() => setSide("SELL")}
               >
-                매도
+                현재가 판매
               </button>
-            </div>
-
-            <div className={styles.formRow}>
-              <label htmlFor="quick-order-quantity" className={page.controlLabel}>
-                수량
-              </label>
-              <input
-                id="quick-order-quantity"
-                className={page.select}
-                value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
-                placeholder="예: 10"
-                inputMode="numeric"
-              />
-            </div>
-
-            <div className={styles.formRow}>
-              <label htmlFor="quick-order-price" className={page.controlLabel}>
-                가격
-              </label>
-              <input
-                id="quick-order-price"
-                className={page.select}
-                value={price}
-                onChange={(event) => setPrice(event.target.value)}
-                placeholder={currentPrice ?? "현재가"}
-                inputMode="decimal"
-              />
+              <button
+                type="submit"
+                name="quick-side"
+                value="BUY"
+                className={styles.quickBuy}
+              >
+                현재가 구매
+              </button>
+              <button
+                type="submit"
+                name="quick-side"
+                value="SELL"
+                className={styles.quickSell}
+              >
+                시장가 판매
+              </button>
+              <button
+                type="submit"
+                name="quick-side"
+                value="BUY"
+                className={styles.quickBuy}
+              >
+                시장가 구매
+              </button>
+              <button type="button" className={styles.quickCancel}>
+                전체 취소
+              </button>
             </div>
           </>
         )}
@@ -396,9 +508,25 @@ export function OrderForm({
             />
             실주문 확인 (confirm)
           </label>
-          <button type="submit" className={page.select} disabled={submitting}>
-            {submitting ? "전송 중…" : confirm ? "주문 전송" : "미리보기"}
-          </button>
+          {mode === "GENERAL" ? (
+            <button
+              type="submit"
+              name="order-side"
+              value={side}
+              className={`${styles.orderSubmit} ${
+                side === "BUY" ? styles.buySubmit : styles.sellSubmit
+              }`}
+              disabled={submitting}
+            >
+              {submitting
+                ? "전송 중…"
+                : confirm
+                  ? side === "BUY"
+                    ? "구매하기"
+                    : "판매하기"
+                  : "미리보기"}
+            </button>
+          ) : null}
         </div>
 
         {!confirm ? (

@@ -32,9 +32,11 @@ function changeIndicator(type: string): { label: string; className: string } {
 export function AccountCash({
   rate,
   cash,
+  refreshing,
 }: {
   rate: ExchangeRateResponse;
   cash?: { krw?: string; usd?: string };
+  refreshing?: boolean;
 }) {
   const indicator = changeIndicator(rate.rateChangeType);
   const usdInKrw = mulDecimalStrings(cash?.usd ?? "0", rate.rate);
@@ -48,6 +50,7 @@ export function AccountCash({
     <CollapsibleCard
       title="주문 가능 금액"
       storageId="account-cash"
+      refreshing={refreshing}
       summary={
         <>
           <span className={styles.metricLabel}>총 주문가능</span>
