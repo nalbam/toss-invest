@@ -528,3 +528,26 @@
 
 **최저축**: 없음(핵심 축 5; UX 비해당) → **다음 개선(#26)**: `advisor/prompt.ts`(순수) — 마스킹 스냅샷 → system+user 프롬프트 빌드(§4 A1 결정적 코어, 체크리스트 누락분). 단위 테스트(스냅샷 반영·instruction 포함). → A1 결정적 코어 마무리.
 **Phase 전진 판정**: A1 결정적 코어 중 `prompt.ts` 미완 → advance 없음, A1 계속. (※ "어드바이저 경로 not configured"는 라우트 생기는 A2에서 종단 검증.)
+
+---
+
+## #26 | phase4 | A1: `advisor/prompt.ts`(순수) 프롬프트 빌더 → A1 결정적 코어 완료
+
+**한 일**: `buildAdvisorPrompt(snapshot)` 순수 — 마스킹 스냅샷 → `[system, user]` `ChatMessage[]`. system: "제안자, 집행자 아님" 가드레일 + advice/proposals(kind/symbol/side/quantity/rationale) 출력 규칙 + SELL≤보유 규칙 + hold는 advice. user: 마스킹 스냅샷 JSON 임베드. 결정적(clock/random 없음). structured output JSON schema 강제는 advisor.ts(response_format)에서 별도. TDD: prompt.test.ts 6건(system→user 순서·가드레일·필드 기술·스냅샷 임베드·결정성·account 식별자 미누출).
+
+**객관 게이트(직접 재실행 — 근거):**
+- lint exit 0 / typecheck exit 0
+- build exit 0 — **번들 가드 35파일 클린**(prompt server-only)
+- test — 신규 6건 포함 **406 passed (422, 33 files)**. 실패 16건 동일 **환경 아티팩트**. 무력화·skip 없음.
+
+**루브릭 점수 + 근거:**
+- Functionality **5** — A1 결정적 코어(provider 추상화·snapshot·prompt·schema·validate) **전부 완료**. 근거: advisor 4모듈 29 테스트 + llm 21.
+- LLM 정합성 **4** — 프롬프트가 schema 필드/규칙과 일관(structured output 강제는 advisor.ts에서). 근거: 필드 기술 테스트.
+- Safety **5** — system이 "제안자, 집행자 아님" 명시, `lib/server/trading/**` **무수정**, advisor `placeOrder`/`createOrderRaw` **미참조**(grep). 근거: 가드레일 테스트 + git status + grep.
+- Security & Privacy **5** — 프롬프트는 마스킹 스냅샷만 임베드(account 식별자 미누출 테스트), server-only, 번들 35파일 클린. 근거: 미누출 테스트 + build.
+- Determinism/Testability **5** — 순수·결정적(두 호출 deepEqual). 근거: prompt.test.ts.
+- UX **N/A** — UI 없음.
+- Code quality **5** — 순수·외과적(신규 2파일). 근거: git status.
+
+**최저축**: LLM 정합성(structured output 강제 미배선) → **다음 개선(#27, A2 시작)**: `advisor/advisor.ts` — `snapshot→prompt→provider(주입)→zod parse→validate→result` 오케스트레이션. **stub provider로 정상·파싱실패·검증탈락 결정적 테스트.**
+**★ A1 결정적 코어 완료 → A2 전진**: A1 종료조건(provider 추상화·snapshot·schema/validate·prompt·키 번들 미노출·env 미설정 부팅) 충족, Safety/Security=5. 남은 "어드바이저 경로 not configured"는 라우트(A2)에서 종단 검증. §5.3 advance → **Phase A2**.
