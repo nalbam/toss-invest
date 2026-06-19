@@ -3,7 +3,7 @@
 ## 현재 위치
 - **Phase**: **전체 완료 (1·2·3 종료)** — dev-loop §0 "모든 Phase 완료 시 루프 종료".
 - **마지막 이터레이션**: #18 완료 (게이트된 자동 executor → **Phase 3 종료 → 로드맵 전체 완료**). `lib/server/trading/auto-executor.ts`(`intentToOrderRequest` 순수 + `runAutoTrade`: intent→§6 `placeOrder`, **confirm=AUTO_TRADE_ENABLED**(사람 env값 그대로))·`auto-trader.ts` facade(`runOnce` 1회 평가, 상시 루프 없음)·env `AUTO_TRADE_ENABLED`(기본 false). safety.ts 게이트/메타가드 **무수정**(호출만). #18 시점 306 tests.
-- **현 상태**: 루프(#18) 이후 사람 주도 UI 개선(EVAL 미기록) — 3-컬럼 대시보드 레이아웃·`CollapsibleCard`·`AccountCash`(현금·환율)·빠른주문 모드·캔들 interval 선택. 현 시점 **26 파일 359 tests**, lint·typecheck·test·build green.
+- **현 상태**: 루프(#18) 이후 사람 주도 UI 개선(EVAL 미기록) — 3-컬럼 대시보드 레이아웃·`CollapsibleCard`·`AccountCash`(현금·환율)·빠른주문 모드·캔들 interval 선택. 현 시점 **26 파일 368 tests**, lint·typecheck·test·build green.
 - **다음 작업**: 루프 종료. 추가 개선(아래 미해결)은 사람이 명시 요청 시 새 루프/이터로.
 
 ### Phase 3 종료 조건 (dev-loop §4) — ✅ 전부 충족

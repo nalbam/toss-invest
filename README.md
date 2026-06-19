@@ -83,5 +83,6 @@ lib/
 ## 문서
 
 - [`docs/dev-loop-prompt.md`](docs/dev-loop-prompt.md) — 개발 루프 마스터 프롬프트 + 안전 규약(§6).
+- [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md) — AI 어드바이저(LLM 기반 포트폴리오 분석·조언·주문 제안) 자가 개선 루프 프롬프트. dev-loop 의 형제이며 §6 안전을 불변 상속.
 - [`PROGRESS.md`](PROGRESS.md) — 현재 구현 상태.
 - [`EVAL.md`](EVAL.md) — 이터레이션 평가 이력(append-only).
