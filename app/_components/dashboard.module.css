@@ -930,6 +930,36 @@
   cursor: default;
 }
 
+.advisorControls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.advisorAutoToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.advisorIntervalSelect {
+  appearance: none;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 10px;
+}
+
+.advisorIntervalSelect:disabled {
+  opacity: 0.6;
+}
+
 .advisorDisclaimer {
   margin: 0;
   font-size: 12px;

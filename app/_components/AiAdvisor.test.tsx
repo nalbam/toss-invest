@@ -10,6 +10,7 @@ vi.mock("@/lib/client/advisor", () => ({ fetchAdvisor }));
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   window.localStorage.clear();
   vi.clearAllMocks();
 });
@@ -49,6 +50,24 @@ describe("AiAdvisor", () => {
     await waitFor(() => expect(screen.getByText(/분산을 고려하세요/)).toBeInTheDocument());
     expect(fetchAdvisor).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/005930/)).toBeInTheDocument();
+  });
+
+  it("reruns advice automatically when auto rerun is enabled", async () => {
+    vi.useFakeTimers();
+    fetchAdvisor.mockResolvedValue(result);
+    render(<AiAdvisor />);
+
+    fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(fetchAdvisor).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText("자동 재실행 주기"), {
+      target: { value: "300000" },
+    });
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(fetchAdvisor).toHaveBeenCalledTimes(2);
   });
 
   it("stores the latest successful advisor result per account", async () => {

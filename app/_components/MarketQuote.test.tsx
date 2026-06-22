@@ -92,6 +92,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document.title = "";
   window.localStorage.clear();
   vi.clearAllMocks();
 });
@@ -133,6 +134,33 @@ describe("MarketQuote", () => {
         (_, el) => el?.textContent?.replace(/\s/g, "") === "₩2,000(+2.86%)",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("updates the browser title with price, change rate, and name", async () => {
+    const bar = (timestamp: string, closePrice: string) => ({
+      timestamp,
+      openPrice: "0",
+      highPrice: "0",
+      lowPrice: "0",
+      closePrice,
+      volume: "0",
+      currency: "KRW" as const,
+    });
+    useCandles.mockReturnValue(
+      loaded({
+        candles: [
+          bar("2026-06-18T00:00:00+09:00", "70000"),
+          bar("2026-06-19T00:00:00+09:00", "71000"),
+        ],
+        nextBefore: null,
+      }),
+    );
+
+    render(<MarketQuote symbol="005930" name="삼성전자" />);
+
+    await waitFor(() => {
+      expect(document.title).toBe("₩72,000 +2.86% 삼성전자");
+    });
   });
 
   it("shows the holding name in the header when provided", () => {

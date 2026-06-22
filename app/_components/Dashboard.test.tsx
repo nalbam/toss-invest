@@ -187,6 +187,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document.title = "";
   window.localStorage.clear();
   vi.clearAllMocks();
 });
@@ -225,6 +226,7 @@ describe("Dashboard", () => {
     expect(
       screen.getByText("보유 종목을 선택하면 주문할 수 있습니다."),
     ).toBeInTheDocument();
+    expect(document.title).toBe("토스증권 대시보드");
   });
 
   it("selecting a holding drives the market panel and order form", () => {

@@ -1,0 +1,67 @@
+import { ApiClientError } from "./hooks";
+import type { Candle, Currency } from "./types";
+
+export interface MarketAdvisorInput {
+  symbol: string;
+  name?: string;
+  interval: string;
+  currency: Currency;
+  lastPrice?: string;
+  candles: Candle[];
+}
+
+export interface MarketAdvisorResult {
+  advice: string;
+  model: string;
+  generatedAt: string;
+}
+
+function isErrorEnvelope(
+  body: unknown,
+): body is { error: { code: string; message: string; requestId?: string } } {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "error" in body &&
+    typeof (body as { error: unknown }).error === "object"
+  );
+}
+
+export async function fetchMarketAdvisor(
+  input: MarketAdvisorInput,
+): Promise<MarketAdvisorResult> {
+  const res = await fetch("/api/market-advisor", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new ApiClientError({
+      code: "invalid-response",
+      message: "The server returned an unreadable response.",
+      status: res.status,
+    });
+  }
+
+  if (!res.ok || isErrorEnvelope(body)) {
+    if (isErrorEnvelope(body)) {
+      throw new ApiClientError({
+        code: body.error.code,
+        message: body.error.message,
+        status: res.status,
+        requestId: body.error.requestId,
+      });
+    }
+    throw new ApiClientError({
+      code: "unexpected-error",
+      message: `Request failed with status ${res.status}.`,
+      status: res.status,
+    });
+  }
+
+  return (body as { data: MarketAdvisorResult }).data;
+}

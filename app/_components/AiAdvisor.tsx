@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ApiClientError } from "@/lib/client/hooks";
 import {
   fetchAdvisor,
@@ -8,6 +8,10 @@ import {
   type AdvisorResult,
   type ValidatedProposal,
 } from "@/lib/client/advisor";
+import {
+  AdvisorAutoControls,
+  type AdvisorAutoInterval,
+} from "./AdvisorAutoControls";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
 
@@ -111,13 +115,16 @@ export function AiAdvisor({
   onSelectProposal?: (proposal: AdvisorProposal) => void;
 }) {
   const [state, setState] = useState<State>({ status: "idle" });
+  const [autoEnabled, setAutoEnabled] = useState(false);
+  const [autoIntervalMs, setAutoIntervalMs] =
+    useState<AdvisorAutoInterval>(60_000);
 
   useEffect(() => {
     const stored = readStoredResult(accountSeq);
     setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
   }, [accountSeq]);
 
-  async function run() {
+  const run = useCallback(async () => {
     setState({ status: "loading" });
     try {
       const result = await fetchAdvisor(accountSeq);
@@ -134,7 +141,17 @@ export function AiAdvisor({
           : "조언을 불러오지 못했습니다.",
       });
     }
-  }
+  }, [accountSeq]);
+
+  useEffect(() => {
+    if (!autoEnabled) {
+      return;
+    }
+    const id = window.setInterval(() => {
+      void run();
+    }, autoIntervalMs);
+    return () => window.clearInterval(id);
+  }, [autoEnabled, autoIntervalMs, run]);
 
   return (
     <CollapsibleCard title="AI 어드바이저" storageId="ai-advisor">
@@ -147,6 +164,12 @@ export function AiAdvisor({
         >
           {state.status === "loading" ? "분석 중…" : "조언 받기"}
         </button>
+        <AdvisorAutoControls
+          enabled={autoEnabled}
+          intervalMs={autoIntervalMs}
+          onEnabledChange={setAutoEnabled}
+          onIntervalChange={setAutoIntervalMs}
+        />
         <p className={styles.advisorDisclaimer}>
           ※ AI 제안은 참고용입니다. 모든 주문은 직접 확인 후 §6 안전 게이트를 거쳐 실행됩니다.
         </p>

@@ -23,6 +23,7 @@ import styles from "./dashboard.module.css";
 
 const SELECTED_ACCOUNT_KEY = "toss-invest:selected-account-seq";
 const LAST_SYMBOL_KEY = "toss-invest:last-symbol";
+const DEFAULT_TITLE = "토스증권 대시보드";
 
 function symbolStorageKey(accountSeq: number): string {
   return `${LAST_SYMBOL_KEY}:${accountSeq}`;
@@ -164,6 +165,12 @@ export function Dashboard() {
     }
   }, [holdings.data, selectedSeq, selectedSymbol]);
 
+  useEffect(() => {
+    if (selectedSymbol === undefined) {
+      document.title = DEFAULT_TITLE;
+    }
+  }, [selectedSymbol]);
+
   function selectAccount(accountSeq: number) {
     setSelectedSeq(accountSeq);
     setSelectedSymbol(undefined);
@@ -246,7 +253,7 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* Center: order form, then the AI advisor and order history. */}
+        {/* Center: order form and order history. */}
         <div className={styles.column}>
           {selectedSymbol ? (
             <OrderForm
@@ -264,8 +271,6 @@ export function Dashboard() {
               </p>
             </CollapsibleCard>
           )}
-
-          <AiAdvisor accountSeq={selectedSeq} onSelectProposal={applyProposal} />
 
           {orders.isLoading ? (
             <p className={page.status}>주문 내역을 불러오는 중…</p>
@@ -312,6 +317,10 @@ export function Dashboard() {
                 selectedSymbol={selectedSymbol}
                 onSelectSymbol={selectSymbol}
                 refreshing={Boolean(holdings.isRefreshing)}
+              />
+              <AiAdvisor
+                accountSeq={selectedSeq}
+                onSelectProposal={applyProposal}
               />
             </>
           ) : null}
