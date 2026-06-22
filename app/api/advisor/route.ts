@@ -97,14 +97,16 @@ export async function POST(request: Request): Promise<Response> {
     const snapshot = buildAdvisorSnapshot({ holdings, buyingPower, exchangeRate });
     const provider = getServerLlmProvider();
     // §6.A-4: a BUY proposal for a symbol the user does not hold is only accepted
-    // after Toss confirms the symbol exists. Any lookup failure leaves it rejected
-    // (fail-closed) — runAdvisor only ever loosens the gate on a successful check.
-    const verifySymbol = async (symbol: string): Promise<boolean> => {
+    // after Toss confirms the symbol exists; the same lookup yields its display
+    // name so the order form/market panel can label a proposed symbol like a held
+    // one. Any failure leaves it rejected (fail-closed) and nameless.
+    const resolveSymbol = async (symbol: string): Promise<{ name: string } | null> => {
       try {
         const stocks = await client.getStocks({ symbols: [symbol] });
-        return stocks.some((stock) => stock.symbol === symbol);
+        const stock = stocks.find((item) => item.symbol === symbol);
+        return stock ? { name: stock.name } : null;
       } catch {
-        return false;
+        return null;
       }
     };
     const result = await runAdvisor({
@@ -112,7 +114,7 @@ export async function POST(request: Request): Promise<Response> {
       snapshot,
       validation,
       jsonSchema: advisorJsonSchema,
-      verifySymbol,
+      resolveSymbol,
     });
 
     return ok({

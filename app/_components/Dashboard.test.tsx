@@ -270,7 +270,7 @@ describe("Dashboard", () => {
     );
   });
 
-  it("applying a non-held BUY proposal switches the market panel and order form symbol", async () => {
+  it("applying a non-held BUY proposal switches the symbol and labels it with the resolved name", async () => {
     fetchAdvisor.mockResolvedValue({
       advice: "신규 매수 검토",
       model: "stub-model",
@@ -279,13 +279,14 @@ describe("Dashboard", () => {
         {
           proposal: {
             kind: "buy",
-            symbol: "0167A0",
+            symbol: "360750",
             side: "BUY",
             quantity: 10,
-            rationale: "강한 추세",
+            rationale: "지수 분산",
           },
           valid: true,
           reasons: [],
+          name: "TIGER 미국S&P500",
         },
       ],
     });
@@ -301,12 +302,13 @@ describe("Dashboard", () => {
     fireEvent.click(runButtons[runButtons.length - 1]);
     fireEvent.click(await screen.findByText("폼에 담기"));
 
-    // Left market panel header should switch from AAPL to the proposed symbol.
-    expect(screen.getByText("현재가 (0167A0)")).toBeInTheDocument();
+    // Left market panel header should switch to the proposed symbol AND show its
+    // resolved name (not just the code) — same as selecting a holding.
+    expect(screen.getByText("TIGER 미국S&P500 (360750)")).toBeInTheDocument();
     expect(screen.queryByText("Apple (AAPL)")).not.toBeInTheDocument();
-    // Center order form 종목코드 should follow the proposed symbol.
+    // Center order form 종목코드 follows the proposed symbol; 일반주문 tab shows it.
     fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
-    expect(screen.getByLabelText("종목코드")).toHaveValue("0167A0");
+    expect(screen.getByLabelText("종목코드")).toHaveValue("360750");
   });
 
   it("restores the last selected holding when it is still present", async () => {

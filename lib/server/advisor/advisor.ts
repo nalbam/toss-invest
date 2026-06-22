@@ -27,27 +27,31 @@ export interface RunAdvisorDeps {
   /** Optional provider-native structured-output schema (response_format). */
   jsonSchema?: JsonSchemaSpec;
   /**
-   * Verifies that a proposed BUY symbol exists/tradable when it is NOT already a
-   * known (held) symbol. Consulted only for non-held BUY proposals. Omitted, a
-   * false return, or a throw all keep the symbol rejected (fail-closed, §6.A-4) —
-   * the gate is only ever loosened by an explicit, successful verification.
+   * Resolves a proposed BUY symbol against Toss when it is NOT already a known
+   * (held) symbol. A non-null result both verifies the symbol exists/tradable
+   * (loosening the §6.A-4 gate for that symbol) and supplies its display name.
+   * Consulted only for non-held BUY proposals. Omitted, a null return, or a
+   * throw all keep the symbol rejected (fail-closed) and nameless — the gate is
+   * only ever loosened by an explicit, successful resolution.
    */
-  verifySymbol?: (symbol: string) => Promise<boolean>;
+  resolveSymbol?: (symbol: string) => Promise<{ name: string } | null>;
 }
 
 /**
- * Augments the reality context by verifying non-held BUY symbols against Toss.
- * SELL/held symbols are untouched (SELL is still gated by the holdings check), so
- * only BUY proposals for symbols the user does not hold trigger a lookup. Any
- * verification failure leaves the symbol out of `knownSymbols` (fail-closed).
+ * Resolves non-held BUY symbols against Toss in one pass: a non-null result adds
+ * the symbol to `knownSymbols` (so its proposal can validate) and records its
+ * display name. SELL/held symbols are untouched (SELL is still gated by the
+ * holdings check). Any resolution failure leaves the symbol unknown and nameless
+ * (fail-closed).
  */
-async function resolveValidationContext(
+async function resolveSymbols(
   proposals: AdvisorProposal[],
   deps: RunAdvisorDeps,
-): Promise<ValidationContext> {
-  const verify = deps.verifySymbol;
-  if (verify === undefined) {
-    return deps.validation;
+): Promise<{ context: ValidationContext; names: Map<string, string> }> {
+  const names = new Map<string, string>();
+  const resolve = deps.resolveSymbol;
+  if (resolve === undefined) {
+    return { context: deps.validation, names };
   }
   const candidates = [
     ...new Set(
@@ -57,24 +61,33 @@ async function resolveValidationContext(
     ),
   ];
   if (candidates.length === 0) {
-    return deps.validation;
+    return { context: deps.validation, names };
   }
-  const checked = await Promise.all(
+  const resolved = await Promise.all(
     candidates.map(async (symbol) => {
       try {
-        return { symbol, ok: await verify(symbol) };
+        return { symbol, info: await resolve(symbol) };
       } catch {
-        return { symbol, ok: false };
+        return { symbol, info: null };
       }
     }),
   );
-  const verified = checked.filter((c) => c.ok).map((c) => c.symbol);
+  const verified: string[] = [];
+  for (const { symbol, info } of resolved) {
+    if (info !== null) {
+      verified.push(symbol);
+      names.set(symbol, info.name);
+    }
+  }
   if (verified.length === 0) {
-    return deps.validation;
+    return { context: deps.validation, names };
   }
   return {
-    ...deps.validation,
-    knownSymbols: new Set([...deps.validation.knownSymbols, ...verified]),
+    context: {
+      ...deps.validation,
+      knownSymbols: new Set([...deps.validation.knownSymbols, ...verified]),
+    },
+    names,
   };
 }
 
@@ -102,7 +115,11 @@ export async function runAdvisor(deps: RunAdvisorDeps): Promise<AdvisorRunResult
     });
   }
 
-  const context = await resolveValidationContext(parsed.data.proposals, deps);
-  const proposals = validateProposals(parsed.data.proposals, context);
+  const { context, names } = await resolveSymbols(parsed.data.proposals, deps);
+  const validated = validateProposals(parsed.data.proposals, context);
+  const proposals = validated.map((item) => {
+    const name = names.get(item.proposal.symbol);
+    return name === undefined ? item : { ...item, name };
+  });
   return { advice: parsed.data.advice, proposals, model: response.model };
 }

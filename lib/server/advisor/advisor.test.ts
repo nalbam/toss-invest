@@ -105,39 +105,41 @@ describe("runAdvisor", () => {
     proposals: [{ kind: "buy", symbol: "035720", side: "BUY", quantity: 1, rationale: "신규" }],
   });
 
-  it("verifies a non-held BUY symbol and accepts it when verifySymbol confirms it", async () => {
+  it("resolves a non-held BUY symbol and accepts it (with its name) when resolveSymbol confirms it", async () => {
     const { provider } = stubProvider(buyNewSymbol);
-    const verifySymbol = vi.fn(async () => true);
-    const result = await runAdvisor({ provider, snapshot, validation, verifySymbol });
+    const resolveSymbol = vi.fn(async () => ({ name: "카카오" }));
+    const result = await runAdvisor({ provider, snapshot, validation, resolveSymbol });
 
-    expect(verifySymbol).toHaveBeenCalledWith("035720");
+    expect(resolveSymbol).toHaveBeenCalledWith("035720");
     expect(result.proposals[0].valid).toBe(true);
+    expect(result.proposals[0].name).toBe("카카오");
   });
 
-  it("keeps a non-held BUY symbol rejected when verifySymbol denies it (fail-closed)", async () => {
+  it("keeps a non-held BUY symbol rejected (and nameless) when resolveSymbol returns null (fail-closed)", async () => {
     const { provider } = stubProvider(buyNewSymbol);
-    const verifySymbol = vi.fn(async () => false);
-    const result = await runAdvisor({ provider, snapshot, validation, verifySymbol });
+    const resolveSymbol = vi.fn(async () => null);
+    const result = await runAdvisor({ provider, snapshot, validation, resolveSymbol });
 
     expect(result.proposals[0].valid).toBe(false);
+    expect(result.proposals[0].name).toBeUndefined();
     expect(result.proposals[0].reasons.join(" ")).toMatch(/unknown|tradable/i);
   });
 
-  it("treats a verifySymbol error as not-verified (fail-closed)", async () => {
+  it("treats a resolveSymbol error as not-resolved (fail-closed)", async () => {
     const { provider } = stubProvider(buyNewSymbol);
-    const verifySymbol = vi.fn(async () => {
+    const resolveSymbol = vi.fn(async () => {
       throw new Error("toss down");
     });
-    const result = await runAdvisor({ provider, snapshot, validation, verifySymbol });
+    const result = await runAdvisor({ provider, snapshot, validation, resolveSymbol });
 
     expect(result.proposals[0].valid).toBe(false);
   });
 
-  it("does not verify already-held symbols (no extra lookups)", async () => {
+  it("does not resolve already-held symbols (no extra lookups)", async () => {
     const { provider } = stubProvider(validOutput);
-    const verifySymbol = vi.fn(async () => true);
-    await runAdvisor({ provider, snapshot, validation, verifySymbol });
+    const resolveSymbol = vi.fn(async () => ({ name: "삼성전자" }));
+    await runAdvisor({ provider, snapshot, validation, resolveSymbol });
 
-    expect(verifySymbol).not.toHaveBeenCalled();
+    expect(resolveSymbol).not.toHaveBeenCalled();
   });
 });

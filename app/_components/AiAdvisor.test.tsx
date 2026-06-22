@@ -22,6 +22,7 @@ const result: AdvisorResult = {
       proposal: { kind: "trim", symbol: "005930", side: "SELL", quantity: 5, rationale: "비중 축소" },
       valid: true,
       reasons: [],
+      name: "삼성전자",
     },
     {
       proposal: { kind: "buy", symbol: "ZZZZ", side: "BUY", quantity: 1, rationale: "환각 종목" },
@@ -125,7 +126,10 @@ describe("AiAdvisor", () => {
     expect(screen.getByText(/unknown or non-tradable symbol/)).toBeInTheDocument();
 
     fireEvent.click(prefillButtons[0]);
-    expect(onSelectProposal).toHaveBeenCalledWith(result.proposals[0].proposal);
+    expect(onSelectProposal).toHaveBeenCalledWith(
+      result.proposals[0].proposal,
+      "삼성전자",
+    );
   });
 
   it("shows a not-configured message when the advisor is not configured", async () => {

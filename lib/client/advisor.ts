@@ -19,6 +19,8 @@ export interface ValidatedProposal {
   proposal: AdvisorProposal;
   valid: boolean;
   reasons: string[];
+  /** Display name for a non-held proposed symbol, resolved server-side from Toss. */
+  name?: string;
 }
 
 export interface AdvisorResult {

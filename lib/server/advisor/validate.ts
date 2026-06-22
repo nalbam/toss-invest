@@ -25,6 +25,13 @@ export interface ValidatedProposal {
   valid: boolean;
   /** Why the proposal was rejected; empty when valid. */
   reasons: string[];
+  /**
+   * Display name resolved from reality (Toss) for a symbol the dashboard does
+   * not already know from holdings — i.e. a non-held proposed symbol. Undefined
+   * for held symbols (the dashboard resolves those from its own holdings) or
+   * when no name could be resolved.
+   */
+  name?: string;
 }
 
 /** kind→required side (rebalance may go either way). */

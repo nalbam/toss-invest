@@ -181,15 +181,16 @@ describe("POST /api/advisor", () => {
     proposals: [{ kind: "buy", symbol: "035720", side: "BUY", quantity: 1, rationale: "신규" }],
   });
 
-  it("verifies a non-held BUY symbol via Toss and accepts it when it exists", async () => {
+  it("resolves a non-held BUY symbol via Toss, accepting it and attaching its name", async () => {
     const { provider } = stubProvider(buyNewSymbol);
     getServerLlmProvider.mockReturnValue(provider);
-    facade.getStocks.mockResolvedValue([{ symbol: "035720" }]);
+    facade.getStocks.mockResolvedValue([{ symbol: "035720", name: "카카오" }]);
 
     const response = await POST(postReq());
     const body = await response.json();
     expect(facade.getStocks).toHaveBeenCalledWith({ symbols: ["035720"] });
     expect(body.data.proposals[0].valid).toBe(true);
+    expect(body.data.proposals[0].name).toBe("카카오");
   });
 
   it("rejects a non-held BUY symbol that Toss does not return (fail-closed)", async () => {

@@ -54,9 +54,9 @@ function ProposalRow({
   onSelect,
 }: {
   item: ValidatedProposal;
-  onSelect?: (proposal: AdvisorProposal) => void;
+  onSelect?: (proposal: AdvisorProposal, name?: string) => void;
 }) {
-  const { proposal, valid, reasons } = item;
+  const { proposal, valid, reasons, name } = item;
   return (
     <li className={styles.advisorProposal}>
       <div className={styles.advisorProposalHead}>
@@ -70,7 +70,7 @@ function ProposalRow({
         <button
           type="button"
           className={styles.advisorPrefillButton}
-          onClick={() => onSelect?.(proposal)}
+          onClick={() => onSelect?.(proposal, name)}
         >
           폼에 담기
         </button>
@@ -93,7 +93,7 @@ export function AiAdvisor({
   onSelectProposal,
 }: {
   accountSeq?: number;
-  onSelectProposal?: (proposal: AdvisorProposal) => void;
+  onSelectProposal?: (proposal: AdvisorProposal, name?: string) => void;
 }) {
   const [state, setState] = useState<State>({ status: "idle" });
 

@@ -106,6 +106,11 @@ export function Dashboard() {
   const [prefill, setPrefill] = useState<
     { side: "BUY" | "SELL"; quantity: number } | undefined
   >(undefined);
+  // Display name for a proposed symbol the user does not hold (resolved by the
+  // advisor route). Lets the market panel/order form label it like a holding.
+  const [proposedName, setProposedName] = useState<
+    { symbol: string; name: string } | undefined
+  >(undefined);
 
   // Restore the selected account when possible; otherwise default to the first.
   useEffect(() => {
@@ -176,6 +181,7 @@ export function Dashboard() {
     setSelectedSeq(accountSeq);
     setSelectedSymbol(undefined);
     setPrefill(undefined);
+    setProposedName(undefined);
     writeStoredAccountSeq(accountSeq);
   }
 
@@ -187,10 +193,12 @@ export function Dashboard() {
   }
 
   // "폼에 담기" from the advisor card: point the order form at the proposed
-  // symbol and prefill its side + quantity. Never sends an order.
-  function applyProposal(proposal: AdvisorProposal) {
+  // symbol, prefill its side + quantity, and remember its resolved name so a
+  // non-held symbol is labelled like a holding. Never sends an order.
+  function applyProposal(proposal: AdvisorProposal, name?: string) {
     selectSymbol(proposal.symbol);
     setPrefill({ side: proposal.side, quantity: proposal.quantity });
+    setProposedName(name ? { symbol: proposal.symbol, name } : undefined);
   }
 
   if (accounts.isLoading) {
@@ -210,7 +218,13 @@ export function Dashboard() {
   const selectedHolding = holdings.data?.items.find(
     (item) => item.symbol === selectedSymbol,
   );
-  const selectedName = selectedHolding?.name;
+  // Prefer the holding's name; fall back to a proposed symbol's resolved name so
+  // a non-held proposed symbol is labelled the same way a holding is.
+  const selectedName =
+    selectedHolding?.name ??
+    (proposedName && proposedName.symbol === selectedSymbol
+      ? proposedName.name
+      : undefined);
 
   return (
     <div
