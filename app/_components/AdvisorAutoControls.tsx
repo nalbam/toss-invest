@@ -23,14 +23,18 @@ export function AdvisorAutoControls({
 }) {
   return (
     <div className={styles.advisorControls}>
-      <label className={styles.advisorAutoToggle}>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(event) => onEnabledChange(event.target.checked)}
-        />
-        자동 재실행 활성화
-      </label>
+      <button
+        type="button"
+        className={`${styles.advisorAutoButton} ${
+          enabled ? styles.advisorAutoButtonActive : ""
+        }`}
+        aria-pressed={enabled}
+        aria-label="자동 재실행 활성화"
+        title="자동 재실행 활성화"
+        onClick={() => onEnabledChange(!enabled)}
+      >
+        <span className={styles.advisorAutoSpinner} aria-hidden="true" />
+      </button>
       <select
         className={styles.advisorIntervalSelect}
         value={intervalMs}

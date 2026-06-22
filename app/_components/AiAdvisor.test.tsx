@@ -38,6 +38,7 @@ describe("AiAdvisor", () => {
     render(<AiAdvisor />);
     expect(screen.getByRole("button", { name: /조언 받기|분석/ })).toBeInTheDocument();
     expect(screen.getByText(/참고용/)).toBeInTheDocument();
+    expect(screen.getByLabelText("자동 재실행 주기")).toHaveValue("600000");
     expect(fetchAdvisor).not.toHaveBeenCalled();
   });
 
@@ -58,7 +59,7 @@ describe("AiAdvisor", () => {
     render(<AiAdvisor />);
 
     fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(600_000);
 
     expect(fetchAdvisor).toHaveBeenCalledTimes(1);
 
@@ -68,6 +69,23 @@ describe("AiAdvisor", () => {
     await vi.advanceTimersByTimeAsync(300_000);
 
     expect(fetchAdvisor).toHaveBeenCalledTimes(2);
+  });
+
+  it("restores stored auto rerun settings", async () => {
+    window.localStorage.setItem(
+      "toss-invest:ai-advisor-auto",
+      JSON.stringify({ enabled: true, intervalMs: 1_800_000 }),
+    );
+
+    render(<AiAdvisor />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("자동 재실행 활성화")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+    expect(screen.getByLabelText("자동 재실행 주기")).toHaveValue("1800000");
   });
 
   it("stores the latest successful advisor result per account", async () => {

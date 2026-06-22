@@ -8,9 +8,9 @@ import {
   type MarketAdvisorResult,
 } from "@/lib/client/market-advisor";
 import { AdvisorAutoControls } from "./AdvisorAutoControls";
-import { readStoredJson, writeStoredJson } from "./advisorStorage";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
+import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import { useAdvisorAutoRerun } from "./useAdvisorAutoRerun";
 
 type State =
@@ -20,6 +20,7 @@ type State =
   | { status: "error"; message: string };
 
 const MARKET_ADVISOR_RESULT_KEY = "toss-invest:market-ai-advisor-result";
+const MARKET_ADVISOR_AUTO_KEY = "toss-invest:market-ai-advisor-auto";
 
 function isMarketAdvisorResult(value: unknown): value is MarketAdvisorResult {
   if (typeof value !== "object" || value === null) {
@@ -60,25 +61,27 @@ export function MarketAiAdvisor({ input }: { input: MarketAdvisorInput }) {
     }
   }, [input, resultStorageKey]);
   const { autoEnabled, autoIntervalMs, setAutoEnabled, setAutoIntervalMs } =
-    useAdvisorAutoRerun(run);
+    useAdvisorAutoRerun(run, MARKET_ADVISOR_AUTO_KEY);
 
   return (
     <CollapsibleCard title="시세 AI 어드바이저" storageId="market-ai-advisor">
       <div className={styles.advisorBody}>
-        <button
-          type="button"
-          className={styles.advisorRunButton}
-          onClick={run}
-          disabled={state.status === "loading"}
-        >
-          {state.status === "loading" ? "분석 중…" : "조언 받기"}
-        </button>
-        <AdvisorAutoControls
-          enabled={autoEnabled}
-          intervalMs={autoIntervalMs}
-          onEnabledChange={setAutoEnabled}
-          onIntervalChange={setAutoIntervalMs}
-        />
+        <div className={styles.advisorActionRow}>
+          <button
+            type="button"
+            className={styles.advisorRunButton}
+            onClick={run}
+            disabled={state.status === "loading"}
+          >
+            {state.status === "loading" ? "분석 중…" : "조언 받기"}
+          </button>
+          <AdvisorAutoControls
+            enabled={autoEnabled}
+            intervalMs={autoIntervalMs}
+            onEnabledChange={setAutoEnabled}
+            onIntervalChange={setAutoIntervalMs}
+          />
+        </div>
         <p className={styles.advisorDisclaimer}>
           ※ 시세 AI 조언은 차트 데이터 기반 참고용입니다. 실제 주문은 직접 확인하세요.
         </p>

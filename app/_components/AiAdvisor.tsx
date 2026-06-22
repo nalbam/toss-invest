@@ -9,9 +9,9 @@ import {
   type ValidatedProposal,
 } from "@/lib/client/advisor";
 import { AdvisorAutoControls } from "./AdvisorAutoControls";
-import { readStoredJson, writeStoredJson } from "./advisorStorage";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
+import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import { useAdvisorAutoRerun } from "./useAdvisorAutoRerun";
 
 type State =
@@ -21,6 +21,7 @@ type State =
   | { status: "error"; message: string; notConfigured: boolean };
 
 const ADVISOR_RESULT_KEY = "toss-invest:ai-advisor-result";
+const ADVISOR_AUTO_KEY = "toss-invest:ai-advisor-auto";
 
 const KIND_LABEL: Record<AdvisorProposal["kind"], string> = {
   buy: "신규 매수",
@@ -120,25 +121,27 @@ export function AiAdvisor({
     }
   }, [accountSeq]);
   const { autoEnabled, autoIntervalMs, setAutoEnabled, setAutoIntervalMs } =
-    useAdvisorAutoRerun(run);
+    useAdvisorAutoRerun(run, ADVISOR_AUTO_KEY);
 
   return (
     <CollapsibleCard title="AI 어드바이저" storageId="ai-advisor">
       <div className={styles.advisorBody}>
-        <button
-          type="button"
-          className={styles.advisorRunButton}
-          onClick={run}
-          disabled={state.status === "loading"}
-        >
-          {state.status === "loading" ? "분석 중…" : "조언 받기"}
-        </button>
-        <AdvisorAutoControls
-          enabled={autoEnabled}
-          intervalMs={autoIntervalMs}
-          onEnabledChange={setAutoEnabled}
-          onIntervalChange={setAutoIntervalMs}
-        />
+        <div className={styles.advisorActionRow}>
+          <button
+            type="button"
+            className={styles.advisorRunButton}
+            onClick={run}
+            disabled={state.status === "loading"}
+          >
+            {state.status === "loading" ? "분석 중…" : "조언 받기"}
+          </button>
+          <AdvisorAutoControls
+            enabled={autoEnabled}
+            intervalMs={autoIntervalMs}
+            onEnabledChange={setAutoEnabled}
+            onIntervalChange={setAutoIntervalMs}
+          />
+        </div>
         <p className={styles.advisorDisclaimer}>
           ※ AI 제안은 참고용입니다. 모든 주문은 직접 확인 후 §6 안전 게이트를 거쳐 실행됩니다.
         </p>

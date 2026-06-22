@@ -912,9 +912,15 @@
   gap: 12px;
 }
 
+.advisorActionRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .advisorRunButton {
   appearance: none;
-  align-self: flex-start;
   border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 8px 16px;
@@ -937,12 +943,44 @@
   gap: 8px;
 }
 
-.advisorAutoToggle {
+.advisorAutoButton {
+  appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
   color: var(--muted);
+  cursor: pointer;
+}
+
+.advisorAutoButtonActive {
+  border-color: #0f9f6e;
+  background: rgba(15, 159, 110, 0.12);
+  color: #0f9f6e;
+}
+
+.advisorAutoSpinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: 0.7;
+}
+
+.advisorAutoButtonActive .advisorAutoSpinner {
+  opacity: 1;
+  animation: advisorSpin 0.9s linear infinite;
+}
+
+@keyframes advisorSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .advisorIntervalSelect {

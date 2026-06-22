@@ -16,6 +16,7 @@ import {
   mulDecimalStrings,
 } from "@/lib/client/format";
 import { CollapsibleCard } from "./CollapsibleCard";
+import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
@@ -25,9 +26,52 @@ type OrderType = "LIMIT" | "MARKET";
 type TimeInForce = "DAY" | "CLS";
 type PricingMode = "QUANTITY" | "AMOUNT";
 
+interface OrderFormPreferences {
+  mode: OrderMode;
+  side: Side;
+  orderType: OrderType;
+  pricingMode: PricingMode;
+}
+
 interface SubmitError {
   code: string;
   message: string;
+}
+
+const ORDER_FORM_PREFERENCES_KEY = "toss-invest:order-form-preferences";
+
+function isOrderMode(value: unknown): value is OrderMode {
+  return value === "GENERAL" || value === "QUICK";
+}
+
+function isSide(value: unknown): value is Side {
+  return value === "BUY" || value === "SELL";
+}
+
+function isOrderType(value: unknown): value is OrderType {
+  return value === "LIMIT" || value === "MARKET";
+}
+
+function isPricingMode(value: unknown): value is PricingMode {
+  return value === "QUANTITY" || value === "AMOUNT";
+}
+
+function isOrderFormPreferences(value: unknown): value is OrderFormPreferences {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const prefs = value as Partial<OrderFormPreferences>;
+  return (
+    isOrderMode(prefs.mode) &&
+    isSide(prefs.side) &&
+    isOrderType(prefs.orderType) &&
+    isPricingMode(prefs.pricingMode) &&
+    (prefs.orderType === "MARKET" || prefs.pricingMode === "QUANTITY")
+  );
+}
+
+function writeOrderFormPreferences(prefs: OrderFormPreferences): void {
+  writeStoredJson(ORDER_FORM_PREFERENCES_KEY, prefs);
 }
 
 /** Formats a price/amount in the given trading currency. */
@@ -91,6 +135,20 @@ export function OrderForm({
   const [result, setResult] = useState<OrderPlaceResult | null>(null);
   const [error, setError] = useState<SubmitError | null>(null);
 
+  useEffect(() => {
+    const stored = readStoredJson(
+      ORDER_FORM_PREFERENCES_KEY,
+      isOrderFormPreferences,
+    );
+    if (stored === null) {
+      return;
+    }
+    setMode(stored.mode);
+    setSide(stored.side);
+    setOrderType(stored.orderType);
+    setPricingMode(stored.pricingMode);
+  }, []);
+
   const trimmedSymbol = symbol.trim();
   const quickActive = mode === "QUICK" && trimmedSymbol.length > 0;
   const quickQuote = usePrices(quickActive ? [trimmedSymbol] : []);
@@ -149,12 +207,40 @@ export function OrderForm({
   const amountMode = pricingMode === "AMOUNT" && orderType === "MARKET";
   const showPrice = orderType === "LIMIT";
 
+  function updatePreferences(next: Partial<OrderFormPreferences>) {
+    writeOrderFormPreferences({
+      mode,
+      side,
+      orderType,
+      pricingMode,
+      ...next,
+    });
+  }
+
+  function changeMode(next: OrderMode) {
+    setMode(next);
+    updatePreferences({ mode: next });
+  }
+
+  function changeSide(next: Side) {
+    setSide(next);
+    updatePreferences({ side: next });
+  }
+
+  function changePricingMode(next: PricingMode) {
+    setPricingMode(next);
+    updatePreferences({ pricingMode: next });
+  }
+
   function handleOrderTypeChange(next: OrderType) {
     setOrderType(next);
     // LIMIT cannot be amount-based; drop back to quantity pricing.
     if (next === "LIMIT") {
       setPricingMode("QUANTITY");
+      updatePreferences({ orderType: next, pricingMode: "QUANTITY" });
+      return;
     }
+    updatePreferences({ orderType: next });
   }
 
   /** Sets the quantity and disarms any pending quick-order confirmation. */
@@ -237,7 +323,7 @@ export function OrderForm({
       (submitter.value === "BUY" || submitter.value === "SELL")
         ? submitter.value
         : side;
-    setSide(submitSide);
+    changeSide(submitSide);
     if (trimmedSymbol.length === 0) {
       setResult(null);
       setError({ code: "invalid-input", message: "종목코드를 입력하세요." });
@@ -266,7 +352,7 @@ export function OrderForm({
     }
     setError(null);
     setResult(null);
-    setSide(armSide);
+    changeSide(armSide);
     setArmedSide(armSide);
   }
 
@@ -298,7 +384,7 @@ export function OrderForm({
           className={styles.orderTab}
           role="tab"
           aria-selected={mode === "QUICK"}
-          onClick={() => setMode("QUICK")}
+          onClick={() => changeMode("QUICK")}
         >
           빠른주문
         </button>
@@ -307,7 +393,7 @@ export function OrderForm({
           className={styles.orderTab}
           role="tab"
           aria-selected={mode === "GENERAL"}
-          onClick={() => setMode("GENERAL")}
+          onClick={() => changeMode("GENERAL")}
         >
           일반주문
         </button>
@@ -337,7 +423,7 @@ export function OrderForm({
                 type="button"
                 className={styles.orderBuyTab}
                 aria-pressed={side === "BUY"}
-                onClick={() => setSide("BUY")}
+                onClick={() => changeSide("BUY")}
               >
                 구매
               </button>
@@ -345,7 +431,7 @@ export function OrderForm({
                 type="button"
                 className={styles.orderSellTab}
                 aria-pressed={side === "SELL"}
-                onClick={() => setSide("SELL")}
+                onClick={() => changeSide("SELL")}
               >
                 판매
               </button>
@@ -378,7 +464,7 @@ export function OrderForm({
                   type="button"
                   className={page.select}
                   aria-pressed={pricingMode === "QUANTITY"}
-                  onClick={() => setPricingMode("QUANTITY")}
+                  onClick={() => changePricingMode("QUANTITY")}
                 >
                   수량
                 </button>
@@ -386,7 +472,7 @@ export function OrderForm({
                   type="button"
                   className={page.select}
                   aria-pressed={pricingMode === "AMOUNT"}
-                  onClick={() => setPricingMode("AMOUNT")}
+                  onClick={() => changePricingMode("AMOUNT")}
                 >
                   금액 (US)
                 </button>

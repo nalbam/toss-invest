@@ -68,7 +68,7 @@ describe("MarketAiAdvisor", () => {
     render(<MarketAiAdvisor input={input} />);
 
     fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(600_000);
 
     expect(fetchMarketAdvisor).toHaveBeenCalledTimes(1);
   });
@@ -79,9 +79,9 @@ describe("MarketAiAdvisor", () => {
     const { rerender } = render(<MarketAiAdvisor input={input} />);
 
     fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(300_000);
     rerender(<MarketAiAdvisor input={{ ...input, lastPrice: "73000" }} />);
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(300_000);
 
     expect(fetchMarketAdvisor).toHaveBeenCalledTimes(1);
     expect(fetchMarketAdvisor).toHaveBeenCalledWith({
@@ -103,5 +103,28 @@ describe("MarketAiAdvisor", () => {
 
     expect(screen.getByRole("option", { name: "30분" })).toBeInTheDocument();
     expect(fetchMarketAdvisor).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("toss-invest:market-ai-advisor-auto") ??
+          "{}",
+      ),
+    ).toEqual({ enabled: true, intervalMs: 1_800_000 });
+  });
+
+  it("restores stored auto rerun settings", async () => {
+    window.localStorage.setItem(
+      "toss-invest:market-ai-advisor-auto",
+      JSON.stringify({ enabled: true, intervalMs: 1_800_000 }),
+    );
+
+    render(<MarketAiAdvisor input={input} />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("자동 재실행 활성화")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+    expect(screen.getByLabelText("자동 재실행 주기")).toHaveValue("1800000");
   });
 });
