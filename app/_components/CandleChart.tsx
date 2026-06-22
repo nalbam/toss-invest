@@ -69,6 +69,11 @@ export function formatChartPrice(price: number): string {
   }).format(price);
 }
 
+function formatMarkerText(label: string): string {
+  const trimmed = label.trim();
+  return trimmed.length > 10 ? `${trimmed.slice(0, 10)}…` : trimmed;
+}
+
 /**
  * Parses a candle timestamp into Unix seconds. Accepts an ISO date-time string
  * or a numeric epoch string (seconds or milliseconds). Returns null when the
@@ -114,14 +119,18 @@ export function CandleChart({
       return;
     }
     const chart = createChart(container, {
-      height: 280,
+      height: 420,
       autoSize: true,
       layout: { background: { color: "transparent" }, textColor: "#7b818c" },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.07)" },
         horzLines: { color: "rgba(255,255,255,0.07)" },
       },
-      timeScale: { timeVisible: true, secondsVisible: false },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 8,
+      },
     });
     const series = chart.addSeries(CandlestickSeries, {
       upColor: "#ff4d6d",
@@ -234,7 +243,8 @@ export function CandleChart({
             position: item.position,
             color: "#0f9f6e",
             shape: "circle",
-            text: item.label,
+            size: 0.6,
+            text: formatMarkerText(item.label),
           },
         ];
       })

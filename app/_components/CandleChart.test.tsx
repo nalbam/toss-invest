@@ -106,6 +106,13 @@ describe("CandleChart", () => {
   it("mounts and feeds the converted series to the chart", () => {
     render(<CandleChart candles={[candle()]} />);
     expect(createChart).toHaveBeenCalledTimes(1);
+    expect(createChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        height: 420,
+        timeScale: expect.objectContaining({ rightOffset: 8 }),
+      }),
+    );
     expect(addSeries).toHaveBeenCalledTimes(1);
     const [, options] = addSeries.mock.calls[0] as unknown as [
       unknown,
@@ -158,7 +165,7 @@ describe("CandleChart", () => {
             {
               timestamp: "2026-03-25T09:00:00+09:00",
               position: "aboveBar",
-              label: "거래량 증가",
+              label: "거래량 증가 구간 확인 필요",
             },
           ],
         }}
@@ -174,7 +181,8 @@ describe("CandleChart", () => {
     expect(setMarkers).toHaveBeenCalledWith([
       expect.objectContaining({
         position: "aboveBar",
-        text: "거래량 증가",
+        size: 0.6,
+        text: "거래량 증가 구간 …",
       }),
     ]);
   });
