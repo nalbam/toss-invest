@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   CandlestickSeries,
   createChart,
@@ -16,6 +16,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { MarketChartAnnotations } from "@/lib/client/market-advisor";
+import type { MarketAdvisorHistoryEvent } from "@/lib/client/market-advisor";
 import type { Candle } from "@/lib/client/types";
 import styles from "./dashboard.module.css";
 
@@ -74,6 +75,13 @@ function formatMarkerText(label: string): string {
   return trimmed.length > 10 ? `${trimmed.slice(0, 10)}…` : trimmed;
 }
 
+function decisionColor(action: MarketAdvisorHistoryEvent["decision"]["action"]): string {
+  if (action === "buy") return "var(--gain)";
+  if (action === "sell") return "var(--loss)";
+  if (action === "hold") return "var(--foreground)";
+  return "var(--muted)";
+}
+
 /**
  * Parses a candle timestamp into Unix seconds. Accepts an ISO date-time string
  * or a numeric epoch string (seconds or milliseconds). Returns null when the
@@ -90,6 +98,18 @@ function parseTimestampSeconds(value: string): number | null {
   return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
 }
 
+function chartTimeRange(series: CandlestickData[]): {
+  min: number;
+  max: number;
+} | null {
+  const first = series.at(0)?.time;
+  const last = series.at(-1)?.time;
+  if (typeof first !== "number" || typeof last !== "number") {
+    return null;
+  }
+  return { min: first, max: last };
+}
+
 /**
  * Candlestick chart for a symbol. The chart canvas is created imperatively via
  * a ref in `useEffect` (lightweight-charts owns the DOM); React only renders
@@ -100,17 +120,53 @@ export function CandleChart({
   candles,
   averagePurchasePrice,
   annotations,
+  advisorEvents = [],
 }: {
   candles: Candle[];
   averagePurchasePrice?: string;
   annotations?: MarketChartAnnotations;
+  advisorEvents?: MarketAdvisorHistoryEvent[];
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const adviceOverlayRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const markerRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const averageLineRef = useRef<IPriceLine | null>(null);
   const annotationLineRefs = useRef<IPriceLine[]>([]);
+  const chartTimeRangeRef = useRef<{ min: number; max: number } | null>(null);
+
+  const renderAdviceLines = useCallback(() => {
+    const chart = chartRef.current;
+    const overlay = adviceOverlayRef.current;
+    if (chart === null || overlay === null) {
+      return;
+    }
+    overlay.replaceChildren();
+    const range = chartTimeRangeRef.current;
+    if (range === null) {
+      return;
+    }
+    for (const event of advisorEvents) {
+      if (event.chartTimestamp === null) {
+        continue;
+      }
+      const seconds = parseTimestampSeconds(event.chartTimestamp);
+      if (seconds === null || seconds < range.min || seconds > range.max) {
+        continue;
+      }
+      const coordinate = chart.timeScale().timeToCoordinate(seconds as Time);
+      if (coordinate === null) {
+        continue;
+      }
+      const line = document.createElement("span");
+      line.className = styles.chartAdviceLine;
+      line.style.left = `${coordinate}px`;
+      line.style.setProperty("--advice-line-color", decisionColor(event.decision.action));
+      line.title = `${event.decision.label}: ${event.decision.reason}`;
+      overlay.append(line);
+    }
+  }, [advisorEvents]);
 
   // Create the chart once on mount and tear it down on unmount.
   useEffect(() => {
@@ -164,9 +220,16 @@ export function CandleChart({
     if (series === null) {
       return;
     }
-    series.setData(toChartSeries(candles));
+    const chartSeries = toChartSeries(candles);
+    chartTimeRangeRef.current = chartTimeRange(chartSeries);
+    series.setData(chartSeries);
     chartRef.current?.timeScale().fitContent();
-  }, [candles]);
+    renderAdviceLines();
+  }, [candles, renderAdviceLines]);
+
+  useEffect(() => {
+    renderAdviceLines();
+  }, [renderAdviceLines]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -252,5 +315,9 @@ export function CandleChart({
     markerRef.current?.setMarkers(markers);
   }, [annotations]);
 
-  return <div ref={containerRef} className={styles.chart} aria-label="캔들 차트" />;
+  return (
+    <div ref={containerRef} className={styles.chart} aria-label="캔들 차트">
+      <div ref={adviceOverlayRef} className={styles.chartAdviceOverlay} />
+    </div>
+  );
 }

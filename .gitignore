@@ -49,6 +49,7 @@ docs/plans/
 /coverage
 *.tsbuildinfo
 next-env.d.ts
+.pnpm-store/
 
 # env files (only .env.example is committed)
 .env

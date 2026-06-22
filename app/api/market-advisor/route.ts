@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { recordMarketAdvice } from "@/lib/server/cache/market-history";
 import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
 import type { ChatMessage } from "@/lib/server/llm/types";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const symbolPattern = /^[A-Za-z0-9.\-]+$/;
 
@@ -149,6 +151,10 @@ function buildMarketAdvisorPrompt(input: z.infer<typeof bodySchema>): ChatMessag
   ];
 }
 
+function latestCandleTimestamp(input: z.infer<typeof bodySchema>): string | null {
+  return input.candles.at(-1)?.timestamp ?? null;
+}
+
 export async function POST(request: Request): Promise<Response> {
   let body: unknown;
   try {
@@ -170,13 +176,23 @@ export async function POST(request: Request): Promise<Response> {
     });
     const content: unknown = JSON.parse(response.content);
     const result = marketAdvisorResultSchema.parse(content);
+    const generatedAt = new Date().toISOString();
+    await recordMarketAdvice({
+      symbol: parsed.data.symbol,
+      interval: parsed.data.interval,
+      generatedAt,
+      chartTimestamp: latestCandleTimestamp(parsed.data),
+      lastPrice: parsed.data.lastPrice,
+      decision: result.decision,
+      advice: result.advice.trim(),
+    });
 
     return ok({
       advice: result.advice.trim(),
       decision: result.decision,
       annotations: result.annotations,
       model: response.model,
-      generatedAt: new Date().toISOString(),
+      generatedAt,
     });
   } catch (error) {
     if (error instanceof LlmNotConfiguredError) {

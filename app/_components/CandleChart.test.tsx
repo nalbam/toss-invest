@@ -15,11 +15,12 @@ const setMarkers = vi.fn();
 const detachMarkers = vi.fn();
 const createSeriesMarkers = vi.fn(() => ({ setMarkers, detach: detachMarkers }));
 const fitContent = vi.fn();
+const timeToCoordinate = vi.fn(() => 120);
 const addSeries = vi.fn(() => ({ setData, createPriceLine, removePriceLine }));
 const remove = vi.fn();
 const createChart = vi.fn(() => ({
   addSeries,
-  timeScale: () => ({ fitContent }),
+  timeScale: () => ({ fitContent, timeToCoordinate }),
   remove,
 }));
 
@@ -185,6 +186,83 @@ describe("CandleChart", () => {
         text: "거래량 증가 구간 …",
       }),
     ]);
+  });
+
+  it("draws cached advisor decisions as vertical overlay lines", () => {
+    const { container } = render(
+      <CandleChart
+        candles={[candle()]}
+        advisorEvents={[
+          {
+            symbol: "005930",
+            interval: "1d",
+            generatedAt: "2026-03-25T09:01:00+09:00",
+            chartTimestamp: "2026-03-25T09:00:00+09:00",
+            decision: {
+              action: "buy",
+              label: "매수 검토",
+              reason: "지지선 위 반등",
+            },
+            advice: "반등 확인",
+            cachedAt: "2026-03-25T09:01:00+09:00",
+          },
+        ]}
+      />,
+    );
+
+    const line = container.querySelector("[title='매수 검토: 지지선 위 반등']");
+    expect(line).not.toBeNull();
+    expect(line).toHaveStyle({ left: "120px" });
+  });
+
+  it("does not draw advisor lines from generatedAt when chartTimestamp is missing", () => {
+    const { container } = render(
+      <CandleChart
+        candles={[candle()]}
+        advisorEvents={[
+          {
+            symbol: "005930",
+            interval: "1d",
+            generatedAt: "2026-06-22T12:00:00+09:00",
+            chartTimestamp: null,
+            decision: {
+              action: "wait",
+              label: "관망",
+              reason: "장중 변동성 확인",
+            },
+            advice: "관망",
+            cachedAt: "2026-06-22T12:00:00+09:00",
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelector("[title='관망: 장중 변동성 확인']")).toBeNull();
+  });
+
+  it("does not draw advisor lines outside the loaded candle range", () => {
+    const { container } = render(
+      <CandleChart
+        candles={[candle()]}
+        advisorEvents={[
+          {
+            symbol: "005930",
+            interval: "1d",
+            generatedAt: "2026-06-22T12:00:00+09:00",
+            chartTimestamp: "2026-06-22T09:00:00+09:00",
+            decision: {
+              action: "wait",
+              label: "관망",
+              reason: "장중 변동성 확인",
+            },
+            advice: "관망",
+            cachedAt: "2026-06-22T12:00:00+09:00",
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelector("[title='관망: 장중 변동성 확인']")).toBeNull();
   });
 
   it("removes the average purchase price line when the price is unavailable", () => {

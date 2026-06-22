@@ -46,7 +46,6 @@ export function ThemeSelector() {
 
   return (
     <fieldset className={`${page.controls} ${page.themeControl}`}>
-      <legend className={page.controlLabel}>테마</legend>
       <div className={page.themeSegmented}>
         {THEME_OPTIONS.map((item) => (
           <button

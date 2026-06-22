@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   useCandles,
+  useMarketAdvisorHistory,
   useOrderbook,
   usePriceLimits,
   usePrices,
@@ -85,6 +86,7 @@ export function MarketQuote({
     loadedStoredInterval ? symbol : undefined,
     sourceInterval(interval),
   );
+  const marketAdvisorHistory = useMarketAdvisorHistory(symbol, interval);
   // Daily candles power the header's day change (vs previous close), regardless
   // of the chart's selected interval.
   const dailyCandles = useCandles(symbol, "1d");
@@ -225,6 +227,7 @@ export function MarketQuote({
             candles={chartCandles}
             averagePurchasePrice={averagePurchasePrice}
             annotations={marketAdvisorResult?.annotations}
+            advisorEvents={marketAdvisorHistory.data?.events ?? []}
           />
           <div className={styles.marketAdvisorBlock}>
             <MarketAiAdvisor

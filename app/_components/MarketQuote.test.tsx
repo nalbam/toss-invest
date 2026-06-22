@@ -28,6 +28,8 @@ const useCandles =
   vi.fn<
     (symbol: string | undefined, interval: TossCandleInterval) => QueryResult<CandlePageResponse>
   >();
+const useMarketAdvisorHistory =
+  vi.fn<(symbol: string | undefined, interval: string) => QueryResult<{ events: [] }>>();
 
 vi.mock("@/lib/client/hooks", () => ({
   usePrices: (symbols: string[]) => usePrices(symbols),
@@ -35,6 +37,8 @@ vi.mock("@/lib/client/hooks", () => ({
   useOrderbook: (symbol?: string) => useOrderbook(symbol),
   useCandles: (symbol: string | undefined, interval: TossCandleInterval) =>
     useCandles(symbol, interval),
+  useMarketAdvisorHistory: (symbol: string | undefined, interval: string) =>
+    useMarketAdvisorHistory(symbol, interval),
 }));
 
 vi.mock("lightweight-charts", () => ({
@@ -92,6 +96,7 @@ beforeEach(() => {
     loaded({ timestamp: null, currency: "KRW", asks: [], bids: [] }),
   );
   useCandles.mockReturnValue(loaded({ candles: [], nextBefore: null }));
+  useMarketAdvisorHistory.mockReturnValue(loaded({ events: [] }));
 });
 
 afterEach(() => {

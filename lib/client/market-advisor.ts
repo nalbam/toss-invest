@@ -18,6 +18,17 @@ export interface MarketAdvisorResult {
   generatedAt: string;
 }
 
+export interface MarketAdvisorHistoryEvent {
+  symbol: string;
+  interval: string;
+  generatedAt: string;
+  chartTimestamp: string | null;
+  lastPrice?: string;
+  decision: MarketAdvisorDecision;
+  advice: string;
+  cachedAt: string;
+}
+
 export interface MarketAdvisorDecision {
   action: "buy" | "sell" | "hold" | "wait";
   label: string;

@@ -69,6 +69,11 @@ vi.mock("@/lib/client/hooks", () => ({
     error: undefined,
     isLoading: false,
   }),
+  useMarketAdvisorHistory: () => ({
+    data: { events: [] },
+    error: undefined,
+    isLoading: false,
+  }),
   ApiClientError: class extends Error {},
   submitOrder: vi.fn(),
   cancelOrder: vi.fn(),
