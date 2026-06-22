@@ -8,7 +8,8 @@
 
 ## 기능
 
-- **읽기 대시보드** — 포트폴리오 요약, 보유종목, 환율(FX), 주문내역, 시세(현재가·상하한가·호가·캔들 차트).
+- **읽기 대시보드** — 포트폴리오 요약·구성(도넛)·종목별 손익, 보유종목, 환율(FX), 주문내역,
+  시세(현재가·상하한가·호가·호가 뎁스·체결 추이·캔들 차트[거래량·이동평균·상하한가 기준선·주문 체결 마커]).
 - **수동 거래** — 주문 생성/정정/취소. 기본은 dry-run 미리보기, 주문 단위 사용자 확인(confirm) 시에만 전송.
 - **제한적 자동거래** — SELL-only 전략 intent 순수 계층 + 결정적 백테스트 + 게이트된 auto-executor.
   `AUTO_TRADE_ENABLED` 기본 false.
@@ -78,11 +79,14 @@ lib/
   `scripts/check-bundle-secrets.mjs` 가 클라이언트 번들에 시크릿/거래 심볼 누출이 없는지 검사한다.
 - **rate limit**: 엔드포인트 그룹별 TPS 토큰버킷(`lib/server/toss/rate-limiter.ts`).
 - **거래 안전(§6)**: `DRY_RUN` 기본 true, kill switch, 하드 리밋, 고액(≥1억) confirm, 통화-인지 notional,
-  멱등성 clientOrderId. 상세 불변식은 [`docs/dev-loop-prompt.md`](docs/dev-loop-prompt.md) §6 참고.
+  멱등성 clientOrderId. 상세 불변식은 [`docs/trading-safety.md`](docs/trading-safety.md) §6 참고.
 
 ## 문서
 
-- [`docs/dev-loop-prompt.md`](docs/dev-loop-prompt.md) — 개발 루프 마스터 프롬프트 + 안전 규약(§6).
-- [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md) — AI 어드바이저(LLM 기반 포트폴리오 분석·조언·주문 제안) 자가 개선 루프 프롬프트. dev-loop 의 형제이며 §6 안전을 불변 상속.
-- [`PROGRESS.md`](PROGRESS.md) — 현재 구현 상태.
-- [`EVAL.md`](EVAL.md) — 이터레이션 평가 이력(append-only).
+설계·개발 문서는 [`docs/`](docs/README.md)에 통합되어 있다.
+
+- [`docs/architecture.md`](docs/architecture.md) — 설계(스택·레이어링·시크릿 격리·rate limit·컴포넌트 맵).
+- [`docs/api-reference.md`](docs/api-reference.md) — 토스 Open API 엔드포인트·동작 규칙.
+- [`docs/trading-safety.md`](docs/trading-safety.md) — 거래 안전장치(§6)·보안.
+- [`docs/development.md`](docs/development.md) — 개발 워크플로우(게이트·self-eval 루프·규율).
+- [`docs/roadmap.md`](docs/roadmap.md) — 로드맵·현재 상태·이터레이션 이력.
