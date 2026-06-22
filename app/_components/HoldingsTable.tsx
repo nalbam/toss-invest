@@ -52,7 +52,7 @@ export function HoldingsTable({
         items.map((item) => (
           <span key={item.symbol} className={styles.holdingsSummaryItem}>
             <span className={styles.holdingsSummaryName}>{item.name}</span>
-            <span className={styles.holdingValue}>
+            <span className={styles.holdingValue} data-private-value="true">
               <Money value={formatPrice(item.marketValue.amount, item.currency)} />
             </span>
           </span>
@@ -97,7 +97,7 @@ export function HoldingsTable({
                     {formatDecimal(item.quantity, { maxFractionDigits: 4 })}주
                   </span>
                 </span>
-                <span className={styles.holdingValue}>
+                <span className={styles.holdingValue} data-private-value="true">
                   <Money value={formatPrice(item.marketValue.amount, item.currency)} />
                 </span>
               </span>
@@ -110,13 +110,13 @@ export function HoldingsTable({
                 </span>
                 <span>
                   <span className={styles.holdingLabel}>평균단가</span>
-                  <span className={styles.holdingAmount}>
+                  <span className={styles.holdingAmount} data-private-value="true">
                     <Money value={formatPrice(item.averagePurchasePrice, item.currency)} />
                   </span>
                 </span>
                 <span>
                   <span className={styles.holdingLabel}>매입금액</span>
-                  <span className={styles.holdingAmount}>
+                  <span className={styles.holdingAmount} data-private-value="true">
                     <Money value={formatPrice(item.marketValue.purchaseAmount, item.currency)} />
                   </span>
                 </span>
@@ -124,7 +124,9 @@ export function HoldingsTable({
               <span className={styles.holdingProfit}>
                 <span className={styles.holdingLabel}>손익</span>
                 <span className={signClass(item.profitLoss.amount)}>
-                  <Money value={formatPrice(item.profitLoss.amount, item.currency)} />{" "}
+                  <span data-private-value="true">
+                    <Money value={formatPrice(item.profitLoss.amount, item.currency)} />
+                  </span>{" "}
                   ({formatPercent(item.profitLoss.rate)})
                 </span>
               </span>

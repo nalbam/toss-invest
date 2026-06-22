@@ -92,6 +92,7 @@ function writeStoredSymbol(accountSeq: number, symbol: string): void {
 export function Dashboard() {
   const accounts = useAccounts();
   const [selectedSeq, setSelectedSeq] = useState<number | undefined>(undefined);
+  const [privacyBlurred, setPrivacyBlurred] = useState(false);
   // Symbol chosen from the holdings table; drives the market panel and order
   // form. Undefined until the user picks a holding (left panel shows a prompt).
   const [selectedSymbol, setSelectedSymbol] = useState<string | undefined>(
@@ -116,6 +117,21 @@ export function Dashboard() {
       setSelectedSeq(nextSeq);
     }
   }, [accounts.data, selectedSeq]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        event.shiftKey &&
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "b"
+      ) {
+        event.preventDefault();
+        setPrivacyBlurred((current) => !current);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const holdings = useHoldings(selectedSeq);
   const orders = useOrders(selectedSeq);
@@ -188,7 +204,10 @@ export function Dashboard() {
   )?.name;
 
   return (
-    <div className={page.dashboard}>
+    <div
+      className={`${page.dashboard} ${privacyBlurred ? page.privacyBlurred : ""}`}
+      data-privacy-blurred={privacyBlurred ? "true" : "false"}
+    >
       <header className={page.header}>
         <h1 className={page.title}>토스증권 대시보드</h1>
         <div className={page.controls}>

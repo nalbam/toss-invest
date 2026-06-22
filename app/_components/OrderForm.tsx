@@ -609,11 +609,13 @@ export function OrderForm({
             <div className={styles.quickBalances}>
               <span>
                 <span className={styles.metricLabel}>주문가능금액</span>
-                <strong>{formatPrice(buyingPower, currency)}</strong>
+                <strong data-private-value="true">
+                  {formatPrice(buyingPower, currency)}
+                </strong>
               </span>
               <span>
                 <span className={styles.metricLabel}>예상 체결금액</span>
-                <strong>
+                <strong data-private-value="true">
                   {estimated !== null ? formatPrice(estimated, currency) : "-"}
                   {estimatedKrw !== null ? (
                     <span className={styles.metricSecondary}>
@@ -635,7 +637,10 @@ export function OrderForm({
                 >
                   현재가 판매
                   {estimated !== null ? (
-                    <span className={styles.quickBtnAmount}>
+                    <span
+                      className={styles.quickBtnAmount}
+                      data-private-value="true"
+                    >
                       {formatPrice(estimated, currency)}
                     </span>
                   ) : null}
@@ -648,7 +653,10 @@ export function OrderForm({
                 >
                   현재가 구매
                   {estimated !== null ? (
-                    <span className={styles.quickBtnAmount}>
+                    <span
+                      className={styles.quickBtnAmount}
+                      data-private-value="true"
+                    >
                       {formatPrice(estimated, currency)}
                     </span>
                   ) : null}
@@ -658,8 +666,10 @@ export function OrderForm({
               <div className={styles.quickConfirm} role="alert">
                 <p className={styles.quickConfirmText}>
                   정말 {armedSide === "BUY" ? "구매" : "판매"}하시겠어요?{" "}
-                  {quantity.trim()}주 ·{" "}
-                  {estimated !== null ? formatPrice(estimated, currency) : "-"}
+                  <span data-private-value="true">{quantity.trim()}주</span> ·{" "}
+                  <span data-private-value="true">
+                    {estimated !== null ? formatPrice(estimated, currency) : "-"}
+                  </span>
                 </p>
                 <div className={styles.quickActionGrid}>
                   <button
@@ -774,19 +784,19 @@ function WouldSend({ body }: { body: OrderCreateBody }) {
       {body.quantity !== undefined ? (
         <div>
           <dt>수량</dt>
-          <dd>{body.quantity}</dd>
+          <dd data-private-value="true">{body.quantity}</dd>
         </div>
       ) : null}
       {body.price !== undefined ? (
         <div>
           <dt>가격</dt>
-          <dd>{body.price}</dd>
+          <dd data-private-value="true">{body.price}</dd>
         </div>
       ) : null}
       {body.orderAmount !== undefined ? (
         <div>
           <dt>주문금액</dt>
-          <dd>{body.orderAmount}</dd>
+          <dd data-private-value="true">{body.orderAmount}</dd>
         </div>
       ) : null}
     </dl>
@@ -805,7 +815,9 @@ function PrevalidationView({
 }) {
   return (
     <p className={styles.prevalidation}>
-      사전검증 — 가용: {available ?? "확인 불가"} / 요청: {requested ?? "-"}
+      사전검증 — 가용:{" "}
+      <span data-private-value="true">{available ?? "확인 불가"}</span> / 요청:{" "}
+      <span data-private-value="true">{requested ?? "-"}</span>
       {insufficient ? " (부족 가능성)" : ""}
     </p>
   );

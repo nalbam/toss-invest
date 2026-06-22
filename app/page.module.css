@@ -28,6 +28,11 @@
   gap: 16px;
 }
 
+.privacyBlurred :global([data-private-value="true"]) {
+  filter: blur(7px);
+  user-select: none;
+}
+
 .controls {
   display: flex;
   align-items: center;

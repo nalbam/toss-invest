@@ -54,7 +54,7 @@ export function AccountCash({
       summary={
         <>
           <span className={styles.metricLabel}>총 주문가능</span>
-          <span className={styles.metricPrimary}>
+          <span className={styles.metricPrimary} data-private-value="true">
             <Money value={formatKrw(totalKrw)} />
           </span>
         </>
@@ -63,23 +63,24 @@ export function AccountCash({
       <div className={styles.summaryGrid}>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>총 주문가능 (원화 환산)</span>
-          <span className={styles.metricPrimary}>
+          <span className={styles.metricPrimary} data-private-value="true">
             <Money value={formatKrw(totalKrw)} />
           </span>
         </div>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>원화</span>
-          <span className={styles.metricPrimary}>
+          <span className={styles.metricPrimary} data-private-value="true">
             <Money value={formatKrw(cash?.krw)} />
           </span>
         </div>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>달러</span>
-          <span className={styles.metricPrimary}>
+          <span className={styles.metricPrimary} data-private-value="true">
             <Money value={formatUsd(cash?.usd)} />
           </span>
-          <span className={styles.metricSecondary}>
-            ≈ <Money value={formatKrw(cash?.usd === undefined ? undefined : usdInKrw)} />
+          <span className={styles.metricSecondary} data-private-value="true">
+            ≈{" "}
+            <Money value={formatKrw(cash?.usd === undefined ? undefined : usdInKrw)} />
           </span>
         </div>
       </div>

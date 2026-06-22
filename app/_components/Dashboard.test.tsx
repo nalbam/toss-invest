@@ -188,7 +188,7 @@ afterEach(() => {
 
 describe("Dashboard", () => {
   it("masks account numbers in the account selector", () => {
-    render(<Dashboard />);
+    const { container } = render(<Dashboard />);
 
     expect(
       screen.getByRole("option", { name: "110*****791 (BROKERAGE)" }),
@@ -196,6 +196,22 @@ describe("Dashboard", () => {
     expect(
       screen.queryByText("11001044791 (BROKERAGE)"),
     ).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-private-value='true']"),
+    ).not.toBeNull();
+  });
+
+  it("toggles privacy blur with Ctrl or Command + Shift + B", () => {
+    const { container } = render(<Dashboard />);
+    const root = container.firstElementChild;
+
+    expect(root).toHaveAttribute("data-privacy-blurred", "false");
+
+    fireEvent.keyDown(window, { key: "b", ctrlKey: true, shiftKey: true });
+    expect(root).toHaveAttribute("data-privacy-blurred", "true");
+
+    fireEvent.keyDown(window, { key: "B", metaKey: true, shiftKey: true });
+    expect(root).toHaveAttribute("data-privacy-blurred", "false");
   });
 
   it("prompts the user to pick a holding before a symbol is selected", () => {

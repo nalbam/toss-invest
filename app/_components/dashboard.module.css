@@ -723,10 +723,24 @@
   gap: 8px;
 }
 
+.quickBalances > span {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .quickBalances strong,
 .orderInfoPanel strong {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+}
+
+.quickBalances strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .quickActionGrid {
