@@ -128,7 +128,9 @@ const overview: HoldingsOverview = {
 
 beforeEach(() => {
   useAccounts.mockReturnValue(
-    loaded([{ accountNo: "123-45", accountSeq: 1, accountType: "위탁" }]),
+    loaded([
+      { accountNo: "11001044791", accountSeq: 1, accountType: "BROKERAGE" },
+    ]),
   );
   useHoldings.mockReturnValue(loaded(overview));
   useOrders.mockReturnValue(loaded({ orders: [], nextCursor: null, hasNext: false }));
@@ -159,6 +161,17 @@ afterEach(() => {
 });
 
 describe("Dashboard", () => {
+  it("masks account numbers in the account selector", () => {
+    render(<Dashboard />);
+
+    expect(
+      screen.getByRole("option", { name: "110*****791 (BROKERAGE)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("11001044791 (BROKERAGE)"),
+    ).not.toBeInTheDocument();
+  });
+
   it("prompts the user to pick a holding before a symbol is selected", () => {
     render(<Dashboard />);
     expect(screen.getByText("보유 종목을 선택하세요.")).toBeInTheDocument();

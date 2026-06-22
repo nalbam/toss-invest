@@ -23,6 +23,15 @@ import styles from "./dashboard.module.css";
 
 const LAST_SYMBOL_KEY = "toss-invest:last-symbol";
 
+function maskAccountNo(accountNo: string): string {
+  if (accountNo.length <= 6) {
+    return accountNo;
+  }
+  return `${accountNo.slice(0, 3)}${"*".repeat(
+    accountNo.length - 6,
+  )}${accountNo.slice(-3)}`;
+}
+
 function readLastSymbol(): string | null {
   try {
     return window.localStorage.getItem(LAST_SYMBOL_KEY);
@@ -140,7 +149,7 @@ export function Dashboard() {
           >
             {accounts.data.map((account) => (
               <option key={account.accountSeq} value={account.accountSeq}>
-                {account.accountNo} ({account.accountType})
+                {maskAccountNo(account.accountNo)} ({account.accountType})
               </option>
             ))}
           </select>

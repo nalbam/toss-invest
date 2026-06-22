@@ -4,7 +4,10 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { HoldingsTable } from "./HoldingsTable";
 import type { HoldingsItem } from "@/lib/client/types";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 
 /**
  * Matcher for a money amount whose currency symbol is split into its own span by
@@ -60,6 +63,12 @@ const apple: HoldingsItem = {
   cost: { commission: "1.5", tax: null },
 };
 
+const longNameEtf: HoldingsItem = {
+  ...samsung,
+  symbol: "487240",
+  name: "SOL AI반도체TOP2플러스",
+};
+
 describe("HoldingsTable", () => {
   it("renders a row per holding with names and US/KR prices", () => {
     render(<HoldingsTable items={[samsung, apple]} />);
@@ -98,6 +107,27 @@ describe("HoldingsTable", () => {
     render(<HoldingsTable items={[]} />);
     expect(screen.getByText("보유 종목 없음")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("shows a holdings summary when collapsed", async () => {
+    window.localStorage.setItem("toss-invest:collapsed:holdings", "true");
+
+    render(<HoldingsTable items={[longNameEtf, apple]} />);
+
+    expect(await screen.findByText("SOL AI반도체TOP2플러스")).toBeInTheDocument();
+    expect(screen.getByText("Apple")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩720,000"))).toBeInTheDocument();
+    expect(screen.getByText(byMoney("$952.50"))).toBeInTheDocument();
+    expect(screen.queryByText(byTextContent("487240 · KR · 10주"))).not.toBeInTheDocument();
+  });
+
+  it("shows an empty holdings summary when collapsed", async () => {
+    window.localStorage.setItem("toss-invest:collapsed:holdings", "true");
+
+    render(<HoldingsTable items={[]} />);
+
+    expect(await screen.findByText("보유 종목 없음")).toBeInTheDocument();
+    expect(screen.getByText("-")).toBeInTheDocument();
   });
 
   it("calls onSelectSymbol with the row's symbol when the row is clicked", () => {
