@@ -12,6 +12,7 @@ import type {
   PriceLimitResponse,
   PriceResponse,
   SellableQuantity,
+  Trade,
 } from "@/lib/client/types";
 
 // Dashboard composes many SWR-backed children. Mock the whole hooks module so
@@ -63,6 +64,11 @@ vi.mock("@/lib/client/hooks", () => ({
     error: undefined,
     isLoading: false,
   }),
+  useTrades: (): QueryResult<Trade[]> => ({
+    data: [],
+    error: undefined,
+    isLoading: false,
+  }),
   ApiClientError: class extends Error {},
   submitOrder: vi.fn(),
   cancelOrder: vi.fn(),
@@ -74,11 +80,20 @@ vi.mock("swr", () => ({
 
 vi.mock("lightweight-charts", () => ({
   createChart: () => ({
-    addSeries: () => ({ setData: () => {} }),
+    addSeries: () => ({
+      setData: () => {},
+      priceScale: () => ({ applyOptions: () => {} }),
+      createPriceLine: () => ({}),
+      removePriceLine: () => {},
+    }),
     timeScale: () => ({ fitContent: () => {} }),
     remove: () => {},
   }),
+  createSeriesMarkers: () => ({ setMarkers: () => {} }),
   CandlestickSeries: "CandlestickSeries",
+  HistogramSeries: "HistogramSeries",
+  LineSeries: "LineSeries",
+  LineStyle: { Dashed: 2 },
 }));
 
 const { Dashboard } = await import("./Dashboard");
@@ -169,8 +184,13 @@ describe("Dashboard", () => {
 
   it("selecting a holding drives the market panel and order form", () => {
     render(<Dashboard />);
-    // Click the holding row to select it.
-    fireEvent.click(screen.getByText("Apple").closest("button")!);
+    // Click the holding row to select it. "Apple" also appears in the
+    // composition legend, so pick the occurrence inside the clickable row.
+    const appleRow = screen
+      .getAllByText("Apple")
+      .map((el) => el.closest("button"))
+      .find(Boolean);
+    fireEvent.click(appleRow!);
     // Left market panel now shows the symbol header instead of the prompt.
     expect(screen.getByText("Apple (AAPL)")).toBeInTheDocument();
     expect(

@@ -19,6 +19,7 @@ import type {
   PriceLimitResponse,
   PriceResponse,
   SellableQuantity,
+  Trade,
 } from "@/lib/client/types";
 
 /**
@@ -141,6 +142,13 @@ const priceLimitsConfig: SWRConfiguration = {
 };
 
 const orderbookConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.orderbook,
+  dedupingInterval: POLLING_INTERVAL_MS.orderbook,
+};
+
+// Recent trades move as fast as the orderbook, so they share its cadence.
+const tradesConfig: SWRConfiguration = {
   ...sharedConfig,
   refreshInterval: POLLING_INTERVAL_MS.orderbook,
   dedupingInterval: POLLING_INTERVAL_MS.orderbook,
@@ -293,6 +301,28 @@ export function useOrderbook(
     OrderbookResponse,
     ApiClientError
   >(key, fetcher, orderbookConfig);
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
+}
+
+/**
+ * Loads the most recent trades (executions) for a symbol. The request is paused
+ * (key is `null`) until a symbol is known.
+ */
+export function useTrades(symbol: string | undefined): QueryResult<Trade[]> {
+  const key =
+    symbol === undefined
+      ? null
+      : `/api/trades?symbol=${encodeURIComponent(symbol)}`;
+  const { data, error, isLoading, isValidating } = useSWR<Trade[], ApiClientError>(
+    key,
+    fetcher,
+    tradesConfig,
+  );
   return {
     data,
     error,

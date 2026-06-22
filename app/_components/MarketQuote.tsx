@@ -6,7 +6,9 @@ import {
   useOrderbook,
   usePriceLimits,
   usePrices,
+  useTrades,
 } from "@/lib/client/hooks";
+import type { Order } from "@/lib/client/types";
 import {
   aggregateCandles,
   CHART_INTERVALS,
@@ -17,8 +19,10 @@ import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format
 import { previousClose, priceChange } from "@/lib/client/quote";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
-import { CandleChart } from "./CandleChart";
+import { CandleChart, toOrderMarkers } from "./CandleChart";
 import { Orderbook } from "./Orderbook";
+import { OrderbookDepth } from "./OrderbookDepth";
+import { TradesChart } from "./TradesChart";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
@@ -64,9 +68,11 @@ function writeStoredInterval(interval: ChartInterval): void {
 export function MarketQuote({
   symbol,
   name,
+  orders = [],
 }: {
   symbol: string;
   name?: string;
+  orders?: Order[];
 }) {
   const [interval, setIntervalState] = useState<ChartInterval>("1d");
   const [loadedStoredInterval, setLoadedStoredInterval] = useState(false);
@@ -74,6 +80,8 @@ export function MarketQuote({
   const prices = usePrices([symbol]);
   const limits = usePriceLimits(symbol);
   const orderbook = useOrderbook(symbol);
+  const trades = useTrades(symbol);
+  const orderMarkers = toOrderMarkers(orders, symbol);
   const candles = useCandles(
     loadedStoredInterval ? symbol : undefined,
     sourceInterval(interval),
@@ -181,7 +189,18 @@ export function MarketQuote({
           차트를 불러오지 못했습니다: {candles.error.message}
         </p>
       ) : candles.data ? (
-        <CandleChart candles={chartCandles} />
+        <CandleChart
+          candles={chartCandles}
+          priceLimits={limits.data}
+          markers={orderMarkers}
+        />
+      ) : null}
+
+      {trades.data && trades.data.length > 0 ? (
+        <TradesChart
+          trades={trades.data}
+          refreshing={Boolean(trades.isRefreshing)}
+        />
       ) : null}
 
       {orderbook.isLoading ? (
@@ -191,7 +210,10 @@ export function MarketQuote({
           호가를 불러오지 못했습니다: {orderbook.error.message}
         </p>
       ) : orderbook.data ? (
-        <Orderbook book={orderbook.data} />
+        <>
+          <Orderbook book={orderbook.data} />
+          <OrderbookDepth book={orderbook.data} />
+        </>
       ) : null}
     </CollapsibleCard>
   );

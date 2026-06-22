@@ -403,6 +403,119 @@
   margin: 16px 0;
 }
 
+.depthSvg {
+  width: 100%;
+  height: 160px;
+  display: block;
+}
+
+.depthLegend {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.compositionLayout {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.donut {
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legendName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legendPercent {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pnlList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pnlRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.pnlName {
+  width: 30%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pnlTrack {
+  flex: 1;
+  display: flex;
+}
+
+.pnlHalf {
+  flex: 1;
+  display: flex;
+}
+
+.pnlHalfLeft {
+  justify-content: flex-end;
+  border-right: 1px solid var(--card-border);
+}
+
+.pnlBar {
+  height: 14px;
+  border-radius: 3px;
+}
+
+.pnlValue {
+  width: 72px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .chartControls {
   flex-wrap: wrap;
 }

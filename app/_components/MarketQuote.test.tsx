@@ -13,6 +13,7 @@ import type {
   OrderbookResponse,
   PriceLimitResponse,
   PriceResponse,
+  Trade,
 } from "@/lib/client/types";
 import type { TossCandleInterval } from "@/lib/client/candles";
 
@@ -28,6 +29,7 @@ const useCandles =
   vi.fn<
     (symbol: string | undefined, interval: TossCandleInterval) => QueryResult<CandlePageResponse>
   >();
+const useTrades = vi.fn<(symbol?: string) => QueryResult<Trade[]>>();
 
 vi.mock("@/lib/client/hooks", () => ({
   usePrices: (symbols: string[]) => usePrices(symbols),
@@ -35,15 +37,25 @@ vi.mock("@/lib/client/hooks", () => ({
   useOrderbook: (symbol?: string) => useOrderbook(symbol),
   useCandles: (symbol: string | undefined, interval: TossCandleInterval) =>
     useCandles(symbol, interval),
+  useTrades: (symbol?: string) => useTrades(symbol),
 }));
 
 vi.mock("lightweight-charts", () => ({
   createChart: () => ({
-    addSeries: () => ({ setData: () => {} }),
+    addSeries: () => ({
+      setData: () => {},
+      priceScale: () => ({ applyOptions: () => {} }),
+      createPriceLine: () => ({}),
+      removePriceLine: () => {},
+    }),
     timeScale: () => ({ fitContent: () => {} }),
     remove: () => {},
   }),
+  createSeriesMarkers: () => ({ setMarkers: () => {} }),
   CandlestickSeries: "CandlestickSeries",
+  HistogramSeries: "HistogramSeries",
+  LineSeries: "LineSeries",
+  LineStyle: { Dashed: 2 },
 }));
 
 const { MarketQuote } = await import("./MarketQuote");
@@ -83,6 +95,7 @@ beforeEach(() => {
     loaded({ timestamp: null, currency: "KRW", asks: [], bids: [] }),
   );
   useCandles.mockReturnValue(loaded({ candles: [], nextBefore: null }));
+  useTrades.mockReturnValue(loaded([]));
 });
 
 afterEach(() => {

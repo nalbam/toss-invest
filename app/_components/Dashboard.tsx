@@ -11,10 +11,12 @@ import {
 } from "@/lib/client/hooks";
 import { AccountCash } from "./AccountCash";
 import { CollapsibleCard } from "./CollapsibleCard";
+import { HoldingsPnL } from "./HoldingsPnL";
 import { HoldingsTable } from "./HoldingsTable";
 import { MarketQuote } from "./MarketQuote";
 import { OrderForm } from "./OrderForm";
 import { OrdersTable } from "./OrdersTable";
+import { PortfolioComposition } from "./PortfolioComposition";
 import { PortfolioSummary } from "./PortfolioSummary";
 import page from "@/app/page.module.css";
 import styles from "./dashboard.module.css";
@@ -136,7 +138,11 @@ export function Dashboard() {
         {/* Left: market data for the selected symbol (or a prompt). */}
         <div className={`${styles.column} ${styles.marketColumn}`}>
           {selectedSymbol ? (
-            <MarketQuote symbol={selectedSymbol} name={selectedName} />
+            <MarketQuote
+              symbol={selectedSymbol}
+              name={selectedName}
+              orders={orders.data?.orders ?? []}
+            />
           ) : (
             <CollapsibleCard title="시세" storageId="market-quote">
               <p className={styles.placeholder}>보유 종목을 선택하세요.</p>
@@ -191,6 +197,15 @@ export function Dashboard() {
                 items={holdings.data.items}
                 selectedSymbol={selectedSymbol}
                 onSelectSymbol={selectSymbol}
+                refreshing={Boolean(holdings.isRefreshing)}
+              />
+              <PortfolioComposition
+                items={holdings.data.items}
+                fxRate={fx.data?.rate}
+                refreshing={Boolean(holdings.isRefreshing)}
+              />
+              <HoldingsPnL
+                items={holdings.data.items}
                 refreshing={Boolean(holdings.isRefreshing)}
               />
             </>
