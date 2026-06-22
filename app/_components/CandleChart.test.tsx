@@ -15,12 +15,26 @@ const setMarkers = vi.fn();
 const detachMarkers = vi.fn();
 const createSeriesMarkers = vi.fn(() => ({ setMarkers, detach: detachMarkers }));
 const fitContent = vi.fn();
-const timeToCoordinate = vi.fn(() => 120);
+const timeToCoordinate = vi.fn<(_time: unknown) => number>(() => 120);
+let visibleLogicalRangeHandler: (() => void) | null = null;
+const subscribeVisibleLogicalRangeChange = vi.fn((handler: () => void) => {
+  visibleLogicalRangeHandler = handler;
+});
+const unsubscribeVisibleLogicalRangeChange = vi.fn((handler: () => void) => {
+  if (visibleLogicalRangeHandler === handler) {
+    visibleLogicalRangeHandler = null;
+  }
+});
 const addSeries = vi.fn(() => ({ setData, createPriceLine, removePriceLine }));
 const remove = vi.fn();
 const createChart = vi.fn(() => ({
   addSeries,
-  timeScale: () => ({ fitContent, timeToCoordinate }),
+  timeScale: () => ({
+    fitContent,
+    timeToCoordinate,
+    subscribeVisibleLogicalRangeChange,
+    unsubscribeVisibleLogicalRangeChange,
+  }),
   remove,
 }));
 
@@ -101,6 +115,8 @@ describe("formatChartPrice", () => {
 describe("CandleChart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    visibleLogicalRangeHandler = null;
+    timeToCoordinate.mockReturnValue(120);
   });
   afterEach(cleanup);
 
@@ -213,6 +229,114 @@ describe("CandleChart", () => {
     const line = container.querySelector("[title='매수 검토: 지지선 위 반등']");
     expect(line).not.toBeNull();
     expect(line).toHaveStyle({ left: "120px" });
+  });
+
+  it("repositions advisor lines when the chart visible range changes", () => {
+    const { container } = render(
+      <CandleChart
+        candles={[candle()]}
+        advisorEvents={[
+          {
+            symbol: "005930",
+            interval: "1d",
+            generatedAt: "2026-03-25T09:01:00+09:00",
+            chartTimestamp: "2026-03-25T09:00:00+09:00",
+            decision: {
+              action: "wait",
+              label: "관망",
+              reason: "추세 확인",
+            },
+            advice: "관망",
+            cachedAt: "2026-03-25T09:01:00+09:00",
+          },
+        ]}
+      />,
+    );
+
+    const line = container.querySelector("[title='관망: 추세 확인']");
+    expect(line).toHaveStyle({ left: "120px" });
+
+    timeToCoordinate.mockReturnValue(80);
+    visibleLogicalRangeHandler?.();
+
+    expect(container.querySelector("[title='관망: 추세 확인']")).toHaveStyle({
+      left: "80px",
+    });
+  });
+
+  it("aligns advisor lines to the candle nearest to the advice generation time", () => {
+    const newestSeconds = Math.floor(
+      Date.parse("2026-06-22T10:02:00+09:00") / 1000,
+    );
+    timeToCoordinate.mockImplementation((time) =>
+      time === newestSeconds ? 240 : 40,
+    );
+
+    const { container } = render(
+      <CandleChart
+        candles={[
+          candle({ timestamp: "2026-06-22T10:00:00+09:00" }),
+          candle({ timestamp: "2026-06-22T10:01:00+09:00" }),
+          candle({ timestamp: "2026-06-22T10:02:00+09:00" }),
+        ]}
+        advisorEvents={[
+          {
+            symbol: "005930",
+            interval: "1m",
+            generatedAt: "2026-06-22T10:02:30+09:00",
+            chartTimestamp: "2026-06-22T10:00:00+09:00",
+            decision: {
+              action: "wait",
+              label: "관망",
+              reason: "추세 확인",
+            },
+            advice: "관망",
+            cachedAt: "2026-06-22T10:02:31+09:00",
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelector("[title='관망: 추세 확인']")).toHaveStyle({
+      left: "240px",
+    });
+  });
+
+  it("aligns daily advisor lines by the advice date in the candle timezone", () => {
+    const todaySeconds = Math.floor(
+      Date.parse("2026-06-22T00:00:00.000+09:00") / 1000,
+    );
+    timeToCoordinate.mockImplementation((time) =>
+      time === todaySeconds ? 240 : 40,
+    );
+
+    const { container } = render(
+      <CandleChart
+        candles={[
+          candle({ timestamp: "2026-06-22T00:00:00.000+09:00" }),
+          candle({ timestamp: "2026-03-17T00:00:00.000+09:00" }),
+        ]}
+        advisorEvents={[
+          {
+            symbol: "0167A0",
+            interval: "1d",
+            generatedAt: "2026-06-22T08:25:22.505Z",
+            chartTimestamp: "2026-03-17T00:00:00.000+09:00",
+            decision: {
+              action: "wait",
+              label: "관망",
+              reason: "저항권 확인",
+            },
+            advice: "관망",
+            cachedAt: "2026-06-22T08:25:22.506Z",
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelector("[title='관망: 저항권 확인']")).toHaveStyle({
+      left: "240px",
+    });
   });
 
   it("does not draw advisor lines from generatedAt when chartTimestamp is missing", () => {

@@ -98,16 +98,91 @@ function parseTimestampSeconds(value: string): number | null {
   return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
 }
 
-function chartTimeRange(series: CandlestickData[]): {
+function timestampOffsetMinutes(value: string): number | null {
+  if (value.endsWith("Z")) {
+    return 0;
+  }
+  const match = /([+-])(\d{2}):(\d{2})$/.exec(value);
+  if (match === null) {
+    return null;
+  }
+  const sign = match[1] === "-" ? -1 : 1;
+  return sign * (Number(match[2]) * 60 + Number(match[3]));
+}
+
+function dateKeyInOffset(value: string, offsetMinutes: number): string | null {
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) {
+    return null;
+  }
+  return new Date(ms + offsetMinutes * 60_000).toISOString().slice(0, 10);
+}
+
+function chartTimeRange(candles: Candle[], series: CandlestickData[]): {
   min: number;
   max: number;
+  times: number[];
+  step: number;
+  dateTimes: Map<string, { time: number; offsetMinutes: number }>;
 } | null {
-  const first = series.at(0)?.time;
-  const last = series.at(-1)?.time;
+  const times = series
+    .map((item) => item.time)
+    .flatMap((time) => (typeof time === "number" ? [time] : []));
+  const first = times.at(0);
+  const last = times.at(-1);
   if (typeof first !== "number" || typeof last !== "number") {
     return null;
   }
-  return { min: first, max: last };
+  const gaps = times
+    .slice(1)
+    .map((time, index) => time - times[index])
+    .filter((gap) => gap > 0);
+  const dateTimes = new Map<string, { time: number; offsetMinutes: number }>();
+  for (const candle of candles) {
+    const time = parseTimestampSeconds(candle.timestamp);
+    const offsetMinutes = timestampOffsetMinutes(candle.timestamp);
+    if (time === null || offsetMinutes === null) {
+      continue;
+    }
+    const key = dateKeyInOffset(candle.timestamp, offsetMinutes);
+    if (key !== null) {
+      dateTimes.set(key, { time, offsetMinutes });
+    }
+  }
+  return { min: first, max: last, times, step: Math.min(...gaps, 60), dateTimes };
+}
+
+function nearestChartTime(time: number, range: {
+  times: number[];
+  step: number;
+}): number | null {
+  let nearest: { time: number; distance: number } | null = null;
+  for (const chartTime of range.times) {
+    const distance = Math.abs(chartTime - time);
+    if (nearest === null || distance < nearest.distance) {
+      nearest = { time: chartTime, distance };
+    }
+  }
+  if (nearest === null || nearest.distance > range.step) {
+    return null;
+  }
+  return nearest.time;
+}
+
+function chartTimeForGeneratedDate(
+  generatedAt: string,
+  range: { dateTimes: Map<string, { time: number; offsetMinutes: number }> },
+): number | null {
+  for (const [dateKey, item] of range.dateTimes) {
+    const generatedDateKey = dateKeyInOffset(
+      generatedAt,
+      item.offsetMinutes,
+    );
+    if (generatedDateKey === dateKey) {
+      return item.time;
+    }
+  }
+  return null;
 }
 
 /**
@@ -134,7 +209,13 @@ export function CandleChart({
   const markerRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const averageLineRef = useRef<IPriceLine | null>(null);
   const annotationLineRefs = useRef<IPriceLine[]>([]);
-  const chartTimeRangeRef = useRef<{ min: number; max: number } | null>(null);
+  const chartTimeRangeRef = useRef<{
+    min: number;
+    max: number;
+    times: number[];
+    step: number;
+    dateTimes: Map<string, { time: number; offsetMinutes: number }>;
+  } | null>(null);
 
   const renderAdviceLines = useCallback(() => {
     const chart = chartRef.current;
@@ -148,10 +229,19 @@ export function CandleChart({
       return;
     }
     for (const event of advisorEvents) {
-      if (event.chartTimestamp === null) {
-        continue;
-      }
-      const seconds = parseTimestampSeconds(event.chartTimestamp);
+      const generatedSeconds = parseTimestampSeconds(event.generatedAt);
+      const chartSeconds =
+        event.chartTimestamp === null
+          ? null
+          : parseTimestampSeconds(event.chartTimestamp);
+      const seconds =
+        generatedSeconds === null
+          ? chartSeconds
+          : event.interval === "1d"
+            ? chartTimeForGeneratedDate(event.generatedAt, range) ??
+              nearestChartTime(generatedSeconds, range) ??
+              chartSeconds
+            : nearestChartTime(generatedSeconds, range) ?? chartSeconds;
       if (seconds === null || seconds < range.min || seconds > range.max) {
         continue;
       }
@@ -221,7 +311,7 @@ export function CandleChart({
       return;
     }
     const chartSeries = toChartSeries(candles);
-    chartTimeRangeRef.current = chartTimeRange(chartSeries);
+    chartTimeRangeRef.current = chartTimeRange(candles, chartSeries);
     series.setData(chartSeries);
     chartRef.current?.timeScale().fitContent();
     renderAdviceLines();
@@ -229,6 +319,18 @@ export function CandleChart({
 
   useEffect(() => {
     renderAdviceLines();
+  }, [renderAdviceLines]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (chart === null) {
+      return;
+    }
+    const timeScale = chart.timeScale();
+    timeScale.subscribeVisibleLogicalRangeChange(renderAdviceLines);
+    return () => {
+      timeScale.unsubscribeVisibleLogicalRangeChange(renderAdviceLines);
+    };
   }, [renderAdviceLines]);
 
   useEffect(() => {

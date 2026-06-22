@@ -151,8 +151,28 @@ function buildMarketAdvisorPrompt(input: z.infer<typeof bodySchema>): ChatMessag
   ];
 }
 
+function timestampMs(value: string): number | null {
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const num = Number(trimmed);
+    return trimmed.length >= 13 ? num : num * 1000;
+  }
+  const ms = Date.parse(trimmed);
+  return Number.isNaN(ms) ? null : ms;
+}
+
 function latestCandleTimestamp(input: z.infer<typeof bodySchema>): string | null {
-  return input.candles.at(-1)?.timestamp ?? null;
+  let latest: { timestamp: string; ms: number } | null = null;
+  for (const candle of input.candles) {
+    const ms = timestampMs(candle.timestamp);
+    if (ms === null) {
+      continue;
+    }
+    if (latest === null || ms > latest.ms) {
+      latest = { timestamp: candle.timestamp, ms };
+    }
+  }
+  return latest?.timestamp ?? null;
 }
 
 export async function POST(request: Request): Promise<Response> {
