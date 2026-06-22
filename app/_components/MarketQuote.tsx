@@ -226,10 +226,12 @@ export function MarketQuote({
             averagePurchasePrice={averagePurchasePrice}
             annotations={marketAdvisorResult?.annotations}
           />
-          <MarketAiAdvisor
-            input={marketAdvisorInput}
-            onResult={handleMarketAdvisorResult}
-          />
+          <div className={styles.marketAdvisorBlock}>
+            <MarketAiAdvisor
+              input={marketAdvisorInput}
+              onResult={handleMarketAdvisorResult}
+            />
+          </div>
         </>
       ) : null}
 

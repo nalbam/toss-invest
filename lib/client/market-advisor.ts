@@ -12,9 +12,16 @@ export interface MarketAdvisorInput {
 
 export interface MarketAdvisorResult {
   advice: string;
+  decision: MarketAdvisorDecision;
   annotations: MarketChartAnnotations;
   model: string;
   generatedAt: string;
+}
+
+export interface MarketAdvisorDecision {
+  action: "buy" | "sell" | "hold" | "wait";
+  label: string;
+  reason: string;
 }
 
 export interface MarketChartAnnotations {

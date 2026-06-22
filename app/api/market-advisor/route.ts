@@ -34,6 +34,11 @@ const annotationLevelSchema = z.object({
 
 const marketAdvisorResultSchema = z.object({
   advice: z.string().min(1),
+  decision: z.object({
+    action: z.enum(["buy", "sell", "hold", "wait"]),
+    label: z.string().min(1),
+    reason: z.string().min(1),
+  }),
   annotations: z.object({
     supportLevels: z.array(annotationLevelSchema).max(5),
     resistanceLevels: z.array(annotationLevelSchema).max(5),
@@ -50,9 +55,19 @@ const marketAdvisorResultSchema = z.object({
 const marketAdvisorJsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["advice", "annotations"],
+  required: ["advice", "decision", "annotations"],
   properties: {
     advice: { type: "string" },
+    decision: {
+      type: "object",
+      additionalProperties: false,
+      required: ["action", "label", "reason"],
+      properties: {
+        action: { type: "string", enum: ["buy", "sell", "hold", "wait"] },
+        label: { type: "string" },
+        reason: { type: "string" },
+      },
+    },
     annotations: {
       type: "object",
       additionalProperties: false,
@@ -111,6 +126,8 @@ function buildMarketAdvisorPrompt(input: z.infer<typeof bodySchema>): ChatMessag
       content: [
         "당신은 한국어로 답하는 시세 차트 분석 어드바이저입니다.",
         "제공된 가격·캔들 데이터만 근거로 추세, 변동성, 지지/저항 가능성을 간결히 분석하세요.",
+        "살지/팔지/보유할지/기다릴지에 대한 참고 판단을 decision에 담으세요: buy=매수 검토, sell=매도 검토, hold=보유 유지, wait=관망.",
+        "decision은 실제 주문 지시가 아니라 사용자가 검토할 참고 판단입니다.",
         "차트에 그릴 지지선, 저항선, 캔들 마커도 함께 제시하세요.",
         "지지선/저항선 가격과 마커 timestamp는 반드시 제공된 캔들 데이터 범위 안에서 근거가 있어야 합니다.",
         "근거가 약한 annotation은 빈 배열로 두세요.",
@@ -156,6 +173,7 @@ export async function POST(request: Request): Promise<Response> {
 
     return ok({
       advice: result.advice.trim(),
+      decision: result.decision,
       annotations: result.annotations,
       model: response.model,
       generatedAt: new Date().toISOString(),

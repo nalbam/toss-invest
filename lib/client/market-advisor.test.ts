@@ -23,6 +23,11 @@ const input: MarketAdvisorInput = {
 
 const data = {
   advice: "상승 추세입니다.",
+  decision: {
+    action: "buy",
+    label: "매수 검토",
+    reason: "지지선 위에서 반등 흐름이 확인됩니다.",
+  },
   annotations: {
     supportLevels: [{ price: 68000, label: "지지 가능 구간" }],
     resistanceLevels: [{ price: 72000, label: "저항 확인 구간" }],
@@ -44,6 +49,7 @@ describe("fetchMarketAdvisor", () => {
     const result = await fetchMarketAdvisor(input);
 
     expect(result.advice).toBe("상승 추세입니다.");
+    expect(result.decision.action).toBe("buy");
     expect(result.annotations.supportLevels[0].price).toBe(68000);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/market-advisor");

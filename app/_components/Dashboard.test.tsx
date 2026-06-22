@@ -88,6 +88,10 @@ vi.mock("lightweight-charts", () => ({
     timeScale: () => ({ fitContent: () => {} }),
     remove: () => {},
   }),
+  createSeriesMarkers: () => ({
+    setMarkers: () => {},
+    detach: () => {},
+  }),
   LineStyle: { Dashed: 2 },
   CandlestickSeries: "CandlestickSeries",
 }));
@@ -196,6 +200,7 @@ describe("Dashboard", () => {
   it("masks account numbers in the account selector", () => {
     const { container } = render(<Dashboard />);
 
+    expect(screen.getByRole("group", { name: "테마" })).toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "110*****791 (BROKERAGE)" }),
     ).toBeInTheDocument();

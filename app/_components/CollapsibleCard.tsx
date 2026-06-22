@@ -32,7 +32,6 @@ export function CollapsibleCard({
   title,
   storageId,
   summary,
-  refreshing,
   children,
 }: {
   title: string;
@@ -60,10 +59,7 @@ export function CollapsibleCard({
   }
 
   return (
-    <section
-      className={`${styles.card} ${refreshing ? styles.refreshingCard : ""}`}
-      aria-labelledby={titleId}
-    >
+    <section className={styles.card} aria-labelledby={titleId}>
       <div className={styles.cardHeader}>
         <h2 id={titleId} className={styles.cardTitle}>
           <button

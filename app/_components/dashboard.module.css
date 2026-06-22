@@ -5,11 +5,6 @@
   background: var(--card-bg);
 }
 
-.refreshingCard {
-  border-color: color-mix(in srgb, var(--foreground) 4%, var(--card-border));
-  background: color-mix(in srgb, var(--foreground) 0.25%, var(--card-bg));
-}
-
 .cardHeader {
   margin-bottom: 16px;
 }
@@ -301,6 +296,23 @@
   color: var(--muted);
 }
 
+.orderSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.orderSection + .orderSection {
+  margin-top: 18px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
 .tableScroll {
   overflow-x: auto;
 }
@@ -448,6 +460,10 @@
   border-color: var(--foreground);
   color: var(--background);
   font-weight: 700;
+}
+
+.marketAdvisorBlock {
+  margin-bottom: 18px;
 }
 
 .orderForm {
@@ -1031,6 +1047,55 @@
   font-size: 14px;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+
+.marketDecision {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--gray-alpha);
+}
+
+.marketDecision strong {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--market-decision-color);
+  color: var(--background);
+  font-size: 13px;
+}
+
+.marketDecision span {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.marketDecisionbuy {
+  --market-decision-color: var(--gain);
+  border-color: color-mix(in srgb, var(--gain) 42%, var(--card-border));
+  background: color-mix(in srgb, var(--gain) 10%, var(--card-bg));
+}
+
+.marketDecisionsell {
+  --market-decision-color: var(--loss);
+  border-color: color-mix(in srgb, var(--loss) 42%, var(--card-border));
+  background: color-mix(in srgb, var(--loss) 10%, var(--card-bg));
+}
+
+.marketDecisionwait {
+  --market-decision-color: var(--muted);
+  border-color: color-mix(in srgb, var(--muted) 42%, var(--card-border));
+  background: color-mix(in srgb, var(--muted) 9%, var(--card-bg));
+}
+
+.marketDecisionhold {
+  --market-decision-color: var(--foreground);
+  border-color: color-mix(in srgb, var(--foreground) 22%, var(--card-border));
+  background: color-mix(in srgb, var(--foreground) 6%, var(--card-bg));
 }
 
 .advisorProposalList {

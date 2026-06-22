@@ -29,6 +29,14 @@ function isMarketAdvisorResult(value: unknown): value is MarketAdvisorResult {
   const result = value as Partial<MarketAdvisorResult>;
   return (
     typeof result.advice === "string" &&
+    typeof result.decision === "object" &&
+    result.decision !== null &&
+    (result.decision.action === "buy" ||
+      result.decision.action === "sell" ||
+      result.decision.action === "hold" ||
+      result.decision.action === "wait") &&
+    typeof result.decision.label === "string" &&
+    typeof result.decision.reason === "string" &&
     typeof result.annotations === "object" &&
     result.annotations !== null &&
     Array.isArray(result.annotations.supportLevels) &&
@@ -112,6 +120,14 @@ export function MarketAiAdvisor({
 
         {state.status === "loaded" ? (
           <div className={styles.advisorResult}>
+            <div
+              className={`${styles.marketDecision} ${
+                styles[`marketDecision${state.result.decision.action}`]
+              }`}
+            >
+              <strong>{state.result.decision.label}</strong>
+              <span>{state.result.decision.reason}</span>
+            </div>
             <p className={styles.advisorAdvice}>{state.result.advice}</p>
           </div>
         ) : null}

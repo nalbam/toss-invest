@@ -21,6 +21,11 @@ const input: MarketAdvisorInput = {
 
 const result: MarketAdvisorResult = {
   advice: "단기 추세가 완만히 개선되고 있습니다.",
+  decision: {
+    action: "buy",
+    label: "매수 검토",
+    reason: "지지선 위에서 반등 흐름이 확인됩니다.",
+  },
   annotations: {
     supportLevels: [{ price: 68000, label: "지지 가능 구간" }],
     resistanceLevels: [{ price: 72000, label: "저항 확인 구간" }],
@@ -52,6 +57,8 @@ describe("MarketAiAdvisor", () => {
     fireEvent.click(screen.getByRole("button", { name: "조언 받기" }));
 
     await waitFor(() => expect(screen.getByText(/완만히 개선/)).toBeInTheDocument());
+    expect(screen.getByText("매수 검토")).toBeInTheDocument();
+    expect(screen.getByText(/반등 흐름/)).toBeInTheDocument();
     expect(fetchMarketAdvisor).toHaveBeenCalledWith(input);
     expect(onResult).toHaveBeenLastCalledWith(result);
     expect(
@@ -64,16 +71,25 @@ describe("MarketAiAdvisor", () => {
   });
 
   it("restores stored chart advice for the same symbol and interval", () => {
+    const holdResult: MarketAdvisorResult = {
+      ...result,
+      decision: {
+        action: "hold",
+        label: "보유 유지",
+        reason: "평균단가 위에서 추세가 유지되고 있습니다.",
+      },
+    };
     window.localStorage.setItem(
       "toss-invest:market-ai-advisor-result:005930:1d",
-      JSON.stringify(result),
+      JSON.stringify(holdResult),
     );
 
     const onResult = vi.fn();
     render(<MarketAiAdvisor input={input} onResult={onResult} />);
 
     expect(screen.getByText(/완만히 개선/)).toBeInTheDocument();
-    expect(onResult).toHaveBeenLastCalledWith(result);
+    expect(screen.getByText("보유 유지")).toBeInTheDocument();
+    expect(onResult).toHaveBeenLastCalledWith(holdResult);
     expect(fetchMarketAdvisor).not.toHaveBeenCalled();
   });
 

@@ -18,6 +18,7 @@ import { MarketQuote } from "./MarketQuote";
 import { OrderForm } from "./OrderForm";
 import { OrdersTable } from "./OrdersTable";
 import { PortfolioSummary } from "./PortfolioSummary";
+import { ThemeSelector } from "./ThemeSelector";
 import page from "@/app/page.module.css";
 import styles from "./dashboard.module.css";
 
@@ -218,22 +219,25 @@ export function Dashboard() {
     >
       <header className={page.header}>
         <h1 className={page.title}>토스증권 대시보드</h1>
-        <div className={page.controls}>
-          <label htmlFor="account-select" className={page.controlLabel}>
-            계좌
-          </label>
-          <select
-            id="account-select"
-            className={page.select}
-            value={selectedSeq ?? ""}
-            onChange={(event) => selectAccount(Number(event.target.value))}
-          >
-            {accounts.data.map((account) => (
-              <option key={account.accountSeq} value={account.accountSeq}>
-                {maskAccountNo(account.accountNo)} ({account.accountType})
-              </option>
-            ))}
-          </select>
+        <div className={page.headerControls}>
+          <ThemeSelector />
+          <div className={page.controls}>
+            <label htmlFor="account-select" className={page.controlLabel}>
+              계좌
+            </label>
+            <select
+              id="account-select"
+              className={page.select}
+              value={selectedSeq ?? ""}
+              onChange={(event) => selectAccount(Number(event.target.value))}
+            >
+              {accounts.data.map((account) => (
+                <option key={account.accountSeq} value={account.accountSeq}>
+                  {maskAccountNo(account.accountNo)} ({account.accountType})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </header>
 
@@ -282,6 +286,7 @@ export function Dashboard() {
             <OrdersTable
               orders={orders.data.orders}
               accountSeq={selectedSeq}
+              selectedSymbol={selectedSymbol}
               onChanged={refreshOrders}
               refreshing={Boolean(orders.isRefreshing)}
             />
