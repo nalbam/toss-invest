@@ -60,8 +60,13 @@ export function MarketAiAdvisor({ input }: { input: MarketAdvisorInput }) {
       });
     }
   }, [input, resultStorageKey]);
-  const { autoEnabled, autoIntervalMs, setAutoEnabled, setAutoIntervalMs } =
-    useAdvisorAutoRerun(run, MARKET_ADVISOR_AUTO_KEY);
+  const {
+    autoEnabled,
+    autoIntervalMs,
+    autoRemainingRatio,
+    setAutoEnabled,
+    setAutoIntervalMs,
+  } = useAdvisorAutoRerun(run, MARKET_ADVISOR_AUTO_KEY);
 
   return (
     <CollapsibleCard title="시세 AI 어드바이저" storageId="market-ai-advisor">
@@ -78,6 +83,7 @@ export function MarketAiAdvisor({ input }: { input: MarketAdvisorInput }) {
           <AdvisorAutoControls
             enabled={autoEnabled}
             intervalMs={autoIntervalMs}
+            remainingRatio={autoRemainingRatio}
             onEnabledChange={setAutoEnabled}
             onIntervalChange={setAutoIntervalMs}
           />

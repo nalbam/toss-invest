@@ -36,6 +36,7 @@ export function useAdvisorAutoRerun(
     enabled: false,
     intervalMs: 600_000,
   });
+  const [remainingMs, setRemainingMs] = useState(0);
 
   useEffect(() => {
     runRef.current = run;
@@ -66,17 +67,32 @@ export function useAdvisorAutoRerun(
 
   useEffect(() => {
     if (!settings.enabled) {
+      setRemainingMs(0);
       return;
     }
-    const id = window.setInterval(() => {
+    let nextRunAt = Date.now() + settings.intervalMs;
+    setRemainingMs(settings.intervalMs);
+    const tickerId = window.setInterval(() => {
+      setRemainingMs(Math.max(0, nextRunAt - Date.now()));
+    }, 1_000);
+    const runId = window.setInterval(() => {
+      nextRunAt = Date.now() + settings.intervalMs;
+      setRemainingMs(settings.intervalMs);
       void runRef.current();
     }, settings.intervalMs);
-    return () => window.clearInterval(id);
+    return () => {
+      window.clearInterval(tickerId);
+      window.clearInterval(runId);
+    };
   }, [settings.enabled, settings.intervalMs]);
 
   return {
     autoEnabled: settings.enabled,
     autoIntervalMs: settings.intervalMs,
+    autoRemainingRatio:
+      settings.enabled && settings.intervalMs > 0
+        ? remainingMs / settings.intervalMs
+        : 0,
     setAutoEnabled,
     setAutoIntervalMs,
   };

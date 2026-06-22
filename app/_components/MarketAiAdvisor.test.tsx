@@ -79,7 +79,13 @@ describe("MarketAiAdvisor", () => {
     const { rerender } = render(<MarketAiAdvisor input={input} />);
 
     fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
+    expect(screen.getByLabelText("자동 재실행 활성화")).toHaveStyle({
+      "--advisor-progress-deg": "360deg",
+    });
     await vi.advanceTimersByTimeAsync(300_000);
+    expect(screen.getByLabelText("자동 재실행 활성화")).toHaveStyle({
+      "--advisor-progress-deg": "180deg",
+    });
     rerender(<MarketAiAdvisor input={{ ...input, lastPrice: "73000" }} />);
     await vi.advanceTimersByTimeAsync(300_000);
 
@@ -102,6 +108,10 @@ describe("MarketAiAdvisor", () => {
     await vi.advanceTimersByTimeAsync(1_800_000);
 
     expect(screen.getByRole("option", { name: "30분" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "1분" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("자동 재실행 활성화")).toHaveStyle({
+      "--advisor-spin-duration": "6s",
+    });
     expect(fetchMarketAdvisor).toHaveBeenCalledTimes(1);
     expect(
       JSON.parse(

@@ -952,14 +952,24 @@
   height: 34px;
   border: 1px solid var(--card-border);
   border-radius: 8px;
-  background: var(--card-bg);
+  background:
+    conic-gradient(
+      rgba(148, 163, 184, 0.38) var(--advisor-progress-deg, 0deg),
+      transparent 0
+    ),
+    var(--card-bg);
   color: var(--muted);
   cursor: pointer;
 }
 
 .advisorAutoButtonActive {
   border-color: #0f9f6e;
-  background: rgba(15, 159, 110, 0.12);
+  background:
+    conic-gradient(
+      rgba(148, 163, 184, 0.42) var(--advisor-progress-deg, 0deg),
+      transparent 0
+    ),
+    rgba(15, 159, 110, 0.12);
   color: #0f9f6e;
 }
 
@@ -974,7 +984,7 @@
 
 .advisorAutoButtonActive .advisorAutoSpinner {
   opacity: 1;
-  animation: advisorSpin 0.9s linear infinite;
+  animation: advisorSpin var(--advisor-spin-duration, 10s) linear infinite;
 }
 
 @keyframes advisorSpin {

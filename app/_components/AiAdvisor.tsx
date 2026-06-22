@@ -120,8 +120,13 @@ export function AiAdvisor({
       });
     }
   }, [accountSeq]);
-  const { autoEnabled, autoIntervalMs, setAutoEnabled, setAutoIntervalMs } =
-    useAdvisorAutoRerun(run, ADVISOR_AUTO_KEY);
+  const {
+    autoEnabled,
+    autoIntervalMs,
+    autoRemainingRatio,
+    setAutoEnabled,
+    setAutoIntervalMs,
+  } = useAdvisorAutoRerun(run, ADVISOR_AUTO_KEY);
 
   return (
     <CollapsibleCard title="AI 어드바이저" storageId="ai-advisor">
@@ -138,6 +143,7 @@ export function AiAdvisor({
           <AdvisorAutoControls
             enabled={autoEnabled}
             intervalMs={autoIntervalMs}
+            remainingRatio={autoRemainingRatio}
             onEnabledChange={setAutoEnabled}
             onIntervalChange={setAutoIntervalMs}
           />
