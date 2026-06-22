@@ -80,10 +80,15 @@ vi.mock("swr", () => ({
 
 vi.mock("lightweight-charts", () => ({
   createChart: () => ({
-    addSeries: () => ({ setData: () => {} }),
+    addSeries: () => ({
+      setData: () => {},
+      createPriceLine: () => ({ applyOptions: () => {} }),
+      removePriceLine: () => {},
+    }),
     timeScale: () => ({ fitContent: () => {} }),
     remove: () => {},
   }),
+  LineStyle: { Dashed: 2 },
   CandlestickSeries: "CandlestickSeries",
 }));
 

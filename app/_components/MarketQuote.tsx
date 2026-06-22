@@ -64,9 +64,11 @@ function writeStoredInterval(interval: ChartInterval): void {
 export function MarketQuote({
   symbol,
   name,
+  averagePurchasePrice,
 }: {
   symbol: string;
   name?: string;
+  averagePurchasePrice?: string;
 }) {
   const [interval, setIntervalState] = useState<ChartInterval>("1d");
   const [loadedStoredInterval, setLoadedStoredInterval] = useState(false);
@@ -181,7 +183,10 @@ export function MarketQuote({
           차트를 불러오지 못했습니다: {candles.error.message}
         </p>
       ) : candles.data ? (
-        <CandleChart candles={chartCandles} />
+        <CandleChart
+          candles={chartCandles}
+          averagePurchasePrice={averagePurchasePrice}
+        />
       ) : null}
 
       {orderbook.isLoading ? (

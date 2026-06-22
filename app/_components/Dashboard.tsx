@@ -199,9 +199,10 @@ export function Dashboard() {
     return <p className={page.status}>사용 가능한 계좌가 없습니다.</p>;
   }
 
-  const selectedName = holdings.data?.items.find(
+  const selectedHolding = holdings.data?.items.find(
     (item) => item.symbol === selectedSymbol,
-  )?.name;
+  );
+  const selectedName = selectedHolding?.name;
 
   return (
     <div
@@ -233,7 +234,11 @@ export function Dashboard() {
         {/* Left: market data for the selected symbol (or a prompt). */}
         <div className={`${styles.column} ${styles.marketColumn}`}>
           {selectedSymbol ? (
-            <MarketQuote symbol={selectedSymbol} name={selectedName} />
+            <MarketQuote
+              symbol={selectedSymbol}
+              name={selectedName}
+              averagePurchasePrice={selectedHolding?.averagePurchasePrice}
+            />
           ) : (
             <CollapsibleCard title="시세" storageId="market-quote">
               <p className={styles.placeholder}>보유 종목을 선택하세요.</p>

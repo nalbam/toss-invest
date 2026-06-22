@@ -4,8 +4,10 @@ import { useEffect, useRef } from "react";
 import {
   CandlestickSeries,
   createChart,
+  LineStyle,
   type CandlestickData,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -56,6 +58,12 @@ export function toChartSeries(candles: Candle[]): CandlestickData[] {
   );
 }
 
+export function formatChartPrice(price: number): string {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 4,
+  }).format(price);
+}
+
 /**
  * Parses a candle timestamp into Unix seconds. Accepts an ISO date-time string
  * or a numeric epoch string (seconds or milliseconds). Returns null when the
@@ -78,10 +86,17 @@ function parseTimestampSeconds(value: string): number | null {
  * the container. Data flows through the pure `toChartSeries` transform so the
  * conversion is testable independently of the canvas.
  */
-export function CandleChart({ candles }: { candles: Candle[] }) {
+export function CandleChart({
+  candles,
+  averagePurchasePrice,
+}: {
+  candles: Candle[];
+  averagePurchasePrice?: string;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const averageLineRef = useRef<IPriceLine | null>(null);
 
   // Create the chart once on mount and tear it down on unmount.
   useEffect(() => {
@@ -105,6 +120,11 @@ export function CandleChart({ candles }: { candles: Candle[] }) {
       borderVisible: false,
       wickUpColor: "#ff4d6d",
       wickDownColor: "#3b82f6",
+      priceFormat: {
+        type: "custom",
+        minMove: 0.0001,
+        formatter: formatChartPrice,
+      },
     });
     chartRef.current = chart;
     seriesRef.current = series;
@@ -112,6 +132,7 @@ export function CandleChart({ candles }: { candles: Candle[] }) {
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      averageLineRef.current = null;
     };
   }, []);
 
@@ -124,6 +145,35 @@ export function CandleChart({ candles }: { candles: Candle[] }) {
     series.setData(toChartSeries(candles));
     chartRef.current?.timeScale().fitContent();
   }, [candles]);
+
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (series === null) {
+      return;
+    }
+    const price =
+      averagePurchasePrice === undefined ? Number.NaN : Number(averagePurchasePrice);
+    if (!Number.isFinite(price)) {
+      if (averageLineRef.current !== null) {
+        series.removePriceLine(averageLineRef.current);
+        averageLineRef.current = null;
+      }
+      return;
+    }
+    const options = {
+      price,
+      color: "#f59e0b",
+      lineWidth: 2 as const,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: "평균단가",
+    };
+    if (averageLineRef.current === null) {
+      averageLineRef.current = series.createPriceLine(options);
+    } else {
+      averageLineRef.current.applyOptions(options);
+    }
+  }, [averagePurchasePrice]);
 
   return <div ref={containerRef} className={styles.chart} aria-label="캔들 차트" />;
 }

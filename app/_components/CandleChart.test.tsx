@@ -7,8 +7,12 @@ import type { Candle } from "@/lib/client/types";
 // only for mount + `series.setData(...)` wiring; real canvas rendering is out of
 // scope and would otherwise throw in jsdom.
 const setData = vi.fn();
+const applyOptions = vi.fn();
+const priceLine = { applyOptions };
+const createPriceLine = vi.fn(() => priceLine);
+const removePriceLine = vi.fn();
 const fitContent = vi.fn();
-const addSeries = vi.fn(() => ({ setData }));
+const addSeries = vi.fn(() => ({ setData, createPriceLine, removePriceLine }));
 const remove = vi.fn();
 const createChart = vi.fn(() => ({
   addSeries,
@@ -18,11 +22,12 @@ const createChart = vi.fn(() => ({
 
 vi.mock("lightweight-charts", () => ({
   createChart,
+  LineStyle: { Dashed: 2 },
   CandlestickSeries: "CandlestickSeries",
 }));
 
 // Imported after the mock is registered so the component picks up the stub.
-const { CandleChart, toChartSeries } = await import("./CandleChart");
+const { CandleChart, formatChartPrice, toChartSeries } = await import("./CandleChart");
 
 function candle(overrides: Partial<Candle> = {}): Candle {
   return {
@@ -81,6 +86,13 @@ describe("toChartSeries", () => {
   });
 });
 
+describe("formatChartPrice", () => {
+  it("formats chart prices with thousands separators", () => {
+    expect(formatChartPrice(72000)).toBe("72,000");
+    expect(formatChartPrice(1234.56)).toBe("1,234.56");
+  });
+});
+
 describe("CandleChart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -100,11 +112,45 @@ describe("CandleChart", () => {
       downColor: "#3b82f6",
       wickUpColor: "#ff4d6d",
       wickDownColor: "#3b82f6",
+      priceFormat: {
+        type: "custom",
+        minMove: 0.0001,
+        formatter: formatChartPrice,
+      },
     });
     expect(setData).toHaveBeenCalledTimes(1);
     const [series] = setData.mock.calls[0];
     expect(series).toHaveLength(1);
     expect(series[0]).toMatchObject({ open: 100, close: 105 });
+  });
+
+  it("draws and updates the average purchase price line", () => {
+    const { rerender } = render(
+      <CandleChart candles={[candle()]} averagePurchasePrice="101.5" />,
+    );
+
+    expect(createPriceLine).toHaveBeenCalledWith(
+      expect.objectContaining({
+        price: 101.5,
+        title: "평균단가",
+      }),
+    );
+
+    rerender(<CandleChart candles={[candle()]} averagePurchasePrice="102" />);
+
+    expect(applyOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ price: 102, title: "평균단가" }),
+    );
+  });
+
+  it("removes the average purchase price line when the price is unavailable", () => {
+    const { rerender } = render(
+      <CandleChart candles={[candle()]} averagePurchasePrice="101.5" />,
+    );
+
+    rerender(<CandleChart candles={[candle()]} />);
+
+    expect(removePriceLine).toHaveBeenCalledWith(priceLine);
   });
 
   it("removes the chart on unmount", () => {

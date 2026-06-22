@@ -39,10 +39,15 @@ vi.mock("@/lib/client/hooks", () => ({
 
 vi.mock("lightweight-charts", () => ({
   createChart: () => ({
-    addSeries: () => ({ setData: () => {} }),
+    addSeries: () => ({
+      setData: () => {},
+      createPriceLine: () => ({ applyOptions: () => {} }),
+      removePriceLine: () => {},
+    }),
     timeScale: () => ({ fitContent: () => {} }),
     remove: () => {},
   }),
+  LineStyle: { Dashed: 2 },
   CandlestickSeries: "CandlestickSeries",
 }));
 
@@ -131,7 +136,13 @@ describe("MarketQuote", () => {
   });
 
   it("shows the holding name in the header when provided", () => {
-    render(<MarketQuote symbol="005930" name="삼성전자" />);
+    render(
+      <MarketQuote
+        symbol="005930"
+        name="삼성전자"
+        averagePurchasePrice="65000"
+      />,
+    );
     expect(screen.getByText("삼성전자 (005930)")).toBeInTheDocument();
   });
 
