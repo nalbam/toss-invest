@@ -24,10 +24,20 @@ import styles from "./dashboard.module.css";
 
 const SELECTED_ACCOUNT_KEY = "toss-invest:selected-account-seq";
 const LAST_SYMBOL_KEY = "toss-invest:last-symbol";
+const LAST_SYMBOL_SELECTION_KEY = "toss-invest:last-symbol-selection";
 const DEFAULT_TITLE = "토스증권 대시보드";
+
+interface StoredSymbolSelection {
+  symbol: string;
+  name?: string;
+}
 
 function symbolStorageKey(accountSeq: number): string {
   return `${LAST_SYMBOL_KEY}:${accountSeq}`;
+}
+
+function symbolSelectionStorageKey(accountSeq: number): string {
+  return `${LAST_SYMBOL_SELECTION_KEY}:${accountSeq}`;
 }
 
 function maskAccountNo(accountNo: string): string {
@@ -68,10 +78,57 @@ function writeStoredAccountSeq(accountSeq: number): void {
 
 function readStoredSymbol(accountSeq: number): string | null {
   try {
-    return (
-      window.localStorage.getItem(symbolStorageKey(accountSeq)) ??
-      readLastSymbol()
+    return window.localStorage.getItem(symbolStorageKey(accountSeq));
+  } catch {
+    return null;
+  }
+}
+
+function isStoredSymbolSelection(
+  value: unknown,
+): value is StoredSymbolSelection {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const selection = value as Partial<StoredSymbolSelection>;
+  return (
+    typeof selection.symbol === "string" &&
+    selection.symbol.length > 0 &&
+    (selection.name === undefined || typeof selection.name === "string")
+  );
+}
+
+function readStoredSymbolSelection(
+  accountSeq: number,
+): StoredSymbolSelection | null {
+  try {
+    const stored = window.localStorage.getItem(
+      symbolSelectionStorageKey(accountSeq),
     );
+    if (stored !== null) {
+      const parsed: unknown = JSON.parse(stored);
+      if (isStoredSymbolSelection(parsed)) {
+        return parsed;
+      }
+    }
+    const symbol = readStoredSymbol(accountSeq);
+    return symbol === null ? null : { symbol };
+  } catch {
+    return null;
+  }
+}
+
+function readLegacySymbolSelection(): StoredSymbolSelection | null {
+  try {
+    const stored = window.localStorage.getItem(LAST_SYMBOL_SELECTION_KEY);
+    if (stored !== null) {
+      const parsed: unknown = JSON.parse(stored);
+      if (isStoredSymbolSelection(parsed)) {
+        return parsed;
+      }
+    }
+    const symbol = readLastSymbol();
+    return symbol === null ? null : { symbol };
   } catch {
     return null;
   }
@@ -81,6 +138,25 @@ function writeStoredSymbol(accountSeq: number, symbol: string): void {
   try {
     window.localStorage.setItem(symbolStorageKey(accountSeq), symbol);
     window.localStorage.setItem(LAST_SYMBOL_KEY, symbol);
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function writeStoredSymbolSelection(
+  accountSeq: number,
+  selection: StoredSymbolSelection,
+): void {
+  writeStoredSymbol(accountSeq, selection.symbol);
+  try {
+    window.localStorage.setItem(
+      symbolSelectionStorageKey(accountSeq),
+      JSON.stringify(selection),
+    );
+    window.localStorage.setItem(
+      LAST_SYMBOL_SELECTION_KEY,
+      JSON.stringify(selection),
+    );
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.
   }
@@ -106,9 +182,10 @@ export function Dashboard() {
   const [prefill, setPrefill] = useState<
     { side: "BUY" | "SELL"; quantity: number } | undefined
   >(undefined);
-  // Display name for a proposed symbol the user does not hold (resolved by the
-  // advisor route). Lets the market panel/order form label it like a holding.
-  const [proposedName, setProposedName] = useState<
+  // Display name for a selected symbol the user does not hold (resolved by the
+  // advisor route and restored from storage). Lets the market panel/order form
+  // label it like a holding.
+  const [selectedSymbolName, setSelectedSymbolName] = useState<
     { symbol: string; name: string } | undefined
   >(undefined);
 
@@ -162,12 +239,21 @@ export function Dashboard() {
     if (selectedSeq === undefined) {
       return;
     }
-    const lastSymbol = readStoredSymbol(selectedSeq);
-    if (
-      lastSymbol &&
-      holdings.data.items.some((item) => item.symbol === lastSymbol)
-    ) {
-      setSelectedSymbol(lastSymbol);
+    const accountSelection = readStoredSymbolSelection(selectedSeq);
+    const legacySelection = readLegacySymbolSelection();
+    const lastSelection =
+      accountSelection ??
+      (legacySelection &&
+      holdings.data.items.some((item) => item.symbol === legacySelection.symbol)
+        ? legacySelection
+        : null);
+    if (lastSelection) {
+      setSelectedSymbol(lastSelection.symbol);
+      setSelectedSymbolName(
+        lastSelection.name
+          ? { symbol: lastSelection.symbol, name: lastSelection.name }
+          : undefined,
+      );
     }
   }, [holdings.data, selectedSeq, selectedSymbol]);
 
@@ -181,14 +267,18 @@ export function Dashboard() {
     setSelectedSeq(accountSeq);
     setSelectedSymbol(undefined);
     setPrefill(undefined);
-    setProposedName(undefined);
+    setSelectedSymbolName(undefined);
     writeStoredAccountSeq(accountSeq);
   }
 
-  function selectSymbol(symbol: string) {
+  function selectSymbol(symbol: string, name?: string) {
     setSelectedSymbol(symbol);
+    setSelectedSymbolName(name ? { symbol, name } : undefined);
     if (selectedSeq !== undefined) {
-      writeStoredSymbol(selectedSeq, symbol);
+      writeStoredSymbolSelection(
+        selectedSeq,
+        name === undefined ? { symbol } : { symbol, name },
+      );
     }
   }
 
@@ -196,9 +286,8 @@ export function Dashboard() {
   // symbol, prefill its side + quantity, and remember its resolved name so a
   // non-held symbol is labelled like a holding. Never sends an order.
   function applyProposal(proposal: AdvisorProposal, name?: string) {
-    selectSymbol(proposal.symbol);
+    selectSymbol(proposal.symbol, name);
     setPrefill({ side: proposal.side, quantity: proposal.quantity });
-    setProposedName(name ? { symbol: proposal.symbol, name } : undefined);
   }
 
   if (accounts.isLoading) {
@@ -222,8 +311,8 @@ export function Dashboard() {
   // a non-held proposed symbol is labelled the same way a holding is.
   const selectedName =
     selectedHolding?.name ??
-    (proposedName && proposedName.symbol === selectedSymbol
-      ? proposedName.name
+    (selectedSymbolName && selectedSymbolName.symbol === selectedSymbol
+      ? selectedSymbolName.name
       : undefined);
 
   return (

@@ -268,6 +268,11 @@ describe("Dashboard", () => {
     expect(window.localStorage.getItem("toss-invest:last-symbol:1")).toBe(
       "AAPL",
     );
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("toss-invest:last-symbol-selection:1")!,
+      ),
+    ).toEqual({ symbol: "AAPL" });
   });
 
   it("applying a non-held BUY proposal switches the symbol and labels it with the resolved name", async () => {
@@ -309,6 +314,14 @@ describe("Dashboard", () => {
     // Center order form 종목코드 follows the proposed symbol; 일반주문 tab shows it.
     fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
     expect(screen.getByLabelText("종목코드")).toHaveValue("360750");
+    expect(window.localStorage.getItem("toss-invest:last-symbol")).toBe(
+      "360750",
+    );
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("toss-invest:last-symbol-selection:1")!,
+      ),
+    ).toEqual({ symbol: "360750", name: "TIGER 미국S&P500" });
   });
 
   it("restores the last selected holding when it is still present", async () => {
@@ -317,6 +330,21 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     expect(await screen.findByText("Apple (AAPL)")).toBeInTheDocument();
+  });
+
+  it("restores a non-held selected symbol with its stored display name", async () => {
+    window.localStorage.setItem(
+      "toss-invest:last-symbol-selection:1",
+      JSON.stringify({ symbol: "360750", name: "TIGER 미국S&P500" }),
+    );
+
+    render(<Dashboard />);
+
+    expect(
+      await screen.findByText("TIGER 미국S&P500 (360750)"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
+    expect(screen.getByLabelText("종목코드")).toHaveValue("360750");
   });
 
   it("restores the selected account when it is still available", async () => {
