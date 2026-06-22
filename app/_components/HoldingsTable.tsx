@@ -112,7 +112,7 @@ export function HoldingsTable({
                 </span>
                 <span>
                   <span className={styles.holdingLabel}>평균단가</span>
-                  <span className={styles.holdingAmount} data-private-value="true">
+                  <span className={styles.holdingAmount}>
                     <Money value={formatPrice(item.averagePurchasePrice, item.currency)} />
                   </span>
                 </span>
