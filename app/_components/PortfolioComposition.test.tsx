@@ -42,10 +42,11 @@ describe("toComposition", () => {
     expect(segments[0].percent).toBeGreaterThan(segments[1].percent);
   });
 
-  it("falls back to the raw amount when no fx rate is given", () => {
+  it("withholds USD positions when no fx rate is given", () => {
     const segments = toComposition([item(), apple]);
-    // Without conversion samsung (720,000) dominates apple (952.50).
-    expect(segments[0].symbol).toBe("005930");
+    // Mixing raw USD with KRW would skew the percentages, so the USD holding is
+    // dropped until a rate is available; only the KRW holding remains.
+    expect(segments.map((s) => s.symbol)).toEqual(["005930"]);
   });
 
   it("drops non-positive or unparseable values and returns [] when empty", () => {

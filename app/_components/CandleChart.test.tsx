@@ -107,13 +107,16 @@ describe("toVolumeSeries", () => {
     expect(series[1]).toMatchObject({ value: 1000, color: "rgba(59,130,246,0.5)" });
   });
 
-  it("drops candles with unparseable timestamp or volume", () => {
+  it("drops candles with unparseable timestamp, volume, or OHLC", () => {
     const series = toVolumeSeries([
       candle({ timestamp: "not-a-date" }),
       candle({ timestamp: "1700000100", volume: "abc" }),
+      candle({ timestamp: "1700000150", highPrice: "abc" }),
       candle({ timestamp: "1700000200" }),
     ]);
+    // Only the fully-valid candle survives, matching toChartSeries' filtering.
     expect(series).toHaveLength(1);
+    expect(series[0].time).toBe(1700000200);
   });
 });
 

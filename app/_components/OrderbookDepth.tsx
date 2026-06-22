@@ -18,12 +18,15 @@ export interface Depth {
  * Cumulative market-depth ladder from an orderbook. Bids accumulate from the
  * highest price downward, asks from the lowest price upward, so each point's
  * `cumulative` is the total resting volume between the best price and that
- * level. Entries with an unparseable price or volume are dropped. Pure and
- * canvas-free so it is unit-testable; the SVG below renders the result.
+ * level. Entries with an empty or unparseable price or volume are dropped. Pure
+ * and canvas-free so it is unit-testable; the SVG below renders the result.
  */
 export function toDepth(book: OrderbookResponse): Depth {
   const parse = (entries: { price: string; volume: string }[]) =>
     entries
+      // Drop blank fields up front: Number("") is 0 (finite), which would
+      // otherwise sneak empty entries in as valid zero points.
+      .filter((entry) => entry.price.trim() !== "" && entry.volume.trim() !== "")
       .map((entry) => ({ price: Number(entry.price), volume: Number(entry.volume) }))
       .filter((entry) => Number.isFinite(entry.price) && Number.isFinite(entry.volume));
 

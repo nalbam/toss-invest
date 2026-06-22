@@ -51,6 +51,21 @@ describe("toDepth", () => {
     expect(depth.maxCumulative).toBe(4);
   });
 
+  it("drops entries with empty price or volume strings", () => {
+    const depth = toDepth(
+      book({
+        bids: [
+          { price: "100", volume: "4" },
+          { price: "", volume: "6" },
+        ],
+        asks: [{ price: "101", volume: "" }],
+      }),
+    );
+    expect(depth.bids).toEqual([{ price: 100, cumulative: 4 }]);
+    expect(depth.asks).toEqual([]);
+    expect(depth.maxCumulative).toBe(4);
+  });
+
   it("handles an empty book", () => {
     const depth = toDepth(book({ asks: [], bids: [] }));
     expect(depth).toEqual({ bids: [], asks: [], maxCumulative: 0 });

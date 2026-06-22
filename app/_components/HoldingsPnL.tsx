@@ -5,6 +5,7 @@ import styles from "./dashboard.module.css";
 
 export interface PnlBar {
   symbol: string;
+  marketCountry: HoldingsItem["marketCountry"];
   name: string;
   rate: number;
   rateText: string;
@@ -22,6 +23,7 @@ export function toPnlBars(items: HoldingsItem[]): PnlBar[] {
   return items
     .map((item) => ({
       symbol: item.symbol,
+      marketCountry: item.marketCountry,
       name: item.name,
       rate: Number(item.profitLoss.rate),
       rateText: item.profitLoss.rate,
@@ -64,7 +66,10 @@ export function HoldingsPnL({
           const sign = signOf(bar.rateText);
           const isGain = bar.rate > 0;
           return (
-            <li key={bar.symbol} className={styles.pnlRow}>
+            <li
+              key={`${bar.marketCountry}:${bar.symbol}`}
+              className={styles.pnlRow}
+            >
               <span className={styles.pnlName}>{bar.name}</span>
               <div className={styles.pnlTrack}>
                 <div className={`${styles.pnlHalf} ${styles.pnlHalfLeft}`}>

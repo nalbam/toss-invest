@@ -5,6 +5,7 @@ import styles from "./dashboard.module.css";
 
 export interface CompositionSegment {
   symbol: string;
+  marketCountry: HoldingsItem["marketCountry"];
   name: string;
   valueKrw: number;
   percent: number;
@@ -25,28 +26,47 @@ const PALETTE = [
 /**
  * Portfolio composition by market value, normalized to KRW so KR and US
  * holdings are comparable. US positions are converted with `fxRate` (USD→KRW);
- * without a rate they fall back to their raw amount so the chart still renders.
- * Items with a non-positive or unparseable value are dropped, and segments are
- * sorted largest-first. Pure and canvas-free for unit testing.
+ * when no rate is available yet, USD positions are withheld rather than mixed
+ * with raw KRW values, which would make the percentages meaningless. Items with
+ * a non-positive or unparseable value are dropped, and segments are sorted
+ * largest-first. Pure and canvas-free for unit testing.
  */
 export function toComposition(
   items: HoldingsItem[],
   fxRate?: string,
 ): CompositionSegment[] {
+  type Valued = {
+    symbol: string;
+    marketCountry: HoldingsItem["marketCountry"];
+    name: string;
+    valueKrw: number;
+  };
   const valued = items
-    .map((item) => {
-      const raw = item.marketValue.amount;
-      const krwString =
-        item.currency === "USD" && fxRate
-          ? mulDecimalStrings(raw, fxRate)
-          : raw;
+    .map((item): Valued | null => {
+      // Withhold USD until an fx rate is available — mixing raw USD with KRW
+      // would skew every percentage.
+      if (item.currency === "USD") {
+        if (!fxRate) {
+          return null;
+        }
+        return {
+          symbol: item.symbol,
+          marketCountry: item.marketCountry,
+          name: item.name,
+          valueKrw: Number(mulDecimalStrings(item.marketValue.amount, fxRate)),
+        };
+      }
       return {
         symbol: item.symbol,
+        marketCountry: item.marketCountry,
         name: item.name,
-        valueKrw: Number(krwString),
+        valueKrw: Number(item.marketValue.amount),
       };
     })
-    .filter((item) => Number.isFinite(item.valueKrw) && item.valueKrw > 0);
+    .filter(
+      (item): item is Valued =>
+        item !== null && Number.isFinite(item.valueKrw) && item.valueKrw > 0,
+    );
 
   const total = valued.reduce((sum, item) => sum + item.valueKrw, 0);
   if (total === 0) {
@@ -106,7 +126,7 @@ export function PortfolioComposition({
             const length = (segment.percent / 100) * circumference;
             const circle = (
               <circle
-                key={segment.symbol}
+                key={`${segment.marketCountry}:${segment.symbol}`}
                 cx={50}
                 cy={50}
                 r={radius}
@@ -124,7 +144,10 @@ export function PortfolioComposition({
         </svg>
         <ul className={styles.legend}>
           {segments.map((segment, index) => (
-            <li key={segment.symbol} className={styles.legendItem}>
+            <li
+              key={`${segment.marketCountry}:${segment.symbol}`}
+              className={styles.legendItem}
+            >
               <span
                 className={styles.swatch}
                 style={{ background: PALETTE[index % PALETTE.length] }}

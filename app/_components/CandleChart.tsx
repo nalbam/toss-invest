@@ -83,9 +83,9 @@ export function toChartSeries(candles: Candle[]): CandlestickData[] {
 
 /**
  * Volume bars keyed by candle time, colored by the candle's direction (close vs
- * open). Mirrors `toChartSeries`' parse/sort/dedupe rules so the volume axis
- * stays aligned with the candles. Candles with an unparseable timestamp or
- * volume are dropped.
+ * open). Mirrors `toChartSeries`' parse/sort/dedupe rules — including dropping
+ * candles with any non-finite OHLC value — so the volume axis stays aligned
+ * with the candles. Candles with an unparseable timestamp or volume are dropped.
  */
 export function toVolumeSeries(candles: Candle[]): HistogramData[] {
   const byTime = new Map<number, HistogramData>();
@@ -95,11 +95,19 @@ export function toVolumeSeries(candles: Candle[]): HistogramData[] {
       continue;
     }
     const volume = Number(candle.volume);
-    if (!Number.isFinite(volume)) {
+    const open = Number(candle.openPrice);
+    const high = Number(candle.highPrice);
+    const low = Number(candle.lowPrice);
+    const close = Number(candle.closePrice);
+    if (
+      !Number.isFinite(volume) ||
+      !Number.isFinite(open) ||
+      !Number.isFinite(high) ||
+      !Number.isFinite(low) ||
+      !Number.isFinite(close)
+    ) {
       continue;
     }
-    const open = Number(candle.openPrice);
-    const close = Number(candle.closePrice);
     const color = close >= open ? VOLUME_UP_COLOR : VOLUME_DOWN_COLOR;
     byTime.set(time, { time: time as UTCTimestamp, value: volume, color });
   }
