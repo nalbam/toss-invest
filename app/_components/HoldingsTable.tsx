@@ -94,7 +94,9 @@ export function HoldingsTable({
                   <span className={styles.symbolName}>{item.name}</span>
                   <span className={styles.symbolTicker}>
                     {item.symbol} · {item.marketCountry} ·{" "}
-                    {formatDecimal(item.quantity, { maxFractionDigits: 4 })}주
+                    <span data-private-value="true">
+                      {formatDecimal(item.quantity, { maxFractionDigits: 4 })}주
+                    </span>
                   </span>
                 </span>
                 <span className={styles.holdingValue} data-private-value="true">

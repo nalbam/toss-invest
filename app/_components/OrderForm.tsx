@@ -587,7 +587,7 @@ export function OrderForm({
                 disabled={!maxBuyable || maxBuyable === "0"}
               >
                 <span className={styles.metricLabel}>구매가능</span>
-                <strong>
+                <strong data-private-value="true">
                   {maxBuyable !== null ? `${formatDecimal(maxBuyable)}주` : "-"}
                 </strong>
               </button>
@@ -598,7 +598,7 @@ export function OrderForm({
                 disabled={!sellableQty || Number(sellableQty) <= 0}
               >
                 <span className={styles.metricLabel}>판매가능</span>
-                <strong>
+                <strong data-private-value="true">
                   {sellableQty !== undefined
                     ? `${formatDecimal(sellableQty, { maxFractionDigits: 4 })}주`
                     : "-"}
