@@ -45,7 +45,7 @@ export function ThemeSelector() {
   }
 
   return (
-    <fieldset className={`${page.controls} ${page.themeControl}`}>
+    <fieldset className={`${page.controls} ${page.themeControl}`} aria-label="테마">
       <div className={page.themeSegmented}>
         {THEME_OPTIONS.map((item) => (
           <button

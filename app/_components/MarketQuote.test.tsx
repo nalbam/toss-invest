@@ -48,7 +48,12 @@ vi.mock("lightweight-charts", () => ({
       createPriceLine: () => ({ applyOptions: () => {} }),
       removePriceLine: () => {},
     }),
-    timeScale: () => ({ fitContent: () => {} }),
+    timeScale: () => ({
+      fitContent: () => {},
+      timeToCoordinate: () => 120,
+      subscribeVisibleLogicalRangeChange: () => {},
+      unsubscribeVisibleLogicalRangeChange: () => {},
+    }),
     remove: () => {},
   }),
   createSeriesMarkers: () => ({

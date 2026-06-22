@@ -3,9 +3,21 @@
 ## 현재 위치
 - **Phase**: dev-loop **1·2·3 완료**. **Phase 4 (AI 어드바이저) A1·A2·A3 전체 완료** — advisor-loop-prompt.md #19~#33, §0 따라 루프 종료.
 - **마지막 이터레이션**: #33 완료 (A3: Playwright 어드바이저 스모크 → **Phase 4 완료, 루프 종료**). `e2e/dashboard.spec.ts`에 route-mock 어드바이저 카드 렌더·"조언 받기"→제안 표시 스모크(통과). `lib/server/trading/**` **무수정**. #33 시점 444 vitest + e2e 스모크.
-- **현 상태**: **37 파일 444 vitest tests, lint·typecheck·test·build 전부 green**, 어드바이저 Playwright 스모크 통과. 번들 가드 36파일. **Phase 4(AI 어드바이저) 전체 완료 — advisor-loop 종료(#19~#33).**
+- **현 상태**: **482 vitest tests(41 파일), lint·typecheck·test·build 전부 green** (번들 가드 55파일). #33 advisor-loop 종료 후 사람 주도 추가 작업이 이어짐(↓ "루프 종료 후").
 - **⚠️ 기존 e2e 결함(어드바이저 무관)**: `renders … market quote` e2e가 심볼 미자동선택으로 실패(원본 커밋에서도 동일). 후속 분리(테스트가 보유 종목 선택하도록 갱신 or 대시보드 기본 선택 — 사람 결정).
 - **다음 작업**: advisor-loop 종료. 추가 개선(아래 후속)은 사람 명시 요청 시 새 루프/이터로.
+
+## 루프 종료 후 (사람 주도 추가)
+advisor-loop(#19~#33) 종료 뒤 이터레이션 번호 없는 직접 작업으로 추가됨:
+- **차트 어드바이저** (`MarketAiAdvisor` + `/api/market-advisor` POST·`/history` GET) — 캔들 → LLM 조언 + 참고 판단(buy/sell/hold/wait) + 차트 지지/저항선·마커. 조언 히스토리 Redis 캐시.
+- **Redis/Valkey best-effort 캐시** (`lib/server/cache/{redis,market-history}.ts`) — 시세·캔들·조언 히스토리. `CACHE_REDIS_URL`/`CACHE_KEY_PREFIX`(env.ts zod 밖, 기본값 폴백).
+- **테마 선택** (`ThemeSelector`, 시스템/라이트/다크, localStorage) — 기존 "테마 토큰" 후속 해소.
+- **어드바이저 자동 재실행** (`useAdvisorAutoRerun`·`AdvisorAutoControls`) — 포트폴리오·차트 공용 주기 재실행.
+- **시장 캘린더 프록시** (`/api/market-calendar/{kr,us}`) — 백엔드 전용(현재 UI 미연결).
+- **CandleChart** — 평균단가선·조언 annotation·visible-range 구독 재그리기. (Toss candles `count`/`before`/`nextBefore` 페이지네이션은 API/route만 준비, 클라이언트+무한스크롤 UI 미구현.)
+- **포트폴리오 advisor structured output 배선** — `/api/advisor`가 `response_format` json_schema 전달, zod 재검증은 안전망 유지.
+- **BUY 신규 심볼 실재 검증** (§6.A-4 완화, 사용자 승인) — 미보유 BUY 제안 심볼을 Toss `getStocks`로 실재 확인해 valid 허용. 미주입·검증 실패·예외는 fail-closed 유지(`runAdvisor.verifySymbol`); SELL은 보유 검사로 여전히 차단. advisor는 order-exec 미참조(§6.A-1).
+- **회귀 복구** — MarketQuote·Dashboard 테스트의 stale lightweight-charts 목(visible-range 구독 메서드 누락)과 ThemeSelector 접근성 이름("테마") 수정 → 스위트 green 복귀(482).
 
 ## Phase 4 — AI 어드바이저 (진행 중)
 LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안. **LLM은 제안자, 집행자 아님** — 제안→사람 confirm→기존 §6 게이트. 상세: [`docs/advisor-loop-prompt.md`](docs/advisor-loop-prompt.md).
@@ -72,7 +84,7 @@ LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안.
 - **build 게이트**: `rm -rf .next && next build && node scripts/check-bundle-secrets.mjs`.
 - 시크릿 격리: 서버 전용 `lib/server/**` + `server-only`, env zod(`getEnv()`).
 - 서버 toss 계층: `auth`·`client`·`rate-limiter`(ACCOUNT1·ASSET5·MARKET_DATA10·MARKET_INFO3·ORDER6·ORDER_HISTORY5·MARKET_DATA_CHART5·STOCK5·ORDER_INFO6)·`schemas`(decimal=string, openEnum)·`endpoints`(GET 17)·`container`.
-- **API 프록시 라우트(GET 17 + POST 3: orders create/modify/cancel)**(`force-dynamic`, `{data}`/sanitized error). 클라이언트 `lib/client/{types,format,hooks,quote,candles,polling}.ts`(서버 import 금지) + `app/_components/*`(`Dashboard` 루트의 3-컬럼 레이아웃: 시세 `MarketQuote`/`Orderbook`/`CandleChart` · 주문 `OrderForm` · 사이드바 `AccountCash`(현금·환율)/`PortfolioSummary`/`HoldingsTable`/`OrdersTable`+`ModifyOrderForm`; 공용 `CollapsibleCard`·`Money`). 차트 lightweight-charts.
+- **API 라우트(GET 18: Toss 프록시 17 + market-advisor/history 캐시 / POST 5: orders create·modify·cancel + advisor + market-advisor)**(`force-dynamic`, `{data}`/sanitized error). 클라이언트 `lib/client/{types,format,hooks,quote,candles,polling}.ts`(서버 import 금지) + `app/_components/*`(`Dashboard` 루트의 3-컬럼 레이아웃: 시세 `MarketQuote`/`Orderbook`/`CandleChart` · 주문 `OrderForm` · 사이드바 `AccountCash`(현금·환율)/`PortfolioSummary`/`HoldingsTable`/`OrdersTable`+`ModifyOrderForm`; 공용 `CollapsibleCard`·`Money`). 차트 lightweight-charts.
 
 ## 게이트 (4개) + E2E
 `pnpm run lint` · `pnpm run typecheck` · `pnpm run test` · `pnpm run build`(클린+번들 가드). 별도: `pnpm run test:e2e`(Playwright).
@@ -102,5 +114,5 @@ LLM(OpenAI·xAI) 기반 온디맨드 조언 카드 + 구조화된 주문 제안.
 - 이후 Phase 3(제한적 자동거래): 전략 intent(순수)→executor(한도·kill switch 내)→감사로그, 백테스트.
 
 ## 미해결/후속
-- 차트 페이지네이션·useTrades·심볼 검증·테마 토큰, 선제 스로틀·market-calendar 폴링 완화, 주문조회 CLOSED 미지원, dev `allowedDevOrigins` 경고(무해).
+- 차트 페이지네이션(Toss API/route 준비됨, 클라이언트+무한스크롤 UI 미구현 — 사람 결정으로 보류)·useTrades(UI 소비자 없음)·선제 스로틀·market-calendar UI 연결, 주문조회 CLOSED 미지원(Toss 400 `closed-not-supported`), dev `allowedDevOrigins` 경고(무해). (테마 토큰은 `ThemeSelector`로, BUY 신규 심볼 검증은 위 "루프 종료 후"로 해소.)
 - 운영: build 매번 `rm -rf .next` 클린.

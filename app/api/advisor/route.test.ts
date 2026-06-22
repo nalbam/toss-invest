@@ -9,6 +9,7 @@ const facade = {
   getBuyingPower: vi.fn(),
   getExchangeRate: vi.fn(),
   getSellableQuantity: vi.fn(),
+  getStocks: vi.fn(),
 };
 
 const { getServerLlmProvider } = vi.hoisted(() => ({ getServerLlmProvider: vi.fn() }));
@@ -89,6 +90,7 @@ beforeEach(() => {
   facade.getHoldings.mockResolvedValue(holdingsOverview());
   facade.getBuyingPower.mockResolvedValue({ currency: "KRW", cashBuyingPower: "1000000" });
   facade.getSellableQuantity.mockResolvedValue({ sellableQuantity: "10" });
+  facade.getStocks.mockResolvedValue([]);
 });
 
 describe("POST /api/advisor", () => {
@@ -159,5 +161,44 @@ describe("POST /api/advisor", () => {
     const response = await POST(new Request("http://localhost/api/advisor", { method: "POST" }));
     expect(response.status).toBe(200);
     expect(facade.getHoldings).toHaveBeenCalledWith(expect.objectContaining({ accountSeq: 42 }));
+  });
+
+  it("forwards a structured-output json schema to the provider", async () => {
+    const { provider, calls } = stubProvider(validOutput);
+    getServerLlmProvider.mockReturnValue(provider);
+
+    await POST(postReq());
+    expect(calls).toHaveLength(1);
+    expect(calls[0].jsonSchema?.name).toBe("portfolio_advice");
+    expect(calls[0].jsonSchema?.schema).toMatchObject({
+      type: "object",
+      properties: { advice: { type: "string" }, proposals: { type: "array" } },
+    });
+  });
+
+  const buyNewSymbol = JSON.stringify({
+    advice: "신규 매수 검토",
+    proposals: [{ kind: "buy", symbol: "035720", side: "BUY", quantity: 1, rationale: "신규" }],
+  });
+
+  it("verifies a non-held BUY symbol via Toss and accepts it when it exists", async () => {
+    const { provider } = stubProvider(buyNewSymbol);
+    getServerLlmProvider.mockReturnValue(provider);
+    facade.getStocks.mockResolvedValue([{ symbol: "035720" }]);
+
+    const response = await POST(postReq());
+    const body = await response.json();
+    expect(facade.getStocks).toHaveBeenCalledWith({ symbols: ["035720"] });
+    expect(body.data.proposals[0].valid).toBe(true);
+  });
+
+  it("rejects a non-held BUY symbol that Toss does not return (fail-closed)", async () => {
+    const { provider } = stubProvider(buyNewSymbol);
+    getServerLlmProvider.mockReturnValue(provider);
+    facade.getStocks.mockResolvedValue([]);
+
+    const response = await POST(postReq());
+    const body = await response.json();
+    expect(body.data.proposals[0].valid).toBe(false);
   });
 });

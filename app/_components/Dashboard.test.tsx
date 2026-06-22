@@ -31,6 +31,13 @@ const useOrders =
 const useExchangeRate =
   vi.fn<() => QueryResult<ExchangeRateResponse>>();
 const useCashBalances = vi.fn();
+const fetchAdvisor = vi.fn();
+
+// The AI advisor card triggers a paid LLM fetch; stub it so a proposal can be
+// applied deterministically.
+vi.mock("@/lib/client/advisor", () => ({
+  fetchAdvisor: () => fetchAdvisor(),
+}));
 
 vi.mock("@/lib/client/hooks", () => ({
   useAccounts: () => useAccounts(),
@@ -90,7 +97,12 @@ vi.mock("lightweight-charts", () => ({
       createPriceLine: () => ({ applyOptions: () => {} }),
       removePriceLine: () => {},
     }),
-    timeScale: () => ({ fitContent: () => {} }),
+    timeScale: () => ({
+      fitContent: () => {},
+      timeToCoordinate: () => 120,
+      subscribeVisibleLogicalRangeChange: () => {},
+      unsubscribeVisibleLogicalRangeChange: () => {},
+    }),
     remove: () => {},
   }),
   createSeriesMarkers: () => ({
@@ -256,6 +268,45 @@ describe("Dashboard", () => {
     expect(window.localStorage.getItem("toss-invest:last-symbol:1")).toBe(
       "AAPL",
     );
+  });
+
+  it("applying a non-held BUY proposal switches the market panel and order form symbol", async () => {
+    fetchAdvisor.mockResolvedValue({
+      advice: "신규 매수 검토",
+      model: "stub-model",
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      proposals: [
+        {
+          proposal: {
+            kind: "buy",
+            symbol: "0167A0",
+            side: "BUY",
+            quantity: 10,
+            rationale: "강한 추세",
+          },
+          valid: true,
+          reasons: [],
+        },
+      ],
+    });
+
+    render(<Dashboard />);
+    // Start from an already-selected holding (the user's real scenario).
+    fireEvent.click(screen.getByText("Apple").closest("button")!);
+    expect(screen.getByText("Apple (AAPL)")).toBeInTheDocument();
+
+    // Once a symbol is selected the market panel also shows the chart advisor's
+    // "조언 받기"; the portfolio advisor (right sidebar) is the last one in DOM.
+    const runButtons = screen.getAllByRole("button", { name: "조언 받기" });
+    fireEvent.click(runButtons[runButtons.length - 1]);
+    fireEvent.click(await screen.findByText("폼에 담기"));
+
+    // Left market panel header should switch from AAPL to the proposed symbol.
+    expect(screen.getByText("현재가 (0167A0)")).toBeInTheDocument();
+    expect(screen.queryByText("Apple (AAPL)")).not.toBeInTheDocument();
+    // Center order form 종목코드 should follow the proposed symbol.
+    fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
+    expect(screen.getByLabelText("종목코드")).toHaveValue("0167A0");
   });
 
   it("restores the last selected holding when it is still present", async () => {

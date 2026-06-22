@@ -13,6 +13,36 @@ const querySchema = z.object({
   accountSeq: z.coerce.number().int().optional(),
 });
 
+// Provider-native structured output mirroring advisorResultSchema. Improves the
+// LLM's odds of returning well-formed JSON; the response is still re-parsed with
+// the zod schema in runAdvisor, so this is reliability help, not a trust anchor.
+const advisorJsonSchema = {
+  name: "portfolio_advice",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["advice", "proposals"],
+    properties: {
+      advice: { type: "string" },
+      proposals: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["kind", "symbol", "side", "quantity", "rationale"],
+          properties: {
+            kind: { type: "string", enum: ["buy", "trim", "exit", "rebalance"] },
+            symbol: { type: "string" },
+            side: { type: "string", enum: ["BUY", "SELL"] },
+            quantity: { type: "integer" },
+            rationale: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 /**
  * POST so the (paid, external) LLM call is an explicit, non-idempotent action.
  * Collects the portfolio/market data, masks it into a snapshot, asks the
@@ -66,7 +96,24 @@ export async function POST(request: Request): Promise<Response> {
 
     const snapshot = buildAdvisorSnapshot({ holdings, buyingPower, exchangeRate });
     const provider = getServerLlmProvider();
-    const result = await runAdvisor({ provider, snapshot, validation });
+    // §6.A-4: a BUY proposal for a symbol the user does not hold is only accepted
+    // after Toss confirms the symbol exists. Any lookup failure leaves it rejected
+    // (fail-closed) — runAdvisor only ever loosens the gate on a successful check.
+    const verifySymbol = async (symbol: string): Promise<boolean> => {
+      try {
+        const stocks = await client.getStocks({ symbols: [symbol] });
+        return stocks.some((stock) => stock.symbol === symbol);
+      } catch {
+        return false;
+      }
+    };
+    const result = await runAdvisor({
+      provider,
+      snapshot,
+      validation,
+      jsonSchema: advisorJsonSchema,
+      verifySymbol,
+    });
 
     return ok({
       advice: result.advice,
