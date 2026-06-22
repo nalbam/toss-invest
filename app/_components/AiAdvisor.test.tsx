@@ -10,6 +10,7 @@ vi.mock("@/lib/client/advisor", () => ({ fetchAdvisor }));
 
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -48,6 +49,30 @@ describe("AiAdvisor", () => {
     await waitFor(() => expect(screen.getByText(/분산을 고려하세요/)).toBeInTheDocument());
     expect(fetchAdvisor).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/005930/)).toBeInTheDocument();
+  });
+
+  it("stores the latest successful advisor result per account", async () => {
+    fetchAdvisor.mockResolvedValue(result);
+    render(<AiAdvisor accountSeq={7} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /조언 받기|분석/ }));
+
+    await waitFor(() => expect(screen.getByText(/분산을 고려하세요/)).toBeInTheDocument());
+    expect(
+      window.localStorage.getItem("toss-invest:ai-advisor-result:7"),
+    ).toBe(JSON.stringify(result));
+  });
+
+  it("restores a stored advisor result without auto-fetching", async () => {
+    window.localStorage.setItem(
+      "toss-invest:ai-advisor-result:7",
+      JSON.stringify(result),
+    );
+
+    render(<AiAdvisor accountSeq={7} />);
+
+    expect(await screen.findByText(/분산을 고려하세요/)).toBeInTheDocument();
+    expect(fetchAdvisor).not.toHaveBeenCalled();
   });
 
   it("offers prefill only for valid proposals; invalid ones show reasons", async () => {

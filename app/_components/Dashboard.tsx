@@ -21,7 +21,12 @@ import { PortfolioSummary } from "./PortfolioSummary";
 import page from "@/app/page.module.css";
 import styles from "./dashboard.module.css";
 
+const SELECTED_ACCOUNT_KEY = "toss-invest:selected-account-seq";
 const LAST_SYMBOL_KEY = "toss-invest:last-symbol";
+
+function symbolStorageKey(accountSeq: number): string {
+  return `${LAST_SYMBOL_KEY}:${accountSeq}`;
+}
 
 function maskAccountNo(accountNo: string): string {
   if (accountNo.length <= 6) {
@@ -40,8 +45,39 @@ function readLastSymbol(): string | null {
   }
 }
 
-function writeLastSymbol(symbol: string): void {
+function readStoredAccountSeq(): number | null {
   try {
+    const stored = window.localStorage.getItem(SELECTED_ACCOUNT_KEY);
+    if (stored === null) return null;
+    const parsed = Number(stored);
+    return Number.isInteger(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredAccountSeq(accountSeq: number): void {
+  try {
+    window.localStorage.setItem(SELECTED_ACCOUNT_KEY, String(accountSeq));
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function readStoredSymbol(accountSeq: number): string | null {
+  try {
+    return (
+      window.localStorage.getItem(symbolStorageKey(accountSeq)) ??
+      readLastSymbol()
+    );
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSymbol(accountSeq: number, symbol: string): void {
+  try {
+    window.localStorage.setItem(symbolStorageKey(accountSeq), symbol);
     window.localStorage.setItem(LAST_SYMBOL_KEY, symbol);
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.
@@ -68,10 +104,16 @@ export function Dashboard() {
     { side: "BUY" | "SELL"; quantity: number } | undefined
   >(undefined);
 
-  // Default to the first account once the list arrives.
+  // Restore the selected account when possible; otherwise default to the first.
   useEffect(() => {
     if (selectedSeq === undefined && accounts.data && accounts.data.length > 0) {
-      setSelectedSeq(accounts.data[0].accountSeq);
+      const storedSeq = readStoredAccountSeq();
+      const nextSeq =
+        storedSeq !== null &&
+        accounts.data.some((account) => account.accountSeq === storedSeq)
+          ? storedSeq
+          : accounts.data[0].accountSeq;
+      setSelectedSeq(nextSeq);
     }
   }, [accounts.data, selectedSeq]);
 
@@ -94,18 +136,30 @@ export function Dashboard() {
     if (selectedSymbol !== undefined || holdings.data === undefined) {
       return;
     }
-    const lastSymbol = readLastSymbol();
+    if (selectedSeq === undefined) {
+      return;
+    }
+    const lastSymbol = readStoredSymbol(selectedSeq);
     if (
       lastSymbol &&
       holdings.data.items.some((item) => item.symbol === lastSymbol)
     ) {
       setSelectedSymbol(lastSymbol);
     }
-  }, [holdings.data, selectedSymbol]);
+  }, [holdings.data, selectedSeq, selectedSymbol]);
+
+  function selectAccount(accountSeq: number) {
+    setSelectedSeq(accountSeq);
+    setSelectedSymbol(undefined);
+    setPrefill(undefined);
+    writeStoredAccountSeq(accountSeq);
+  }
 
   function selectSymbol(symbol: string) {
     setSelectedSymbol(symbol);
-    writeLastSymbol(symbol);
+    if (selectedSeq !== undefined) {
+      writeStoredSymbol(selectedSeq, symbol);
+    }
   }
 
   // "폼에 담기" from the advisor card: point the order form at the proposed
@@ -145,7 +199,7 @@ export function Dashboard() {
             id="account-select"
             className={page.select}
             value={selectedSeq ?? ""}
-            onChange={(event) => setSelectedSeq(Number(event.target.value))}
+            onChange={(event) => selectAccount(Number(event.target.value))}
           >
             {accounts.data.map((account) => (
               <option key={account.accountSeq} value={account.accountSeq}>

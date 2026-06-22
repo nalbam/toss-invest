@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { QueryResult } from "@/lib/client/hooks";
 import type {
   Account,
@@ -110,6 +116,21 @@ const apple = {
   cost: { commission: "1.5", tax: null },
 };
 
+const samsung = {
+  ...apple,
+  symbol: "005930",
+  name: "삼성전자",
+  marketCountry: "KR" as const,
+  currency: "KRW" as const,
+  lastPrice: "72000",
+  averagePurchasePrice: "65000",
+  marketValue: {
+    purchaseAmount: "650000",
+    amount: "720000",
+    amountAfterCost: "719000",
+  },
+};
+
 const overview: HoldingsOverview = {
   totalPurchaseAmount: { krw: "0", usd: "1050.00" },
   marketValue: {
@@ -124,6 +145,11 @@ const overview: HoldingsOverview = {
   },
   dailyProfitLoss: { amount: { krw: "0", usd: "-7.50" }, rate: "-0.0078" },
   items: [apple],
+};
+
+const samsungOverview: HoldingsOverview = {
+  ...overview,
+  items: [samsung],
 };
 
 beforeEach(() => {
@@ -194,13 +220,58 @@ describe("Dashboard", () => {
     fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
     expect(screen.getByLabelText("종목코드")).toHaveValue("AAPL");
     expect(window.localStorage.getItem("toss-invest:last-symbol")).toBe("AAPL");
+    expect(window.localStorage.getItem("toss-invest:last-symbol:1")).toBe(
+      "AAPL",
+    );
   });
 
   it("restores the last selected holding when it is still present", async () => {
-    window.localStorage.setItem("toss-invest:last-symbol", "AAPL");
+    window.localStorage.setItem("toss-invest:last-symbol:1", "AAPL");
 
     render(<Dashboard />);
 
     expect(await screen.findByText("Apple (AAPL)")).toBeInTheDocument();
+  });
+
+  it("restores the selected account when it is still available", async () => {
+    window.localStorage.setItem("toss-invest:selected-account-seq", "2");
+    useAccounts.mockReturnValue(
+      loaded([
+        { accountNo: "11001044791", accountSeq: 1, accountType: "BROKERAGE" },
+        { accountNo: "22001044792", accountSeq: 2, accountType: "BROKERAGE" },
+      ]),
+    );
+    useHoldings.mockImplementation((seq) =>
+      loaded(seq === 2 ? samsungOverview : overview),
+    );
+
+    render(<Dashboard />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("계좌")).toHaveValue("2"),
+    );
+  });
+
+  it("stores account changes and resets the selected symbol", async () => {
+    useAccounts.mockReturnValue(
+      loaded([
+        { accountNo: "11001044791", accountSeq: 1, accountType: "BROKERAGE" },
+        { accountNo: "22001044792", accountSeq: 2, accountType: "BROKERAGE" },
+      ]),
+    );
+    useHoldings.mockImplementation((seq) =>
+      loaded(seq === 2 ? samsungOverview : overview),
+    );
+
+    render(<Dashboard />);
+    fireEvent.click(screen.getByText("Apple").closest("button")!);
+    expect(await screen.findByText("Apple (AAPL)")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("계좌"), { target: { value: "2" } });
+
+    expect(window.localStorage.getItem("toss-invest:selected-account-seq")).toBe(
+      "2",
+    );
+    expect(screen.getByText("보유 종목을 선택하세요.")).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiClientError } from "@/lib/client/hooks";
 import {
   fetchAdvisor,
@@ -17,12 +17,52 @@ type State =
   | { status: "loaded"; result: AdvisorResult }
   | { status: "error"; message: string; notConfigured: boolean };
 
+const ADVISOR_RESULT_KEY = "toss-invest:ai-advisor-result";
+
 const KIND_LABEL: Record<AdvisorProposal["kind"], string> = {
   buy: "신규 매수",
   trim: "비중 축소",
   exit: "전량 매도",
   rebalance: "리밸런싱",
 };
+
+function storageKey(accountSeq?: number): string {
+  return accountSeq === undefined
+    ? ADVISOR_RESULT_KEY
+    : `${ADVISOR_RESULT_KEY}:${accountSeq}`;
+}
+
+function isAdvisorResult(value: unknown): value is AdvisorResult {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const result = value as Partial<AdvisorResult>;
+  return (
+    typeof result.advice === "string" &&
+    typeof result.model === "string" &&
+    typeof result.generatedAt === "string" &&
+    Array.isArray(result.proposals)
+  );
+}
+
+function readStoredResult(accountSeq?: number): AdvisorResult | null {
+  try {
+    const stored = window.localStorage.getItem(storageKey(accountSeq));
+    if (stored === null) return null;
+    const parsed: unknown = JSON.parse(stored);
+    return isAdvisorResult(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredResult(accountSeq: number | undefined, result: AdvisorResult): void {
+  try {
+    window.localStorage.setItem(storageKey(accountSeq), JSON.stringify(result));
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
 
 function ProposalRow({
   item,
@@ -72,10 +112,16 @@ export function AiAdvisor({
 }) {
   const [state, setState] = useState<State>({ status: "idle" });
 
+  useEffect(() => {
+    const stored = readStoredResult(accountSeq);
+    setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
+  }, [accountSeq]);
+
   async function run() {
     setState({ status: "loading" });
     try {
       const result = await fetchAdvisor(accountSeq);
+      writeStoredResult(accountSeq, result);
       setState({ status: "loaded", result });
     } catch (error) {
       const notConfigured =
