@@ -11,6 +11,9 @@ const applyOptions = vi.fn();
 const priceLine = { applyOptions };
 const createPriceLine = vi.fn(() => priceLine);
 const removePriceLine = vi.fn();
+const setMarkers = vi.fn();
+const detachMarkers = vi.fn();
+const createSeriesMarkers = vi.fn(() => ({ setMarkers, detach: detachMarkers }));
 const fitContent = vi.fn();
 const addSeries = vi.fn(() => ({ setData, createPriceLine, removePriceLine }));
 const remove = vi.fn();
@@ -22,6 +25,7 @@ const createChart = vi.fn(() => ({
 
 vi.mock("lightweight-charts", () => ({
   createChart,
+  createSeriesMarkers,
   LineStyle: { Dashed: 2 },
   CandlestickSeries: "CandlestickSeries",
 }));
@@ -143,6 +147,38 @@ describe("CandleChart", () => {
     );
   });
 
+  it("draws advisor support, resistance, and candle markers", () => {
+    render(
+      <CandleChart
+        candles={[candle()]}
+        annotations={{
+          supportLevels: [{ price: 99, label: "지지" }],
+          resistanceLevels: [{ price: 111, label: "저항" }],
+          markers: [
+            {
+              timestamp: "2026-03-25T09:00:00+09:00",
+              position: "aboveBar",
+              label: "거래량 증가",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(createPriceLine).toHaveBeenCalledWith(
+      expect.objectContaining({ price: 99, title: "지지" }),
+    );
+    expect(createPriceLine).toHaveBeenCalledWith(
+      expect.objectContaining({ price: 111, title: "저항" }),
+    );
+    expect(setMarkers).toHaveBeenCalledWith([
+      expect.objectContaining({
+        position: "aboveBar",
+        text: "거래량 증가",
+      }),
+    ]);
+  });
+
   it("removes the average purchase price line when the price is unavailable", () => {
     const { rerender } = render(
       <CandleChart candles={[candle()]} averagePurchasePrice="101.5" />,
@@ -156,6 +192,7 @@ describe("CandleChart", () => {
   it("removes the chart on unmount", () => {
     const { unmount } = render(<CandleChart candles={[]} />);
     unmount();
+    expect(detachMarkers).toHaveBeenCalledTimes(1);
     expect(remove).toHaveBeenCalledTimes(1);
   });
 });

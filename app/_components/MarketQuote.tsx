@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   useCandles,
   useOrderbook,
@@ -15,6 +15,7 @@ import {
 } from "@/lib/client/candles";
 import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
 import { previousClose, priceChange } from "@/lib/client/quote";
+import type { MarketAdvisorResult } from "@/lib/client/market-advisor";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import { CandleChart } from "./CandleChart";
@@ -74,6 +75,8 @@ export function MarketQuote({
 }) {
   const [interval, setIntervalState] = useState<ChartInterval>("1d");
   const [loadedStoredInterval, setLoadedStoredInterval] = useState(false);
+  const [marketAdvisorResult, setMarketAdvisorResult] =
+    useState<MarketAdvisorResult | undefined>(undefined);
 
   const prices = usePrices([symbol]);
   const limits = usePriceLimits(symbol);
@@ -116,6 +119,13 @@ export function MarketQuote({
     setIntervalState(interval);
     writeStoredInterval(interval);
   }
+
+  const handleMarketAdvisorResult = useCallback(
+    (result: MarketAdvisorResult | undefined) => {
+      setMarketAdvisorResult(result);
+    },
+    [],
+  );
 
   useEffect(() => {
     setIntervalState(readStoredInterval());
@@ -214,8 +224,12 @@ export function MarketQuote({
           <CandleChart
             candles={chartCandles}
             averagePurchasePrice={averagePurchasePrice}
+            annotations={marketAdvisorResult?.annotations}
           />
-          <MarketAiAdvisor input={marketAdvisorInput} />
+          <MarketAiAdvisor
+            input={marketAdvisorInput}
+            onResult={handleMarketAdvisorResult}
+          />
         </>
       ) : null}
 

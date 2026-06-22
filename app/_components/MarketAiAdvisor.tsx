@@ -29,19 +29,31 @@ function isMarketAdvisorResult(value: unknown): value is MarketAdvisorResult {
   const result = value as Partial<MarketAdvisorResult>;
   return (
     typeof result.advice === "string" &&
+    typeof result.annotations === "object" &&
+    result.annotations !== null &&
+    Array.isArray(result.annotations.supportLevels) &&
+    Array.isArray(result.annotations.resistanceLevels) &&
+    Array.isArray(result.annotations.markers) &&
     typeof result.model === "string" &&
     typeof result.generatedAt === "string"
   );
 }
 
-export function MarketAiAdvisor({ input }: { input: MarketAdvisorInput }) {
+export function MarketAiAdvisor({
+  input,
+  onResult,
+}: {
+  input: MarketAdvisorInput;
+  onResult?: (result: MarketAdvisorResult | undefined) => void;
+}) {
   const [state, setState] = useState<State>({ status: "idle" });
   const resultStorageKey = `${MARKET_ADVISOR_RESULT_KEY}:${input.symbol}:${input.interval}`;
 
   useEffect(() => {
     const stored = readStoredJson(resultStorageKey, isMarketAdvisorResult);
     setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
-  }, [resultStorageKey]);
+    onResult?.(stored ?? undefined);
+  }, [onResult, resultStorageKey]);
 
   const run = useCallback(async () => {
     setState({ status: "loading" });
@@ -49,6 +61,7 @@ export function MarketAiAdvisor({ input }: { input: MarketAdvisorInput }) {
       const result = await fetchMarketAdvisor(input);
       writeStoredJson(resultStorageKey, result);
       setState({ status: "loaded", result });
+      onResult?.(result);
     } catch (error) {
       const notConfigured =
         error instanceof ApiClientError && error.code === "advisor-not-configured";
@@ -58,8 +71,9 @@ export function MarketAiAdvisor({ input }: { input: MarketAdvisorInput }) {
           ? "AI 어드바이저가 설정되지 않았습니다."
           : "시세 조언을 불러오지 못했습니다.",
       });
+      onResult?.(undefined);
     }
-  }, [input, resultStorageKey]);
+  }, [input, onResult, resultStorageKey]);
   const {
     autoEnabled,
     autoIntervalMs,

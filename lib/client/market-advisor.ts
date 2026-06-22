@@ -12,8 +12,26 @@ export interface MarketAdvisorInput {
 
 export interface MarketAdvisorResult {
   advice: string;
+  annotations: MarketChartAnnotations;
   model: string;
   generatedAt: string;
+}
+
+export interface MarketChartAnnotations {
+  supportLevels: MarketPriceAnnotation[];
+  resistanceLevels: MarketPriceAnnotation[];
+  markers: MarketMarkerAnnotation[];
+}
+
+export interface MarketPriceAnnotation {
+  price: number;
+  label: string;
+}
+
+export interface MarketMarkerAnnotation {
+  timestamp: string;
+  position: "aboveBar" | "belowBar" | "inBar";
+  label: string;
 }
 
 function isErrorEnvelope(

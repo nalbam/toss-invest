@@ -21,6 +21,17 @@ const input: MarketAdvisorInput = {
 
 const result: MarketAdvisorResult = {
   advice: "단기 추세가 완만히 개선되고 있습니다.",
+  annotations: {
+    supportLevels: [{ price: 68000, label: "지지 가능 구간" }],
+    resistanceLevels: [{ price: 72000, label: "저항 확인 구간" }],
+    markers: [
+      {
+        timestamp: "2026-06-19T00:00:00+09:00",
+        position: "aboveBar",
+        label: "거래량 증가",
+      },
+    ],
+  },
   model: "stub-model",
   generatedAt: "2026-06-19T00:00:00Z",
 };
@@ -35,12 +46,14 @@ afterEach(() => {
 describe("MarketAiAdvisor", () => {
   it("loads chart advice when the button is clicked", async () => {
     fetchMarketAdvisor.mockResolvedValue(result);
-    render(<MarketAiAdvisor input={input} />);
+    const onResult = vi.fn();
+    render(<MarketAiAdvisor input={input} onResult={onResult} />);
 
     fireEvent.click(screen.getByRole("button", { name: "조언 받기" }));
 
     await waitFor(() => expect(screen.getByText(/완만히 개선/)).toBeInTheDocument());
     expect(fetchMarketAdvisor).toHaveBeenCalledWith(input);
+    expect(onResult).toHaveBeenLastCalledWith(result);
     expect(
       JSON.parse(
         window.localStorage.getItem(
@@ -56,9 +69,11 @@ describe("MarketAiAdvisor", () => {
       JSON.stringify(result),
     );
 
-    render(<MarketAiAdvisor input={input} />);
+    const onResult = vi.fn();
+    render(<MarketAiAdvisor input={input} onResult={onResult} />);
 
     expect(screen.getByText(/완만히 개선/)).toBeInTheDocument();
+    expect(onResult).toHaveBeenLastCalledWith(result);
     expect(fetchMarketAdvisor).not.toHaveBeenCalled();
   });
 

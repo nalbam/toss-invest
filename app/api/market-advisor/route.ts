@@ -27,6 +27,82 @@ const bodySchema = z.object({
   candles: z.array(candleSchema).max(300),
 });
 
+const annotationLevelSchema = z.object({
+  price: z.number(),
+  label: z.string().min(1),
+});
+
+const marketAdvisorResultSchema = z.object({
+  advice: z.string().min(1),
+  annotations: z.object({
+    supportLevels: z.array(annotationLevelSchema).max(5),
+    resistanceLevels: z.array(annotationLevelSchema).max(5),
+    markers: z.array(
+      z.object({
+        timestamp: z.string().min(1),
+        position: z.enum(["aboveBar", "belowBar", "inBar"]),
+        label: z.string().min(1),
+      }),
+    ).max(8),
+  }),
+});
+
+const marketAdvisorJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["advice", "annotations"],
+  properties: {
+    advice: { type: "string" },
+    annotations: {
+      type: "object",
+      additionalProperties: false,
+      required: ["supportLevels", "resistanceLevels", "markers"],
+      properties: {
+        supportLevels: {
+          type: "array",
+          maxItems: 5,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["price", "label"],
+            properties: {
+              price: { type: "number" },
+              label: { type: "string" },
+            },
+          },
+        },
+        resistanceLevels: {
+          type: "array",
+          maxItems: 5,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["price", "label"],
+            properties: {
+              price: { type: "number" },
+              label: { type: "string" },
+            },
+          },
+        },
+        markers: {
+          type: "array",
+          maxItems: 8,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["timestamp", "position", "label"],
+            properties: {
+              timestamp: { type: "string" },
+              position: { type: "string", enum: ["aboveBar", "belowBar", "inBar"] },
+              label: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 function buildMarketAdvisorPrompt(input: z.infer<typeof bodySchema>): ChatMessage[] {
   const title = input.name ? `${input.name} (${input.symbol})` : input.symbol;
   return [
@@ -35,8 +111,11 @@ function buildMarketAdvisorPrompt(input: z.infer<typeof bodySchema>): ChatMessag
       content: [
         "당신은 한국어로 답하는 시세 차트 분석 어드바이저입니다.",
         "제공된 가격·캔들 데이터만 근거로 추세, 변동성, 지지/저항 가능성을 간결히 분석하세요.",
+        "차트에 그릴 지지선, 저항선, 캔들 마커도 함께 제시하세요.",
+        "지지선/저항선 가격과 마커 timestamp는 반드시 제공된 캔들 데이터 범위 안에서 근거가 있어야 합니다.",
+        "근거가 약한 annotation은 빈 배열로 두세요.",
         "실제 주문 실행이나 확정 표현은 하지 말고, 사용자가 검토할 관찰과 리스크만 제시하세요.",
-        "응답은 한국어 일반 텍스트로 작성하세요.",
+        "응답은 지정된 JSON 스키마로만 작성하세요.",
       ].join("\n"),
     },
     {
@@ -70,10 +149,14 @@ export async function POST(request: Request): Promise<Response> {
     const provider = getServerLlmProvider();
     const response = await provider.chat({
       messages: buildMarketAdvisorPrompt(parsed.data),
+      jsonSchema: { name: "market_advice", schema: marketAdvisorJsonSchema },
     });
+    const content: unknown = JSON.parse(response.content);
+    const result = marketAdvisorResultSchema.parse(content);
 
     return ok({
-      advice: response.content.trim(),
+      advice: result.advice.trim(),
+      annotations: result.annotations,
       model: response.model,
       generatedAt: new Date().toISOString(),
     });
@@ -87,6 +170,12 @@ export async function POST(request: Request): Promise<Response> {
     if (error instanceof Error && error.message.includes("chat request failed")) {
       return NextResponse.json(
         { error: { code: "market-advisor-failed", message: "AI market advisor request failed" } },
+        { status: 502 },
+      );
+    }
+    if (error instanceof SyntaxError || error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: { code: "market-advisor-response-invalid", message: "AI market advisor response is invalid" } },
         { status: 502 },
       );
     }

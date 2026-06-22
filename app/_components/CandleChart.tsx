@@ -4,13 +4,18 @@ import { useEffect, useRef } from "react";
 import {
   CandlestickSeries,
   createChart,
+  createSeriesMarkers,
   LineStyle,
   type CandlestickData,
   type IChartApi,
   type IPriceLine,
+  type ISeriesMarkersPluginApi,
   type ISeriesApi,
+  type SeriesMarker,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
+import type { MarketChartAnnotations } from "@/lib/client/market-advisor";
 import type { Candle } from "@/lib/client/types";
 import styles from "./dashboard.module.css";
 
@@ -89,14 +94,18 @@ function parseTimestampSeconds(value: string): number | null {
 export function CandleChart({
   candles,
   averagePurchasePrice,
+  annotations,
 }: {
   candles: Candle[];
   averagePurchasePrice?: string;
+  annotations?: MarketChartAnnotations;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const markerRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const averageLineRef = useRef<IPriceLine | null>(null);
+  const annotationLineRefs = useRef<IPriceLine[]>([]);
 
   // Create the chart once on mount and tear it down on unmount.
   useEffect(() => {
@@ -128,11 +137,15 @@ export function CandleChart({
     });
     chartRef.current = chart;
     seriesRef.current = series;
+    markerRef.current = createSeriesMarkers(series, []);
     return () => {
+      markerRef.current?.detach();
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      markerRef.current = null;
       averageLineRef.current = null;
+      annotationLineRefs.current = [];
     };
   }, []);
 
@@ -174,6 +187,60 @@ export function CandleChart({
       averageLineRef.current.applyOptions(options);
     }
   }, [averagePurchasePrice]);
+
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (series === null) {
+      return;
+    }
+    for (const line of annotationLineRefs.current) {
+      series.removePriceLine(line);
+    }
+    annotationLineRefs.current = [];
+    if (annotations === undefined) {
+      markerRef.current?.setMarkers([]);
+      return;
+    }
+    const supportLines = annotations.supportLevels.map((item) =>
+      series.createPriceLine({
+        price: item.price,
+        color: "#64748b",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: item.label,
+      }),
+    );
+    const resistanceLines = annotations.resistanceLevels.map((item) =>
+      series.createPriceLine({
+        price: item.price,
+        color: "#94a3b8",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: item.label,
+      }),
+    );
+    annotationLineRefs.current = [...supportLines, ...resistanceLines];
+    const markers = annotations.markers
+      .flatMap<SeriesMarker<Time>>((item) => {
+        const time = parseTimestampSeconds(item.timestamp);
+        if (time === null) {
+          return [];
+        }
+        return [
+          {
+            time: time as UTCTimestamp,
+            position: item.position,
+            color: "#0f9f6e",
+            shape: "circle",
+            text: item.label,
+          },
+        ];
+      })
+      .sort((a, b) => (a.time as number) - (b.time as number));
+    markerRef.current?.setMarkers(markers);
+  }, [annotations]);
 
   return <div ref={containerRef} className={styles.chart} aria-label="캔들 차트" />;
 }

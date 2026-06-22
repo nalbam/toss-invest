@@ -47,6 +47,10 @@ vi.mock("lightweight-charts", () => ({
     timeScale: () => ({ fitContent: () => {} }),
     remove: () => {},
   }),
+  createSeriesMarkers: () => ({
+    setMarkers: () => {},
+    detach: () => {},
+  }),
   LineStyle: { Dashed: 2 },
   CandlestickSeries: "CandlestickSeries",
 }));
