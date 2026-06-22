@@ -7,12 +7,11 @@ import {
   type MarketAdvisorInput,
   type MarketAdvisorResult,
 } from "@/lib/client/market-advisor";
-import {
-  AdvisorAutoControls,
-  type AdvisorAutoInterval,
-} from "./AdvisorAutoControls";
+import { AdvisorAutoControls } from "./AdvisorAutoControls";
+import { readStoredJson, writeStoredJson } from "./advisorStorage";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
+import { useAdvisorAutoRerun } from "./useAdvisorAutoRerun";
 
 type State =
   | { status: "idle" }
@@ -34,37 +33,12 @@ function isMarketAdvisorResult(value: unknown): value is MarketAdvisorResult {
   );
 }
 
-function readStoredResult(storageKey: string): MarketAdvisorResult | null {
-  try {
-    const stored = window.localStorage.getItem(storageKey);
-    if (stored === null) return null;
-    const parsed: unknown = JSON.parse(stored);
-    return isMarketAdvisorResult(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredResult(
-  storageKey: string,
-  result: MarketAdvisorResult,
-): void {
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify(result));
-  } catch {
-    // Storage can be unavailable in private or restricted browser contexts.
-  }
-}
-
 export function MarketAiAdvisor({ input }: { input: MarketAdvisorInput }) {
   const [state, setState] = useState<State>({ status: "idle" });
-  const [autoEnabled, setAutoEnabled] = useState(false);
-  const [autoIntervalMs, setAutoIntervalMs] =
-    useState<AdvisorAutoInterval>(60_000);
   const resultStorageKey = `${MARKET_ADVISOR_RESULT_KEY}:${input.symbol}:${input.interval}`;
 
   useEffect(() => {
-    const stored = readStoredResult(resultStorageKey);
+    const stored = readStoredJson(resultStorageKey, isMarketAdvisorResult);
     setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
   }, [resultStorageKey]);
 
@@ -72,7 +46,7 @@ export function MarketAiAdvisor({ input }: { input: MarketAdvisorInput }) {
     setState({ status: "loading" });
     try {
       const result = await fetchMarketAdvisor(input);
-      writeStoredResult(resultStorageKey, result);
+      writeStoredJson(resultStorageKey, result);
       setState({ status: "loaded", result });
     } catch (error) {
       const notConfigured =
@@ -85,16 +59,8 @@ export function MarketAiAdvisor({ input }: { input: MarketAdvisorInput }) {
       });
     }
   }, [input, resultStorageKey]);
-
-  useEffect(() => {
-    if (!autoEnabled) {
-      return;
-    }
-    const id = window.setInterval(() => {
-      void run();
-    }, autoIntervalMs);
-    return () => window.clearInterval(id);
-  }, [autoEnabled, autoIntervalMs, run]);
+  const { autoEnabled, autoIntervalMs, setAutoEnabled, setAutoIntervalMs } =
+    useAdvisorAutoRerun(run);
 
   return (
     <CollapsibleCard title="시세 AI 어드바이저" storageId="market-ai-advisor">

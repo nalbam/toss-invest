@@ -73,6 +73,23 @@ describe("MarketAiAdvisor", () => {
     expect(fetchMarketAdvisor).toHaveBeenCalledTimes(1);
   });
 
+  it("does not restart the auto rerun timer when market input refreshes", async () => {
+    vi.useFakeTimers();
+    fetchMarketAdvisor.mockResolvedValue(result);
+    const { rerender } = render(<MarketAiAdvisor input={input} />);
+
+    fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
+    await vi.advanceTimersByTimeAsync(30_000);
+    rerender(<MarketAiAdvisor input={{ ...input, lastPrice: "73000" }} />);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(fetchMarketAdvisor).toHaveBeenCalledTimes(1);
+    expect(fetchMarketAdvisor).toHaveBeenCalledWith({
+      ...input,
+      lastPrice: "73000",
+    });
+  });
+
   it("supports a 30 minute auto rerun interval", async () => {
     vi.useFakeTimers();
     fetchMarketAdvisor.mockResolvedValue(result);

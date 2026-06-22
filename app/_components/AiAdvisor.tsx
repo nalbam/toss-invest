@@ -8,12 +8,11 @@ import {
   type AdvisorResult,
   type ValidatedProposal,
 } from "@/lib/client/advisor";
-import {
-  AdvisorAutoControls,
-  type AdvisorAutoInterval,
-} from "./AdvisorAutoControls";
+import { AdvisorAutoControls } from "./AdvisorAutoControls";
+import { readStoredJson, writeStoredJson } from "./advisorStorage";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
+import { useAdvisorAutoRerun } from "./useAdvisorAutoRerun";
 
 type State =
   | { status: "idle" }
@@ -47,25 +46,6 @@ function isAdvisorResult(value: unknown): value is AdvisorResult {
     typeof result.generatedAt === "string" &&
     Array.isArray(result.proposals)
   );
-}
-
-function readStoredResult(accountSeq?: number): AdvisorResult | null {
-  try {
-    const stored = window.localStorage.getItem(storageKey(accountSeq));
-    if (stored === null) return null;
-    const parsed: unknown = JSON.parse(stored);
-    return isAdvisorResult(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredResult(accountSeq: number | undefined, result: AdvisorResult): void {
-  try {
-    window.localStorage.setItem(storageKey(accountSeq), JSON.stringify(result));
-  } catch {
-    // Storage can be unavailable in private or restricted browser contexts.
-  }
 }
 
 function ProposalRow({
@@ -115,12 +95,9 @@ export function AiAdvisor({
   onSelectProposal?: (proposal: AdvisorProposal) => void;
 }) {
   const [state, setState] = useState<State>({ status: "idle" });
-  const [autoEnabled, setAutoEnabled] = useState(false);
-  const [autoIntervalMs, setAutoIntervalMs] =
-    useState<AdvisorAutoInterval>(60_000);
 
   useEffect(() => {
-    const stored = readStoredResult(accountSeq);
+    const stored = readStoredJson(storageKey(accountSeq), isAdvisorResult);
     setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
   }, [accountSeq]);
 
@@ -128,7 +105,7 @@ export function AiAdvisor({
     setState({ status: "loading" });
     try {
       const result = await fetchAdvisor(accountSeq);
-      writeStoredResult(accountSeq, result);
+      writeStoredJson(storageKey(accountSeq), result);
       setState({ status: "loaded", result });
     } catch (error) {
       const notConfigured =
@@ -142,16 +119,8 @@ export function AiAdvisor({
       });
     }
   }, [accountSeq]);
-
-  useEffect(() => {
-    if (!autoEnabled) {
-      return;
-    }
-    const id = window.setInterval(() => {
-      void run();
-    }, autoIntervalMs);
-    return () => window.clearInterval(id);
-  }, [autoEnabled, autoIntervalMs, run]);
+  const { autoEnabled, autoIntervalMs, setAutoEnabled, setAutoIntervalMs } =
+    useAdvisorAutoRerun(run);
 
   return (
     <CollapsibleCard title="AI 어드바이저" storageId="ai-advisor">
