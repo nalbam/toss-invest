@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiClientError } from "@/lib/client/hooks";
 import {
   fetchAdvisor,
@@ -36,6 +36,28 @@ function storageKey(accountSeq?: number): string {
     : `${ADVISOR_RESULT_KEY}:${accountSeq}`;
 }
 
+function isValidatedProposal(item: unknown): item is ValidatedProposal {
+  if (typeof item !== "object" || item === null) {
+    return false;
+  }
+  const candidate = item as Partial<ValidatedProposal>;
+  const proposal = candidate.proposal as AdvisorProposal | undefined;
+  return (
+    typeof candidate.valid === "boolean" &&
+    Array.isArray(candidate.reasons) &&
+    typeof proposal === "object" &&
+    proposal !== null &&
+    (proposal.kind === "buy" ||
+      proposal.kind === "trim" ||
+      proposal.kind === "exit" ||
+      proposal.kind === "rebalance") &&
+    typeof proposal.symbol === "string" &&
+    (proposal.side === "BUY" || proposal.side === "SELL") &&
+    typeof proposal.quantity === "number" &&
+    typeof proposal.rationale === "string"
+  );
+}
+
 function isAdvisorResult(value: unknown): value is AdvisorResult {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -45,7 +67,8 @@ function isAdvisorResult(value: unknown): value is AdvisorResult {
     typeof result.advice === "string" &&
     typeof result.model === "string" &&
     typeof result.generatedAt === "string" &&
-    Array.isArray(result.proposals)
+    Array.isArray(result.proposals) &&
+    result.proposals.every(isValidatedProposal)
   );
 }
 
@@ -96,19 +119,24 @@ export function AiAdvisor({
   onSelectProposal?: (proposal: AdvisorProposal, name?: string) => void;
 }) {
   const [state, setState] = useState<State>({ status: "idle" });
+  const requestSeqRef = useRef(0);
 
   useEffect(() => {
+    requestSeqRef.current += 1;
     const stored = readStoredJson(storageKey(accountSeq), isAdvisorResult);
     setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
   }, [accountSeq]);
 
   const run = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     setState({ status: "loading" });
     try {
       const result = await fetchAdvisor(accountSeq);
+      if (seq !== requestSeqRef.current) return;
       writeStoredJson(storageKey(accountSeq), result);
       setState({ status: "loaded", result });
     } catch (error) {
+      if (seq !== requestSeqRef.current) return;
       const notConfigured =
         error instanceof ApiClientError && error.code === "advisor-not-configured";
       setState({

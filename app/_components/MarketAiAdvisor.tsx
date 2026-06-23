@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ComponentProps } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import { ApiClientError } from "@/lib/client/hooks";
 import {
   fetchMarketAdvisor,
@@ -58,22 +64,27 @@ export function MarketAiAdvisor({
   chartOverlay?: ComponentProps<typeof ChartOverlayControls>;
 }) {
   const [state, setState] = useState<State>({ status: "idle" });
+  const requestSeqRef = useRef(0);
   const resultStorageKey = `${MARKET_ADVISOR_RESULT_KEY}:${input.symbol}:${input.interval}`;
 
   useEffect(() => {
+    requestSeqRef.current += 1;
     const stored = readStoredJson(resultStorageKey, isMarketAdvisorResult);
     setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
     onResult?.(stored ?? undefined);
   }, [onResult, resultStorageKey]);
 
   const run = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     setState({ status: "loading" });
     try {
       const result = await fetchMarketAdvisor(input);
+      if (seq !== requestSeqRef.current) return;
       writeStoredJson(resultStorageKey, result);
       setState({ status: "loaded", result });
       onResult?.(result);
     } catch (error) {
+      if (seq !== requestSeqRef.current) return;
       const notConfigured =
         error instanceof ApiClientError && error.code === "advisor-not-configured";
       setState({

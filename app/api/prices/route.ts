@@ -32,7 +32,7 @@ export async function GET(request: Request): Promise<Response> {
     const data = await getServerTossClient().getPrices({
       symbols: parsed.data.symbols,
     });
-    await recordPriceSnapshots(data);
+    void recordPriceSnapshots(data);
     return ok(data);
   } catch (error) {
     return handleError(error);

@@ -10,7 +10,12 @@ import type { ValidationContext } from "@/lib/server/advisor/validate";
 export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
-  accountSeq: z.coerce.number().int().optional(),
+  // `?accountSeq=` yields "" which z.coerce.number() turns into 0; map empty to
+  // undefined and require a positive int so blank/non-positive values are rejected.
+  accountSeq: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().int().positive().optional(),
+  ),
 });
 
 // Provider-native structured output mirroring advisorResultSchema. Improves the

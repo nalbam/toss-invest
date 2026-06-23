@@ -55,12 +55,25 @@ export interface MarketMarkerAnnotation {
 function isErrorEnvelope(
   body: unknown,
 ): body is { error: { code: string; message: string; requestId?: string } } {
+  if (typeof body !== "object" || body === null || !("error" in body)) {
+    return false;
+  }
+  const error = (body as { error: unknown }).error;
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const record = error as Record<string, unknown>;
   return (
-    typeof body === "object" &&
-    body !== null &&
-    "error" in body &&
-    typeof (body as { error: unknown }).error === "object"
+    typeof record.code === "string" &&
+    typeof record.message === "string" &&
+    (record.requestId === undefined || typeof record.requestId === "string")
   );
+}
+
+function hasDataEnvelope(
+  body: unknown,
+): body is { data: MarketAdvisorResult } {
+  return typeof body === "object" && body !== null && "data" in body;
 }
 
 export async function fetchMarketAdvisor(
@@ -99,5 +112,12 @@ export async function fetchMarketAdvisor(
     });
   }
 
-  return (body as { data: MarketAdvisorResult }).data;
+  if (!hasDataEnvelope(body)) {
+    throw new ApiClientError({
+      code: "invalid-response",
+      message: "The server returned an unexpected response shape.",
+      status: res.status,
+    });
+  }
+  return body.data;
 }

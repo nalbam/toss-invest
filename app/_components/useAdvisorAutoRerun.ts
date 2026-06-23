@@ -32,6 +32,7 @@ export function useAdvisorAutoRerun(
   storageKey: string,
 ) {
   const runRef = useRef(run);
+  const inFlightRef = useRef(false);
   const [settings, setSettings] = useState<AdvisorAutoSettings>({
     enabled: false,
     intervalMs: 600_000,
@@ -70,6 +71,19 @@ export function useAdvisorAutoRerun(
       setRemainingMs(0);
       return;
     }
+    // Skip a scheduled run while the previous one is still in flight to avoid
+    // overlapping advisor requests and out-of-order UI updates.
+    const runSafely = async () => {
+      if (inFlightRef.current) {
+        return;
+      }
+      inFlightRef.current = true;
+      try {
+        await runRef.current();
+      } finally {
+        inFlightRef.current = false;
+      }
+    };
     let nextRunAt = Date.now() + settings.intervalMs;
     setRemainingMs(settings.intervalMs);
     const tickerId = window.setInterval(() => {
@@ -78,7 +92,7 @@ export function useAdvisorAutoRerun(
     const runId = window.setInterval(() => {
       nextRunAt = Date.now() + settings.intervalMs;
       setRemainingMs(settings.intervalMs);
-      void runRef.current();
+      void runSafely();
     }, settings.intervalMs);
     return () => {
       window.clearInterval(tickerId);

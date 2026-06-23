@@ -45,7 +45,7 @@ export async function GET(request: Request): Promise<Response> {
       before: parsed.data.before,
       adjusted: parsed.data.adjusted,
     });
-    await recordCandleSnapshot(
+    void recordCandleSnapshot(
       parsed.data.symbol,
       parsed.data.interval,
       data.candles,

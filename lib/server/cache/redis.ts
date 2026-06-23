@@ -29,17 +29,24 @@ function parseRedisUrl(raw: string) {
 class RespParser {
   private offset = 0;
 
-  constructor(private readonly text: string) {}
+  constructor(private readonly buffer: Buffer) {}
 
   parse(): RedisValue {
-    const type = this.text[this.offset++];
+    const type = String.fromCharCode(this.buffer[this.offset]);
+    this.offset += 1;
     if (type === "+") return this.readLine();
     if (type === "-") throw new Error(this.readLine());
     if (type === ":") return Number(this.readLine());
     if (type === "$") {
       const length = Number(this.readLine());
       if (length < 0) return null;
-      const value = this.text.slice(this.offset, this.offset + length);
+      // RESP bulk-string lengths are byte counts; slice the Buffer by byte
+      // offset so multi-byte UTF-8 payloads (e.g. 한글) are not corrupted.
+      const value = this.buffer.toString(
+        "utf8",
+        this.offset,
+        this.offset + length,
+      );
       this.offset += length + 2;
       return value;
     }
@@ -57,16 +64,16 @@ class RespParser {
 
   parseAll(): RedisValue {
     let value: RedisValue = null;
-    while (this.offset < this.text.length) {
+    while (this.offset < this.buffer.length) {
       value = this.parse();
     }
     return value;
   }
 
   private readLine(): string {
-    const end = this.text.indexOf("\r\n", this.offset);
+    const end = this.buffer.indexOf("\r\n", this.offset);
     if (end < 0) throw new Error("Invalid Redis response");
-    const line = this.text.slice(this.offset, end);
+    const line = this.buffer.toString("utf8", this.offset, end);
     this.offset = end + 2;
     return line;
   }
@@ -95,7 +102,7 @@ export async function redisCommand(
     socket.on("data", (chunk) => chunks.push(chunk));
     socket.on("end", () => {
       try {
-        finish(null, new RespParser(Buffer.concat(chunks).toString("utf8")).parseAll());
+        finish(null, new RespParser(Buffer.concat(chunks)).parseAll());
       } catch (error) {
         finish(error instanceof Error ? error : new Error("Redis parse failed"));
       }

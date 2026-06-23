@@ -197,7 +197,7 @@ export async function POST(request: Request): Promise<Response> {
     const content: unknown = JSON.parse(response.content);
     const result = marketAdvisorResultSchema.parse(content);
     const generatedAt = new Date().toISOString();
-    await recordMarketAdvice({
+    void recordMarketAdvice({
       symbol: parsed.data.symbol,
       interval: parsed.data.interval,
       generatedAt,

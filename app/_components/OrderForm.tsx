@@ -363,6 +363,9 @@ export function OrderForm({
   // current-price LIMIT order. Shared by the two-step confirm (confirmQuick) and
   // the modifier+click shortcut. The §6 gate still decides SEND vs DRY_RUN.
   async function submitQuick(quickSide: Side, market: boolean) {
+    if (submitting) {
+      return;
+    }
     if (!hasQuantity) {
       setResult(null);
       setError({ code: "invalid-input", message: "수량을 입력하세요." });
@@ -754,7 +757,7 @@ export function OrderForm({
                         ? submitQuick("SELL", false)
                         : armQuick("SELL", false)
                     }
-                    disabled={lastPrice === undefined}
+                    disabled={submitting || lastPrice === undefined}
                   >
                     현재가 판매
                     {estimated !== null ? (
@@ -774,7 +777,7 @@ export function OrderForm({
                         ? submitQuick("BUY", false)
                         : armQuick("BUY", false)
                     }
-                    disabled={lastPrice === undefined}
+                    disabled={submitting || lastPrice === undefined}
                   >
                     현재가 구매
                     {estimated !== null ? (
@@ -796,6 +799,7 @@ export function OrderForm({
                         ? submitQuick("SELL", true)
                         : armQuick("SELL", true)
                     }
+                    disabled={submitting}
                   >
                     시장가 판매
                   </button>
@@ -807,6 +811,7 @@ export function OrderForm({
                         ? submitQuick("BUY", true)
                         : armQuick("BUY", true)
                     }
+                    disabled={submitting}
                   >
                     시장가 구매
                   </button>

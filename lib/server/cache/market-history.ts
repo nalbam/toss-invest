@@ -107,7 +107,9 @@ export async function readMarketAdviceHistory({
       "LRANGE",
       key("market-advice", symbol),
       0,
-      Math.max(0, limit - 1),
+      // When filtering by interval, scan the full window so older matching
+      // events aren't dropped by the LRANGE cap before the interval filter.
+      interval === undefined ? Math.max(0, limit - 1) : ADVICE_LIMIT - 1,
     ]);
   } catch {
     return [];
