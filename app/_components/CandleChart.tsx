@@ -421,6 +421,10 @@ export function CandleChart({
         secondsVisible: false,
         rightOffset: 8,
       },
+      // Price axis (and its price-line labels: 평균단가/지지/저항) on the left
+      // so the labels don't cover the most recent candles on the right.
+      leftPriceScale: { visible: true },
+      rightPriceScale: { visible: false },
     });
     const series = chart.addSeries(CandlestickSeries, {
       upColor: UP_COLOR,
@@ -433,6 +437,7 @@ export function CandleChart({
         minMove: 0.0001,
         formatter: formatChartPrice,
       },
+      priceScaleId: "left",
     });
     chartRef.current = chart;
     seriesRef.current = series;
@@ -457,6 +462,7 @@ export function CandleChart({
         priceLineVisible: false,
         lastValueVisible: false,
         crosshairMarkerVisible: false,
+        priceScaleId: "left",
       }),
     );
 
