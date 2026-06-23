@@ -52,6 +52,7 @@ vi.mock("lightweight-charts", () => ({
       createPriceLine: () => ({ applyOptions: () => {} }),
       removePriceLine: () => {},
     }),
+    priceScale: () => ({ width: () => 0 }),
     timeScale: () => ({
       fitContent: () => {},
       timeToCoordinate: () => 120,
@@ -119,11 +120,9 @@ afterEach(() => {
 });
 
 describe("MarketQuote", () => {
-  it("renders the last price and KRW price limits", () => {
+  it("renders the last price", () => {
     render(<MarketQuote symbol="005930" />);
     expect(screen.getByText(byMoney("₩72,000"))).toBeInTheDocument();
-    expect(screen.getByText(byMoney("₩93,600"))).toBeInTheDocument();
-    expect(screen.getByText(byMoney("₩50,400"))).toBeInTheDocument();
   });
 
   it("shows the day change in the header vs the previous daily close", () => {
@@ -242,22 +241,12 @@ describe("MarketQuote", () => {
     expect(useCandles).toHaveBeenCalledWith("005930", "1m");
   });
 
-  it("renders '-' for null US price limits", () => {
+  it("renders the USD last price", () => {
     usePrices.mockReturnValue(
       loaded([{ symbol: "AAPL", lastPrice: "190.50", currency: "USD" }]),
     );
-    usePriceLimits.mockReturnValue(
-      loaded({
-        timestamp: "2026-03-25T09:00:00-04:00",
-        upperLimitPrice: null,
-        lowerLimitPrice: null,
-        currency: "USD",
-      }),
-    );
     render(<MarketQuote symbol="AAPL" />);
     expect(screen.getByText(byMoney("$190.50"))).toBeInTheDocument();
-    // Both limits unavailable -> two "-" placeholders.
-    expect(screen.getAllByText("-")).toHaveLength(2);
   });
 
   it("shows the loading state while the price is loading", () => {

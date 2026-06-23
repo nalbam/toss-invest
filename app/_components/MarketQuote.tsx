@@ -191,61 +191,33 @@ export function MarketQuote({
 
   return (
     <CollapsibleCard title="시세" storageId="market-quote">
-      <div className={styles.quoteRow}>
-        <div className={styles.metric}>
-          <span className={styles.metricLabel}>
-            {name ? `${name} (${symbol})` : `현재가 (${symbol})`}
+      <div className={styles.quoteHeadline}>
+        <span className={styles.metricLabel}>
+          {name ? `${name} (${symbol})` : `현재가 (${symbol})`}
+        </span>
+        {prices.isLoading ? (
+          <span className={styles.metricSecondary}>불러오는 중…</span>
+        ) : prices.error ? (
+          <span className={`${styles.metricSecondary} ${styles.negative}`}>
+            {prices.error.message}
           </span>
-          {prices.isLoading ? (
-            <span className={styles.metricSecondary}>불러오는 중…</span>
-          ) : prices.error ? (
-            <span className={`${styles.metricSecondary} ${styles.negative}`}>
-              {prices.error.message}
+        ) : quote ? (
+          <>
+            <span className={styles.metricPrimary}>
+              <Money value={formatPrice(quote.lastPrice, currency)} />
             </span>
-          ) : quote ? (
-            <>
-              <span className={styles.metricPrimary}>
-                <Money value={formatPrice(quote.lastPrice, currency)} />
+            {change ? (
+              <span
+                className={`${styles.metricChange} ${signClass(change.amount)}`}
+              >
+                <Money value={formatPrice(change.amount, currency)} /> (
+                {formatPercent(change.rate)})
               </span>
-              {change ? (
-                <span
-                  className={`${styles.metricChange} ${signClass(change.amount)}`}
-                >
-                  <Money value={formatPrice(change.amount, currency)} /> (
-                  {formatPercent(change.rate)})
-                </span>
-              ) : null}
-            </>
-          ) : (
-            <span className={styles.metricSecondary}>-</span>
-          )}
-        </div>
-
-        <div className={styles.metric}>
-          <span className={styles.metricLabel}>상한가</span>
-          <span className={styles.metricSecondary}>
-            {limits.isLoading ? (
-              "불러오는 중…"
-            ) : (
-              <Money
-                value={formatPrice(limits.data?.upperLimitPrice ?? null, currency)}
-              />
-            )}
-          </span>
-        </div>
-
-        <div className={styles.metric}>
-          <span className={styles.metricLabel}>하한가</span>
-          <span className={styles.metricSecondary}>
-            {limits.isLoading ? (
-              "불러오는 중…"
-            ) : (
-              <Money
-                value={formatPrice(limits.data?.lowerLimitPrice ?? null, currency)}
-              />
-            )}
-          </span>
-        </div>
+            ) : null}
+          </>
+        ) : (
+          <span className={styles.metricSecondary}>-</span>
+        )}
       </div>
 
       <div className={`${page.controls} ${styles.chartControls}`}>

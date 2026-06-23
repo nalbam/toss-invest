@@ -442,10 +442,11 @@
   align-items: flex-start;
 }
 
-.quoteRow {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 20px;
+.quoteHeadline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   margin: 16px 0;
 }
 
@@ -580,7 +581,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 1px;
   background: var(--advice-line-color);
   opacity: 0.75;
 }

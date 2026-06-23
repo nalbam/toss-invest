@@ -586,7 +586,7 @@ export function CandleChart({
     const options = {
       price,
       color: "#f59e0b",
-      lineWidth: 2 as const,
+      lineWidth: 1 as const,
       lineStyle: LineStyle.Dashed,
       axisLabelVisible: true,
       title: "평균단가",
