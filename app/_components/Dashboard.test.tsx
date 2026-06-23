@@ -312,7 +312,14 @@ describe("Dashboard", () => {
 
     render(<Dashboard />);
     // Start from an already-selected holding (the user's real scenario).
-    fireEvent.click(screen.getByText("Apple").closest("button")!);
+    // "Apple" also appears in the composition legend, so pick the occurrence
+    // inside the clickable holdings row.
+    fireEvent.click(
+      screen
+        .getAllByText("Apple")
+        .map((el) => el.closest("button"))
+        .find(Boolean)!,
+    );
     expect(screen.getByText("Apple (AAPL)")).toBeInTheDocument();
 
     // Once a symbol is selected the market panel also shows the chart advisor's
@@ -392,7 +399,14 @@ describe("Dashboard", () => {
     );
 
     render(<Dashboard />);
-    fireEvent.click(screen.getByText("Apple").closest("button")!);
+    // "Apple" also appears in the composition legend, so pick the occurrence
+    // inside the clickable holdings row.
+    fireEvent.click(
+      screen
+        .getAllByText("Apple")
+        .map((el) => el.closest("button"))
+        .find(Boolean)!,
+    );
     expect(await screen.findByText("Apple (AAPL)")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("계좌"), { target: { value: "2" } });

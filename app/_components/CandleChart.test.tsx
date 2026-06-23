@@ -9,7 +9,10 @@ import type { Candle, Order, PriceLimitResponse } from "@/lib/client/types";
 const setData = vi.fn();
 const applyOptions = vi.fn();
 const priceLine = { applyOptions };
-const createPriceLine = vi.fn(() => priceLine);
+const createPriceLine = vi.fn((options) => {
+  void options;
+  return priceLine;
+});
 const removePriceLine = vi.fn();
 const setMarkers = vi.fn();
 const detachMarkers = vi.fn();
