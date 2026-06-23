@@ -5,6 +5,7 @@ import {
   getServerTradingExecutor,
 } from "@/lib/server/toss/container";
 import { assembleCreateContext } from "@/lib/server/trading/context";
+import { isKrwSymbol } from "@/lib/server/trading/symbol";
 import { orderCreateRequestSchema } from "@/lib/server/toss/schemas";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +96,7 @@ async function prevalidate(
   accountSeq: number | string,
   request: z.infer<typeof orderCreateRequestSchema>,
 ): Promise<Prevalidation> {
-  const isKrw = /^\d{6}$/.test(request.symbol);
+  const isKrw = isKrwSymbol(request.symbol);
   const requested =
     "orderAmount" in request ? request.orderAmount : request.quantity;
   try {

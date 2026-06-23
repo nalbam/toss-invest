@@ -1,5 +1,6 @@
 import "server-only";
 import { getEnv } from "@/lib/server/env";
+import { isKrwSymbol } from "@/lib/server/trading/symbol";
 import type { TossClient } from "@/lib/server/toss/client";
 import {
   createOrderRaw,
@@ -37,11 +38,6 @@ export interface ServerAutoTrader {
     accountSeq: number | string,
     intents: OrderIntent[],
   ): Promise<AutoTradeResult>;
-}
-
-/** KRX symbols are 6-digit numeric and trade in KRW; everything else is USD. */
-function isKrwSymbol(symbol: string): boolean {
-  return /^\d{6}$/.test(symbol);
 }
 
 /**
