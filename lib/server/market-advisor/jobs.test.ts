@@ -50,6 +50,7 @@ const item = (symbol: string, id: number) => ({
   enabled: true,
   runEveryMinutes: 60,
   lastRunAt: null,
+  lastChartTimestamp: null,
 });
 
 describe("runAdvisorJobsOnce", () => {
@@ -83,6 +84,25 @@ describe("runAdvisorJobsOnce", () => {
 
     expect(summary.processed).toBe(1);
     expect(summary.analyzed).toBe(0);
+    expect(recordMarketAdvice).not.toHaveBeenCalled();
+  });
+
+  it("skips the LLM call when no new candle since the last analysis", async () => {
+    recordMarketAdvice.mockClear();
+    listEnabledWatchlist.mockReturnValue([
+      { ...item("SOXL", 1), lastChartTimestamp: "2026-06-22T00:00:00+09:00" },
+    ]);
+    const client = {
+      getCandles: vi.fn(async () => ({
+        candles: [candle("2026-06-22T00:00:00+09:00")],
+        nextBefore: null,
+      })),
+    } as unknown as ServerTossClient;
+
+    const summary = await runAdvisorJobsOnce({ client, provider: stubProvider() });
+
+    expect(summary.analyzed).toBe(0);
+    expect(summary.results[0]).toMatchObject({ symbol: "SOXL", skipped: true });
     expect(recordMarketAdvice).not.toHaveBeenCalled();
   });
 

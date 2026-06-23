@@ -16,6 +16,7 @@ export interface WatchlistItem {
   enabled: boolean;
   runEveryMinutes: number;
   lastRunAt: string | null;
+  lastChartTimestamp: string | null;
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {

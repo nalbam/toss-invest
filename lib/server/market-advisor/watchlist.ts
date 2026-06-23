@@ -15,6 +15,8 @@ export interface WatchlistItem {
   enabled: boolean;
   runEveryMinutes: number;
   lastRunAt: string | null;
+  /** Newest candle timestamp at the last analysis; lets the job skip when no new candle. */
+  lastChartTimestamp: string | null;
 }
 
 interface WatchlistRow {
@@ -26,6 +28,7 @@ interface WatchlistRow {
   enabled: number;
   run_every_minutes: number;
   last_run_at: string | null;
+  last_chart_timestamp: string | null;
   created_at: string;
 }
 
@@ -39,6 +42,7 @@ function rowToItem(row: WatchlistRow): WatchlistItem {
     enabled: row.enabled === 1,
     runEveryMinutes: row.run_every_minutes,
     lastRunAt: row.last_run_at,
+    lastChartTimestamp: row.last_chart_timestamp,
   };
 }
 
@@ -117,14 +121,18 @@ export function setWatchlistRunEvery(
   ).run(runEveryMinutes, id);
 }
 
-/** Records the time an item was last analyzed (drives the per-item due check). */
+/**
+ * Records when an item was last analyzed (drives the due check) and the newest
+ * candle timestamp seen (drives the "no new candle → skip" check). Pass the
+ * unchanged chart timestamp when skipping so only `last_run_at` advances.
+ */
 export function touchWatchlistRun(
   id: number,
   at: string,
+  chartTimestamp: string | null,
   db: Database.Database = getDb(),
 ): void {
-  db.prepare("UPDATE advisor_watchlist SET last_run_at = ? WHERE id = ?").run(
-    at,
-    id,
-  );
+  db.prepare(
+    "UPDATE advisor_watchlist SET last_run_at = ?, last_chart_timestamp = ? WHERE id = ?",
+  ).run(at, chartTimestamp, id);
 }

@@ -117,6 +117,7 @@ describe("MarketAiAdvisor", () => {
           enabled: true,
           runEveryMinutes: 60,
           lastRunAt: null,
+          lastChartTimestamp: null,
         },
       ],
       mutate: vi.fn(),

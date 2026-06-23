@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS advisor_watchlist (
   enabled INTEGER NOT NULL DEFAULT 1,
   run_every_minutes INTEGER NOT NULL DEFAULT 60,
   last_run_at TEXT,
+  last_chart_timestamp TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(symbol, interval)
 );
@@ -65,6 +66,9 @@ function migrate(db: Database.Database): void {
   }
   if (!columns.includes("last_run_at")) {
     db.exec("ALTER TABLE advisor_watchlist ADD COLUMN last_run_at TEXT");
+  }
+  if (!columns.includes("last_chart_timestamp")) {
+    db.exec("ALTER TABLE advisor_watchlist ADD COLUMN last_chart_timestamp TEXT");
   }
 }
 

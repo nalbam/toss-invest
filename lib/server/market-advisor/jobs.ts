@@ -20,6 +20,8 @@ export interface AdvisorJobItemResult {
   ok: boolean;
   decision?: string;
   error?: string;
+  /** True when skipped because no new candle existed since the last analysis. */
+  skipped?: boolean;
 }
 
 export interface AdvisorJobsSummary {
@@ -65,6 +67,19 @@ export async function runAdvisorJobsOnce(
         interval: sourceInterval(interval),
       });
       const candles = aggregateCandles(page.candles, interval).slice(-300);
+      const latest = latestCandleTimestamp({ candles });
+      if (latest === item.lastChartTimestamp) {
+        // No new candle since the last analysis (e.g. market closed) — skip the
+        // duplicate LLM call and only advance last_run_at.
+        touchWatchlistRun(item.id, new Date(now).toISOString(), item.lastChartTimestamp);
+        results.push({
+          symbol: item.symbol,
+          interval: item.interval,
+          ok: true,
+          skipped: true,
+        });
+        continue;
+      }
       const lastPrice = candles.at(-1)?.closePrice;
 
       const result = await runMarketAdvisor({
@@ -85,13 +100,13 @@ export async function runAdvisorJobsOnce(
         symbol: item.symbol,
         interval: item.interval,
         generatedAt: new Date().toISOString(),
-        chartTimestamp: latestCandleTimestamp({ candles }),
+        chartTimestamp: latest,
         lastPrice,
         decision: result.decision,
         advice: result.advice,
         annotations: result.annotations,
       });
-      touchWatchlistRun(item.id, new Date(now).toISOString());
+      touchWatchlistRun(item.id, new Date(now).toISOString(), latest);
 
       results.push({
         symbol: item.symbol,
@@ -109,7 +124,8 @@ export async function runAdvisorJobsOnce(
     }
   }
 
-  return { processed: items.length, analyzed: due.length, results };
+  const analyzed = results.filter((item) => item.ok && !item.skipped).length;
+  return { processed: items.length, analyzed, results };
 }
 
 /**

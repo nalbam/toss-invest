@@ -28,12 +28,15 @@ describe("advisor watchlist", () => {
     expect(listWatchlist(db)).toHaveLength(1);
   });
 
-  it("stores a custom run period and records last run time", () => {
+  it("stores a custom run period and records last run + chart timestamp", () => {
     const db = makeDb();
     const a = addWatchlist({ symbol: "AAA", interval: "1d", runEveryMinutes: 1440 }, db);
     expect(a.runEveryMinutes).toBe(1440);
-    touchWatchlistRun(a.id, "2026-06-23T00:00:00.000Z", db);
-    expect(listWatchlist(db)[0].lastRunAt).toBe("2026-06-23T00:00:00.000Z");
+    expect(a.lastChartTimestamp).toBeNull();
+    touchWatchlistRun(a.id, "2026-06-23T00:00:00.000Z", "2026-06-22T15:00:00.000Z", db);
+    const stored = listWatchlist(db)[0];
+    expect(stored.lastRunAt).toBe("2026-06-23T00:00:00.000Z");
+    expect(stored.lastChartTimestamp).toBe("2026-06-22T15:00:00.000Z");
   });
 
   it("upserts on duplicate (symbol, interval) and re-enables", () => {
