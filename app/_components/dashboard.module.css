@@ -890,6 +890,12 @@
   white-space: nowrap;
 }
 
+.quickActionStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .quickActionGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;

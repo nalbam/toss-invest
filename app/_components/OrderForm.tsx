@@ -127,9 +127,11 @@ export function OrderForm({
   const [price, setPrice] = useState("");
   const [orderAmount, setOrderAmount] = useState("");
   const [confirm, setConfirm] = useState(false);
-  // Quick-order two-step confirm: the side that is armed and awaiting the
-  // explicit 확정 click, or null when no order is armed.
-  const [armedSide, setArmedSide] = useState<Side | null>(null);
+  // Quick-order two-step confirm: the side + order type (시장가 vs 현재가) armed
+  // and awaiting the explicit 확정 click, or null when no order is armed.
+  const [armed, setArmed] = useState<{ side: Side; market: boolean } | null>(
+    null,
+  );
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<OrderPlaceResult | null>(null);
@@ -186,7 +188,7 @@ export function OrderForm({
   useEffect(() => {
     if (selectedSymbol) {
       setSymbol(selectedSymbol);
-      setArmedSide(null);
+      setArmed(null);
     }
   }, [selectedSymbol]);
 
@@ -199,7 +201,7 @@ export function OrderForm({
     setSide(prefill.side);
     setQuantity(String(prefill.quantity));
     setPricingMode("QUANTITY");
-    setArmedSide(null);
+    setArmed(null);
     setConfirm(false);
   }, [prefill]);
 
@@ -246,7 +248,7 @@ export function OrderForm({
   /** Sets the quantity and disarms any pending quick-order confirmation. */
   function changeQuantity(next: string) {
     setQuantity(next);
-    setArmedSide(null);
+    setArmed(null);
   }
 
   function stepQuantity(delta: number) {
@@ -339,13 +341,13 @@ export function OrderForm({
   }
 
   /** Arms the quick-order confirmation for a side (no order is sent yet). */
-  function armQuick(armSide: Side) {
+  function armQuick(armSide: Side, market: boolean) {
     if (!hasQuantity) {
       setResult(null);
       setError({ code: "invalid-input", message: "수량을 입력하세요." });
       return;
     }
-    if (lastPrice === undefined) {
+    if (!market && lastPrice === undefined) {
       setResult(null);
       setError({ code: "no-price", message: "현재가를 불러오지 못했습니다." });
       return;
@@ -353,42 +355,55 @@ export function OrderForm({
     setError(null);
     setResult(null);
     changeSide(armSide);
-    setArmedSide(armSide);
+    setArmed({ side: armSide, market });
   }
 
-  // Sends a current-price LIMIT order for `quickSide` with confirm:true. Shared
-  // by the two-step confirm (confirmQuick) and the modifier+click shortcut. The
-  // §6 gate still decides whether it sends or stays a DRY_RUN preview.
-  async function submitQuick(quickSide: Side) {
+  // Sends a quick order for `quickSide` with confirm:true. `market` chooses a
+  // MARKET order (no price; the server values it via the current price) over a
+  // current-price LIMIT order. Shared by the two-step confirm (confirmQuick) and
+  // the modifier+click shortcut. The §6 gate still decides SEND vs DRY_RUN.
+  async function submitQuick(quickSide: Side, market: boolean) {
     if (!hasQuantity) {
       setResult(null);
       setError({ code: "invalid-input", message: "수량을 입력하세요." });
       return;
     }
-    if (lastPrice === undefined) {
-      setResult(null);
-      setError({ code: "no-price", message: "현재가를 불러오지 못했습니다." });
-      return;
+    let body: OrderCreateBody;
+    if (market) {
+      body = {
+        symbol: trimmedSymbol,
+        side: quickSide,
+        orderType: "MARKET",
+        timeInForce: "DAY",
+        quantity: quantity.trim(),
+        confirm: true,
+      };
+    } else {
+      if (lastPrice === undefined) {
+        setResult(null);
+        setError({ code: "no-price", message: "현재가를 불러오지 못했습니다." });
+        return;
+      }
+      body = {
+        symbol: trimmedSymbol,
+        side: quickSide,
+        orderType: "LIMIT",
+        timeInForce: "DAY",
+        quantity: quantity.trim(),
+        price: lastPrice,
+        confirm: true,
+      };
     }
-    const body: OrderCreateBody = {
-      symbol: trimmedSymbol,
-      side: quickSide,
-      orderType: "LIMIT",
-      timeInForce: "DAY",
-      quantity: quantity.trim(),
-      price: lastPrice,
-      confirm: true,
-    };
     await send(body);
-    setArmedSide(null);
+    setArmed(null);
   }
 
   // Quick order: the explicit second click of the two-step confirm.
   async function confirmQuick() {
-    if (armedSide === null) {
+    if (armed === null) {
       return;
     }
-    await submitQuick(armedSide);
+    await submitQuick(armed.side, armed.market);
   }
 
   return (
@@ -728,75 +743,111 @@ export function OrderForm({
               </span>
             </div>
 
-            {armedSide === null ? (
-              <div className={styles.quickActionGrid}>
-                <button
-                  type="button"
-                  className={styles.quickSell}
-                  onClick={(event) =>
-                    event.ctrlKey || event.metaKey
-                      ? submitQuick("SELL")
-                      : armQuick("SELL")
-                  }
-                  disabled={lastPrice === undefined}
-                >
-                  현재가 판매
-                  {estimated !== null ? (
-                    <span
-                      className={styles.quickBtnAmount}
-                      data-private-value="true"
-                    >
-                      {formatPrice(estimated, currency)}
-                    </span>
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  className={styles.quickBuy}
-                  onClick={(event) =>
-                    event.ctrlKey || event.metaKey
-                      ? submitQuick("BUY")
-                      : armQuick("BUY")
-                  }
-                  disabled={lastPrice === undefined}
-                >
-                  현재가 구매
-                  {estimated !== null ? (
-                    <span
-                      className={styles.quickBtnAmount}
-                      data-private-value="true"
-                    >
-                      {formatPrice(estimated, currency)}
-                    </span>
-                  ) : null}
-                </button>
+            {armed === null ? (
+              <div className={styles.quickActionStack}>
+                <div className={styles.quickActionGrid}>
+                  <button
+                    type="button"
+                    className={styles.quickSell}
+                    onClick={(event) =>
+                      event.ctrlKey || event.metaKey
+                        ? submitQuick("SELL", false)
+                        : armQuick("SELL", false)
+                    }
+                    disabled={lastPrice === undefined}
+                  >
+                    현재가 판매
+                    {estimated !== null ? (
+                      <span
+                        className={styles.quickBtnAmount}
+                        data-private-value="true"
+                      >
+                        {formatPrice(estimated, currency)}
+                      </span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.quickBuy}
+                    onClick={(event) =>
+                      event.ctrlKey || event.metaKey
+                        ? submitQuick("BUY", false)
+                        : armQuick("BUY", false)
+                    }
+                    disabled={lastPrice === undefined}
+                  >
+                    현재가 구매
+                    {estimated !== null ? (
+                      <span
+                        className={styles.quickBtnAmount}
+                        data-private-value="true"
+                      >
+                        {formatPrice(estimated, currency)}
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
+                <div className={styles.quickActionGrid}>
+                  <button
+                    type="button"
+                    className={styles.quickSell}
+                    onClick={(event) =>
+                      event.ctrlKey || event.metaKey
+                        ? submitQuick("SELL", true)
+                        : armQuick("SELL", true)
+                    }
+                  >
+                    시장가 판매
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.quickBuy}
+                    onClick={(event) =>
+                      event.ctrlKey || event.metaKey
+                        ? submitQuick("BUY", true)
+                        : armQuick("BUY", true)
+                    }
+                  >
+                    시장가 구매
+                  </button>
+                </div>
               </div>
             ) : (
               <div className={styles.quickConfirm} role="alert">
                 <p className={styles.quickConfirmText}>
-                  정말 {armedSide === "BUY" ? "구매" : "판매"}하시겠어요?{" "}
-                  <span data-private-value="true">{quantity.trim()}주</span> ·{" "}
-                  <span data-private-value="true">
-                    {estimated !== null ? formatPrice(estimated, currency) : "-"}
-                  </span>
+                  정말 {armed.market ? "시장가로 " : ""}
+                  {armed.side === "BUY" ? "구매" : "판매"}하시겠어요?{" "}
+                  <span data-private-value="true">{quantity.trim()}주</span>
+                  {armed.market ? null : (
+                    <>
+                      {" "}·{" "}
+                      <span data-private-value="true">
+                        {estimated !== null
+                          ? formatPrice(estimated, currency)
+                          : "-"}
+                      </span>
+                    </>
+                  )}
                 </p>
                 <div className={styles.quickActionGrid}>
                   <button
                     type="button"
                     className={
-                      armedSide === "BUY" ? styles.quickBuy : styles.quickSell
+                      armed.side === "BUY" ? styles.quickBuy : styles.quickSell
                     }
                     onClick={confirmQuick}
                     disabled={submitting}
                   >
                     {submitting
                       ? "전송 중…"
-                      : `${armedSide === "BUY" ? "구매" : "판매"} 확정`}
+                      : `${armed.market ? "시장가 " : ""}${
+                          armed.side === "BUY" ? "구매" : "판매"
+                        } 확정`}
                   </button>
                   <button
                     type="button"
                     className={styles.quickCancel}
-                    onClick={() => setArmedSide(null)}
+                    onClick={() => setArmed(null)}
                     disabled={submitting}
                   >
                     되돌리기
@@ -806,8 +857,9 @@ export function OrderForm({
             )}
 
             <p className={styles.confirmHint}>
-              확정을 누르면 현재가 지정가(LIMIT)로 주문합니다. 서버 안전 게이트가
-              최종 판정하며, DRY_RUN 모드에서는 미리보기만 실행됩니다.
+              확정을 누르면 현재가 지정가(LIMIT) 또는 시장가(MARKET)로 주문합니다.
+              서버 안전 게이트가 최종 판정하며, DRY_RUN 모드에서는 미리보기만
+              실행됩니다.
             </p>
           </>
         )}

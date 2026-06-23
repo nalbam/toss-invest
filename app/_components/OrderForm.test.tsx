@@ -273,6 +273,59 @@ describe("OrderForm — quick order (default)", () => {
     });
   });
 
+  it("arms then confirms a 시장가 MARKET order without a price", async () => {
+    fetchMock.mockImplementation(
+      quoteFetch(
+        () =>
+          jsonResponse({
+            data: {
+              status: "SENT",
+              response: { orderId: "ord-m", clientOrderId: null },
+              notionalKrw: 557100,
+              prevalidation: {
+                side: "BUY",
+                available: "5000",
+                requested: "3",
+                insufficient: false,
+              },
+            },
+          }),
+        { price: { lastPrice: "185.70", currency: "USD" }, sellable: "10" },
+      ),
+    );
+
+    renderForm(
+      <OrderForm
+        accountSeq={1}
+        symbol="AAPL"
+        cash={{ usd: "5000" }}
+        fxRate="1350"
+      />,
+    );
+
+    await screen.findByText("$185.70");
+    fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
+      target: { value: "3" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /시장가 구매/ }));
+    expect(
+      screen.getByText(/정말 시장가로 구매하시겠어요\?/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "시장가 구매 확정" }));
+
+    expect(await screen.findByText("✅ 전송됨")).toBeInTheDocument();
+    const body = lastPostBody();
+    expect(body).toMatchObject({
+      symbol: "AAPL",
+      side: "BUY",
+      orderType: "MARKET",
+      quantity: "3",
+      confirm: true,
+    });
+    expect(body.price).toBeUndefined();
+  });
+
   it("disarms the confirmation with 되돌리기 without sending", async () => {
     fetchMock.mockImplementation(
       quoteFetch(() => jsonResponse({ data: {} }), {
