@@ -285,6 +285,13 @@ export interface PriceLimitResponse {
   currency: Currency;
 }
 
+export interface Trade {
+  price: string;
+  volume: string;
+  timestamp: string;
+  currency: Currency;
+}
+
 export interface OrderbookEntry {
   price: string;
   volume: string;

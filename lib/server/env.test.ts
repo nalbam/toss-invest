@@ -93,4 +93,42 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...validRaw, MAX_ORDER_AMOUNT: "abc" })).toThrow();
     expect(() => parseEnv({ ...validRaw, MAX_ORDER_AMOUNT: "0" })).toThrow();
   });
+
+  it("leaves the AI advisor (LLM) config unset when absent — app still boots", () => {
+    const env = parseEnv(validRaw);
+    expect(env.LLM_PROVIDER).toBeUndefined();
+    expect(env.OPENAI_API_KEY).toBeUndefined();
+    expect(env.XAI_API_KEY).toBeUndefined();
+    expect(env.LLM_MODEL).toBeUndefined();
+  });
+
+  it("parses LLM config when set", () => {
+    const env = parseEnv({
+      ...validRaw,
+      LLM_PROVIDER: "openai",
+      OPENAI_API_KEY: "sk-test-key",
+      LLM_MODEL: "gpt-test",
+    });
+    expect(env.LLM_PROVIDER).toBe("openai");
+    expect(env.OPENAI_API_KEY).toBe("sk-test-key");
+    expect(env.LLM_MODEL).toBe("gpt-test");
+  });
+
+  it("treats empty-string LLM values as unset (the .env.example trap)", () => {
+    const env = parseEnv({
+      ...validRaw,
+      LLM_PROVIDER: "",
+      OPENAI_API_KEY: "",
+      XAI_API_KEY: "   ",
+      LLM_MODEL: "",
+    });
+    expect(env.LLM_PROVIDER).toBeUndefined();
+    expect(env.OPENAI_API_KEY).toBeUndefined();
+    expect(env.XAI_API_KEY).toBeUndefined();
+    expect(env.LLM_MODEL).toBeUndefined();
+  });
+
+  it("rejects an unknown LLM_PROVIDER", () => {
+    expect(() => parseEnv({ ...validRaw, LLM_PROVIDER: "anthropic" })).toThrow();
+  });
 });

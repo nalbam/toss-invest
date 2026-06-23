@@ -122,6 +122,29 @@ describe("OrdersTable", () => {
     expect(screen.getAllByRole("row")).toHaveLength(3);
   });
 
+  it("shows selected symbol orders above the full account order list", () => {
+    render(
+      <OrdersTable
+        orders={[buyLimit, sellUsPartial]}
+        selectedSymbol="005930"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "005930 주문 내역" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "전체 주문 내역" })).toBeInTheDocument();
+    const selectedSection = screen.getByLabelText("005930 주문 내역");
+    expect(within(selectedSection).getByText("005930")).toBeInTheDocument();
+    expect(within(selectedSection).queryByText("AAPL")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty selected symbol section when that symbol has no orders", () => {
+    render(<OrdersTable orders={[sellUsPartial]} selectedSymbol="005930" />);
+
+    expect(screen.getByRole("heading", { name: "005930 주문 내역" })).toBeInTheDocument();
+    expect(screen.getByText("해당 종목 주문 없음")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "전체 주문 내역" })).toBeInTheDocument();
+  });
+
   it("renders the empty state when there are no orders", () => {
     render(<OrdersTable orders={[]} />);
     expect(screen.getByText("주문 없음")).toBeInTheDocument();

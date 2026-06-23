@@ -31,6 +31,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -205,7 +206,9 @@ describe("OrderForm — quick order (default)", () => {
     // Second click sends the real order.
     fireEvent.click(screen.getByRole("button", { name: "구매 확정" }));
     expect(await screen.findByText("✅ 전송됨")).toBeInTheDocument();
-    expect(screen.getByText("주문번호: ord-9")).toBeInTheDocument();
+    expect(
+      screen.getByText("주문이 정상적으로 전송되었습니다."),
+    ).toBeInTheDocument();
     expect(lastPostBody()).toMatchObject({
       symbol: "AAPL",
       side: "BUY",
@@ -215,6 +218,112 @@ describe("OrderForm — quick order (default)", () => {
       price: "185.70",
       confirm: true,
     });
+  });
+
+  it("submits immediately on modifier+click, skipping the confirm step", async () => {
+    fetchMock.mockImplementation(
+      quoteFetch(
+        () =>
+          jsonResponse({
+            data: {
+              status: "SENT",
+              response: { orderId: "ord-9", clientOrderId: null },
+              notionalKrw: 557100,
+              prevalidation: {
+                side: "BUY",
+                available: "5000",
+                requested: "3",
+                insufficient: false,
+              },
+            },
+          }),
+        { price: { lastPrice: "185.70", currency: "USD" }, sellable: "10" },
+      ),
+    );
+
+    renderForm(
+      <OrderForm
+        accountSeq={1}
+        symbol="AAPL"
+        cash={{ usd: "5000" }}
+        fxRate="1350"
+      />,
+    );
+
+    await screen.findByText("$185.70");
+    fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
+      target: { value: "3" },
+    });
+
+    // Modifier+click skips the two-step confirm and sends immediately.
+    fireEvent.click(screen.getByRole("button", { name: /현재가 구매/ }), {
+      metaKey: true,
+    });
+    expect(
+      screen.queryByRole("button", { name: "구매 확정" }),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByText("✅ 전송됨")).toBeInTheDocument();
+    expect(lastPostBody()).toMatchObject({
+      symbol: "AAPL",
+      side: "BUY",
+      orderType: "LIMIT",
+      quantity: "3",
+      price: "185.70",
+      confirm: true,
+    });
+  });
+
+  it("arms then confirms a 시장가 MARKET order without a price", async () => {
+    fetchMock.mockImplementation(
+      quoteFetch(
+        () =>
+          jsonResponse({
+            data: {
+              status: "SENT",
+              response: { orderId: "ord-m", clientOrderId: null },
+              notionalKrw: 557100,
+              prevalidation: {
+                side: "BUY",
+                available: "5000",
+                requested: "3",
+                insufficient: false,
+              },
+            },
+          }),
+        { price: { lastPrice: "185.70", currency: "USD" }, sellable: "10" },
+      ),
+    );
+
+    renderForm(
+      <OrderForm
+        accountSeq={1}
+        symbol="AAPL"
+        cash={{ usd: "5000" }}
+        fxRate="1350"
+      />,
+    );
+
+    await screen.findByText("$185.70");
+    fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
+      target: { value: "3" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /시장가 구매/ }));
+    expect(
+      screen.getByText(/정말 시장가로 구매하시겠어요\?/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "시장가 구매 확정" }));
+
+    expect(await screen.findByText("✅ 전송됨")).toBeInTheDocument();
+    const body = lastPostBody();
+    expect(body).toMatchObject({
+      symbol: "AAPL",
+      side: "BUY",
+      orderType: "MARKET",
+      quantity: "3",
+      confirm: true,
+    });
+    expect(body.price).toBeUndefined();
   });
 
   it("disarms the confirmation with 되돌리기 without sending", async () => {
@@ -317,7 +426,7 @@ describe("OrderForm — general order", () => {
     expect(screen.getByText("dry-run-enabled")).toBeInTheDocument();
   });
 
-  it("submits confirm:true and renders SENT with the order id", async () => {
+  it("submits confirm:true and renders the SENT success message", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
         data: {
@@ -341,7 +450,9 @@ describe("OrderForm — general order", () => {
     fireEvent.click(screen.getByRole("button", { name: "구매하기" }));
 
     expect(await screen.findByText("✅ 전송됨")).toBeInTheDocument();
-    expect(screen.getByText("주문번호: ord-123")).toBeInTheDocument();
+    expect(
+      screen.getByText("주문이 정상적으로 전송되었습니다."),
+    ).toBeInTheDocument();
     expect(lastPostBody().confirm).toBe(true);
   });
 
@@ -402,5 +513,82 @@ describe("OrderForm — general order", () => {
         screen.getByText("[already-canceled] Order already canceled"),
       ).toBeInTheDocument();
     });
+  });
+
+  it("prefills side and quantity from a proposal without arming or confirming (§6.A-2)", () => {
+    fetchMock.mockImplementation(quoteFetch(() => jsonResponse({ data: {} })));
+    renderForm(
+      <OrderForm accountSeq={1} symbol="005930" prefill={{ side: "SELL", quantity: 7 }} />,
+    );
+    goGeneral();
+
+    expect(screen.getByRole("button", { name: "판매" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("수량")).toHaveDisplayValue("7");
+    // The confirm box is never auto-checked, and nothing is sent — the user must
+    // still confirm and pass the §6 gate.
+    expect(screen.getByLabelText("실주문 확인 (confirm)")).not.toBeChecked();
+    expect(hasPosted()).toBe(false);
+  });
+
+  it("stores repeatable order form preferences without sensitive inputs", () => {
+    renderForm(<OrderForm accountSeq={1} />);
+    goGeneral();
+
+    fireEvent.click(screen.getByRole("button", { name: "판매" }));
+    fireEvent.change(screen.getByLabelText("주문 유형"), {
+      target: { value: "MARKET" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "금액 (US)" }));
+    fireEvent.change(screen.getByLabelText("주문금액"), {
+      target: { value: "1000" },
+    });
+    fireEvent.click(screen.getByLabelText("실주문 확인 (confirm)"));
+
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("toss-invest:order-form-preferences") ??
+          "{}",
+      ),
+    ).toEqual({
+      mode: "GENERAL",
+      side: "SELL",
+      orderType: "MARKET",
+      pricingMode: "AMOUNT",
+    });
+  });
+
+  it("restores stored order form preferences on reload", async () => {
+    window.localStorage.setItem(
+      "toss-invest:order-form-preferences",
+      JSON.stringify({
+        mode: "GENERAL",
+        side: "SELL",
+        orderType: "MARKET",
+        pricingMode: "AMOUNT",
+      }),
+    );
+
+    renderForm(<OrderForm accountSeq={1} symbol="AAPL" />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "일반주문" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+    expect(screen.getByRole("button", { name: "판매" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("주문 유형")).toHaveValue("MARKET");
+    expect(screen.getByRole("button", { name: "금액 (US)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("주문금액")).toHaveValue("");
+    expect(screen.getByLabelText("실주문 확인 (confirm)")).not.toBeChecked();
   });
 });

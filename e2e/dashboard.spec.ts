@@ -176,6 +176,19 @@ const orders: PaginatedOrderResponse = {
   hasNext: false,
 };
 
+const advisorResult = {
+  advice: "삼성전자 비중이 높습니다. 분산을 고려하세요.",
+  proposals: [
+    {
+      proposal: { kind: "trim", symbol: "005930", side: "SELL", quantity: 3, rationale: "비중 축소" },
+      valid: true,
+      reasons: [],
+    },
+  ],
+  model: "test-model",
+  generatedAt: "2026-06-18T00:00:00Z",
+};
+
 /** Fulfills a route with the success `{ data }` envelope used by every route. */
 function fulfillData(route: Route, data: unknown): Promise<void> {
   return route.fulfill({
@@ -200,6 +213,7 @@ async function mockApi(page: Page): Promise<void> {
     if (path === "/api/orderbook") return fulfillData(route, orderbook);
     if (path === "/api/candles") return fulfillData(route, candles);
     if (path === "/api/orders") return fulfillData(route, orders);
+    if (path === "/api/advisor") return fulfillData(route, advisorResult);
     return fulfillData(route, null);
   });
 }
@@ -240,4 +254,23 @@ test("renders portfolio summary, holdings, orders, and market quote", async ({
   const currentPrice = quote.getByText("현재가 (005930)").locator("..");
   await expect(currentPrice.getByText("현재가 (005930)")).toBeVisible();
   await expect(currentPrice.getByText("₩72,000")).toBeVisible();
+});
+
+test("renders the AI advisor card and shows proposals on demand", async ({
+  page,
+}) => {
+  await mockApi(page);
+  await page.goto("/");
+
+  const advisor = page.getByRole("region", { name: "AI 어드바이저" });
+  await expect(advisor).toBeVisible();
+  // The disclaimer is always present; advice/proposals only after the button.
+  await expect(advisor.getByText(/참고용/)).toBeVisible();
+  await expect(advisor.getByText(/분산을 고려/)).toHaveCount(0);
+
+  await advisor.getByRole("button", { name: "조언 받기" }).click();
+
+  await expect(advisor.getByText(/분산을 고려하세요/)).toBeVisible();
+  await expect(advisor.getByText("005930 · SELL 3")).toBeVisible();
+  await expect(advisor.getByRole("button", { name: "폼에 담기" })).toBeVisible();
 });

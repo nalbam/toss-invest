@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { QueryResult } from "@/lib/client/hooks";
 import type {
   Account,
@@ -12,6 +18,7 @@ import type {
   PriceLimitResponse,
   PriceResponse,
   SellableQuantity,
+  Trade,
 } from "@/lib/client/types";
 
 // Dashboard composes many SWR-backed children. Mock the whole hooks module so
@@ -25,6 +32,13 @@ const useOrders =
 const useExchangeRate =
   vi.fn<() => QueryResult<ExchangeRateResponse>>();
 const useCashBalances = vi.fn();
+const fetchAdvisor = vi.fn();
+
+// The AI advisor card triggers a paid LLM fetch; stub it so a proposal can be
+// applied deterministically.
+vi.mock("@/lib/client/advisor", () => ({
+  fetchAdvisor: () => fetchAdvisor(),
+}));
 
 vi.mock("@/lib/client/hooks", () => ({
   useAccounts: () => useAccounts(),
@@ -63,6 +77,16 @@ vi.mock("@/lib/client/hooks", () => ({
     error: undefined,
     isLoading: false,
   }),
+  useTrades: (): QueryResult<Trade[]> => ({
+    data: [],
+    error: undefined,
+    isLoading: false,
+  }),
+  useMarketAdvisorHistory: () => ({
+    data: { events: [] },
+    error: undefined,
+    isLoading: false,
+  }),
   ApiClientError: class extends Error {},
   submitOrder: vi.fn(),
   cancelOrder: vi.fn(),
@@ -74,11 +98,28 @@ vi.mock("swr", () => ({
 
 vi.mock("lightweight-charts", () => ({
   createChart: () => ({
-    addSeries: () => ({ setData: () => {} }),
-    timeScale: () => ({ fitContent: () => {} }),
+    addSeries: () => ({
+      setData: () => {},
+      priceScale: () => ({ applyOptions: () => {} }),
+      createPriceLine: () => ({ applyOptions: () => {} }),
+      removePriceLine: () => {},
+    }),
+    timeScale: () => ({
+      fitContent: () => {},
+      timeToCoordinate: () => 120,
+      subscribeVisibleLogicalRangeChange: () => {},
+      unsubscribeVisibleLogicalRangeChange: () => {},
+    }),
     remove: () => {},
   }),
+  createSeriesMarkers: () => ({
+    setMarkers: () => {},
+    detach: () => {},
+  }),
   CandlestickSeries: "CandlestickSeries",
+  HistogramSeries: "HistogramSeries",
+  LineSeries: "LineSeries",
+  LineStyle: { Dashed: 2 },
 }));
 
 const { Dashboard } = await import("./Dashboard");
@@ -110,6 +151,21 @@ const apple = {
   cost: { commission: "1.5", tax: null },
 };
 
+const samsung = {
+  ...apple,
+  symbol: "005930",
+  name: "삼성전자",
+  marketCountry: "KR" as const,
+  currency: "KRW" as const,
+  lastPrice: "72000",
+  averagePurchasePrice: "65000",
+  marketValue: {
+    purchaseAmount: "650000",
+    amount: "720000",
+    amountAfterCost: "719000",
+  },
+};
+
 const overview: HoldingsOverview = {
   totalPurchaseAmount: { krw: "0", usd: "1050.00" },
   marketValue: {
@@ -126,9 +182,16 @@ const overview: HoldingsOverview = {
   items: [apple],
 };
 
+const samsungOverview: HoldingsOverview = {
+  ...overview,
+  items: [samsung],
+};
+
 beforeEach(() => {
   useAccounts.mockReturnValue(
-    loaded([{ accountNo: "123-45", accountSeq: 1, accountType: "위탁" }]),
+    loaded([
+      { accountNo: "11001044791", accountSeq: 1, accountType: "BROKERAGE" },
+    ]),
   );
   useHoldings.mockReturnValue(loaded(overview));
   useOrders.mockReturnValue(loaded({ orders: [], nextCursor: null, hasNext: false }));
@@ -154,23 +217,58 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document.title = "";
   window.localStorage.clear();
   vi.clearAllMocks();
 });
 
 describe("Dashboard", () => {
+  it("masks account numbers in the account selector", () => {
+    const { container } = render(<Dashboard />);
+
+    expect(screen.getByRole("group", { name: "테마" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "110*****791 (BROKERAGE)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("11001044791 (BROKERAGE)"),
+    ).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-private-value='true']"),
+    ).not.toBeNull();
+  });
+
+  it("toggles privacy blur with Ctrl or Command + Shift + B", () => {
+    const { container } = render(<Dashboard />);
+    const root = container.firstElementChild;
+
+    expect(root).toHaveAttribute("data-privacy-blurred", "false");
+
+    fireEvent.keyDown(window, { key: "b", ctrlKey: true, shiftKey: true });
+    expect(root).toHaveAttribute("data-privacy-blurred", "true");
+
+    fireEvent.keyDown(window, { key: "B", metaKey: true, shiftKey: true });
+    expect(root).toHaveAttribute("data-privacy-blurred", "false");
+  });
+
   it("prompts the user to pick a holding before a symbol is selected", () => {
     render(<Dashboard />);
     expect(screen.getByText("보유 종목을 선택하세요.")).toBeInTheDocument();
     expect(
       screen.getByText("보유 종목을 선택하면 주문할 수 있습니다."),
     ).toBeInTheDocument();
+    expect(document.title).toBe("토스증권 대시보드");
   });
 
   it("selecting a holding drives the market panel and order form", () => {
     render(<Dashboard />);
-    // Click the holding row to select it.
-    fireEvent.click(screen.getByText("Apple").closest("button")!);
+    // Click the holding row to select it. "Apple" also appears in the
+    // composition legend, so pick the occurrence inside the clickable row.
+    const appleRow = screen
+      .getAllByText("Apple")
+      .map((el) => el.closest("button"))
+      .find(Boolean);
+    fireEvent.click(appleRow!);
     // Left market panel now shows the symbol header instead of the prompt.
     expect(screen.getByText("Apple (AAPL)")).toBeInTheDocument();
     expect(
@@ -181,13 +279,141 @@ describe("Dashboard", () => {
     fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
     expect(screen.getByLabelText("종목코드")).toHaveValue("AAPL");
     expect(window.localStorage.getItem("toss-invest:last-symbol")).toBe("AAPL");
+    expect(window.localStorage.getItem("toss-invest:last-symbol:1")).toBe(
+      "AAPL",
+    );
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("toss-invest:last-symbol-selection:1")!,
+      ),
+    ).toEqual({ symbol: "AAPL" });
+  });
+
+  it("applying a non-held BUY proposal switches the symbol and labels it with the resolved name", async () => {
+    fetchAdvisor.mockResolvedValue({
+      advice: "신규 매수 검토",
+      model: "stub-model",
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      proposals: [
+        {
+          proposal: {
+            kind: "buy",
+            symbol: "360750",
+            side: "BUY",
+            quantity: 10,
+            rationale: "지수 분산",
+          },
+          valid: true,
+          reasons: [],
+          name: "TIGER 미국S&P500",
+        },
+      ],
+    });
+
+    render(<Dashboard />);
+    // Start from an already-selected holding (the user's real scenario).
+    // "Apple" also appears in the composition legend, so pick the occurrence
+    // inside the clickable holdings row.
+    fireEvent.click(
+      screen
+        .getAllByText("Apple")
+        .map((el) => el.closest("button"))
+        .find(Boolean)!,
+    );
+    expect(screen.getByText("Apple (AAPL)")).toBeInTheDocument();
+
+    // Once a symbol is selected the market panel also shows the chart advisor's
+    // "조언 받기"; the portfolio advisor (right sidebar) is the last one in DOM.
+    const runButtons = screen.getAllByRole("button", { name: "조언 받기" });
+    fireEvent.click(runButtons[runButtons.length - 1]);
+    fireEvent.click(await screen.findByText("폼에 담기"));
+
+    // Left market panel header should switch to the proposed symbol AND show its
+    // resolved name (not just the code) — same as selecting a holding.
+    expect(screen.getByText("TIGER 미국S&P500 (360750)")).toBeInTheDocument();
+    expect(screen.queryByText("Apple (AAPL)")).not.toBeInTheDocument();
+    // Center order form 종목코드 follows the proposed symbol; 일반주문 tab shows it.
+    fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
+    expect(screen.getByLabelText("종목코드")).toHaveValue("360750");
+    expect(window.localStorage.getItem("toss-invest:last-symbol")).toBe(
+      "360750",
+    );
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("toss-invest:last-symbol-selection:1")!,
+      ),
+    ).toEqual({ symbol: "360750", name: "TIGER 미국S&P500" });
   });
 
   it("restores the last selected holding when it is still present", async () => {
-    window.localStorage.setItem("toss-invest:last-symbol", "AAPL");
+    window.localStorage.setItem("toss-invest:last-symbol:1", "AAPL");
 
     render(<Dashboard />);
 
     expect(await screen.findByText("Apple (AAPL)")).toBeInTheDocument();
+  });
+
+  it("restores a non-held selected symbol with its stored display name", async () => {
+    window.localStorage.setItem(
+      "toss-invest:last-symbol-selection:1",
+      JSON.stringify({ symbol: "360750", name: "TIGER 미국S&P500" }),
+    );
+
+    render(<Dashboard />);
+
+    expect(
+      await screen.findByText("TIGER 미국S&P500 (360750)"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
+    expect(screen.getByLabelText("종목코드")).toHaveValue("360750");
+  });
+
+  it("restores the selected account when it is still available", async () => {
+    window.localStorage.setItem("toss-invest:selected-account-seq", "2");
+    useAccounts.mockReturnValue(
+      loaded([
+        { accountNo: "11001044791", accountSeq: 1, accountType: "BROKERAGE" },
+        { accountNo: "22001044792", accountSeq: 2, accountType: "BROKERAGE" },
+      ]),
+    );
+    useHoldings.mockImplementation((seq) =>
+      loaded(seq === 2 ? samsungOverview : overview),
+    );
+
+    render(<Dashboard />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("계좌")).toHaveValue("2"),
+    );
+  });
+
+  it("stores account changes and resets the selected symbol", async () => {
+    useAccounts.mockReturnValue(
+      loaded([
+        { accountNo: "11001044791", accountSeq: 1, accountType: "BROKERAGE" },
+        { accountNo: "22001044792", accountSeq: 2, accountType: "BROKERAGE" },
+      ]),
+    );
+    useHoldings.mockImplementation((seq) =>
+      loaded(seq === 2 ? samsungOverview : overview),
+    );
+
+    render(<Dashboard />);
+    // "Apple" also appears in the composition legend, so pick the occurrence
+    // inside the clickable holdings row.
+    fireEvent.click(
+      screen
+        .getAllByText("Apple")
+        .map((el) => el.closest("button"))
+        .find(Boolean)!,
+    );
+    expect(await screen.findByText("Apple (AAPL)")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("계좌"), { target: { value: "2" } });
+
+    expect(window.localStorage.getItem("toss-invest:selected-account-seq")).toBe(
+      "2",
+    );
+    expect(screen.getByText("보유 종목을 선택하세요.")).toBeInTheDocument();
   });
 });

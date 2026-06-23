@@ -41,12 +41,33 @@ export function HoldingsTable({
   onSelectSymbol?: (symbol: string) => void;
   refreshing?: boolean;
 }) {
+  const summary = (
+    <span className={styles.holdingsSummaryList}>
+      {items.length === 0 ? (
+        <span className={styles.holdingsSummaryItem}>
+          <span className={styles.metricLabel}>보유 종목 없음</span>
+          <span className={styles.holdingValue}>-</span>
+        </span>
+      ) : (
+        items.map((item) => (
+          <span key={item.symbol} className={styles.holdingsSummaryItem}>
+            <span className={styles.holdingsSummaryName}>{item.name}</span>
+            <span className={styles.holdingValue} data-private-value="true">
+              <Money value={formatPrice(item.marketValue.amount, item.currency)} />
+            </span>
+          </span>
+        ))
+      )}
+    </span>
+  );
+
   if (items.length === 0) {
     return (
       <CollapsibleCard
         title="보유 종목"
         storageId="holdings"
         refreshing={refreshing}
+        summary={summary}
       >
         <p className={styles.empty}>보유 종목 없음</p>
       </CollapsibleCard>
@@ -58,6 +79,7 @@ export function HoldingsTable({
       title="보유 종목"
       storageId="holdings"
       refreshing={refreshing}
+      summary={summary}
     >
       <div className={styles.holdingsList}>
         {items.map((item) => {
@@ -72,10 +94,12 @@ export function HoldingsTable({
                   <span className={styles.symbolName}>{item.name}</span>
                   <span className={styles.symbolTicker}>
                     {item.symbol} · {item.marketCountry} ·{" "}
-                    {formatDecimal(item.quantity, { maxFractionDigits: 4 })}주
+                    <span data-private-value="true">
+                      {formatDecimal(item.quantity, { maxFractionDigits: 4 })}주
+                    </span>
                   </span>
                 </span>
-                <span className={styles.holdingValue}>
+                <span className={styles.holdingValue} data-private-value="true">
                   <Money value={formatPrice(item.marketValue.amount, item.currency)} />
                 </span>
               </span>
@@ -94,7 +118,7 @@ export function HoldingsTable({
                 </span>
                 <span>
                   <span className={styles.holdingLabel}>매입금액</span>
-                  <span className={styles.holdingAmount}>
+                  <span className={styles.holdingAmount} data-private-value="true">
                     <Money value={formatPrice(item.marketValue.purchaseAmount, item.currency)} />
                   </span>
                 </span>
@@ -102,7 +126,9 @@ export function HoldingsTable({
               <span className={styles.holdingProfit}>
                 <span className={styles.holdingLabel}>손익</span>
                 <span className={signClass(item.profitLoss.amount)}>
-                  <Money value={formatPrice(item.profitLoss.amount, item.currency)} />{" "}
+                  <span data-private-value="true">
+                    <Money value={formatPrice(item.profitLoss.amount, item.currency)} />
+                  </span>{" "}
                   ({formatPercent(item.profitLoss.rate)})
                 </span>
               </span>

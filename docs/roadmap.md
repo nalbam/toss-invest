@@ -1,9 +1,58 @@
-# EVAL — self-evaluating loop 이력 (append-only)
+# 로드맵 & 이력
 
-형식: `#N | phase | 한 일 | 점수+근거(6축) | 최저축 | 다음 개선`
-점수 1~5. 근거 없는 점수는 무효(0점). Safety/Security는 5 타협 불가.
+## 현재 상태
+
+- **Phase 1·2·3 전체 완료** → 자가 개선 루프 종료([development.md](development.md)).
+- 루프(#18) 이후 사람 주도 UI 개선(시세 그래프 확장·포트폴리오 구성 도넛·종목별 손익 막대 등)과 Phase 4 AI 어드바이저 통합. 현 시점 **45 파일 518 tests**, lint·typecheck·test·build green.
+- **Phase 4(AI 어드바이저) 완료** — Provider 추상화·오케스트레이션·UI 카드·시장 어드바이저·prefill→§6 게이트.
+
+## Phase 로드맵 + 종료 조건
+
+### Phase 1 — 읽기전용 대시보드 ✅
+계좌·보유자산·시세·주문내역을 한 화면에서 본다.
+- [x] mock 계약 테스트로 모든 GET 엔드포인트 통과 — **17/17**(다중 페이지 포함).
+- [x] 시크릿이 클라이언트 번들에 없음(build 가드).
+- [x] 대시보드가 포트폴리오 요약·보유종목·주문내역·시세를 렌더 — jsdom + **Playwright E2E 통과**.
+- [x] lint·typecheck·test·build green.
+
+### Phase 2 — 수동 거래 (기본 dry-run) ✅
+주문 생성·정정·취소를 사람이 확인하고 실행. 사전검증(`buying-power`/`sellable-quantity`/`commissions`/`price-limits`).
+- [x] dry-run 페이로드가 API 계약과 일치(게이트/라우트/폼 테스트).
+- [x] 실주문 경로는 확인 게이트 없이 도달 불가(confirm 바디 전용·자동 true 없음·grep+테스트).
+- [x] 사전검증 실패(insufficient-buying-power/price-out-of-range/order-hours-closed) 422 매핑 테스트.
+- [x] lint·typecheck·test·build green.
+
+### Phase 3 — 제한적 자동거래 ✅
+규칙 기반 전략이 주문을 제안/실행하되 하드 리밋·kill switch 뒤에서만.
+- [x] 백테스트/시뮬레이션 하네스로 전략을 과거·합성 데이터에 결정적 검증(`runBacktest`).
+- [x] 한도 위반·kill switch 시 실행 거부 증명(§6 게이트 경유, `createOrderRaw` 미호출 테스트).
+- [x] 모든 자동 주문 경로 dry-run 기본 + `AUTO_TRADE_ENABLED` 없이 실주문 불가(기본 false → 전부 dry-run).
+- [x] lint·typecheck·test·build green.
+
+거래 안전 불변식(§6)은 [trading-safety.md](trading-safety.md).
+
+## 미해결 / 후속 (사람 요청 시)
+
+- `DAILY_LOSS_LIMIT` 강제, ORDER 피크 3/s 선제 스로틀, 자동 트리거 배선(라우트/cron, 사람 결정).
+- modify/cancel·시세 E2E, 차트 페이지네이션, market-calendar 폴링 완화.
+- 주문조회 CLOSED 미지원(현재 OPEN만), dev `allowedDevOrigins` 경고(무해), build 매번 `rm -rf .next` 클린.
+
+## Phase 4 — AI 어드바이저 ✅
+
+LLM(OpenAI·xAI) 기반 포트폴리오 분석·조언·주문 제안. 설계·안전은 [architecture.md](architecture.md)·[trading-safety.md](trading-safety.md) §6.A 참고. 완료된 작업:
+
+- **A1 — Provider 추상화 + 결정적 코어(UI 없음)** ✅: `LlmProvider` 인터페이스 + OpenAI·xAI 어댑터 + `snapshot`(마스킹)·`prompt`·`schema`(zod)·`validate`(전부 순수). env(`LLM_PROVIDER`·`OPENAI_API_KEY`·`XAI_API_KEY`·`LLM_MODEL`)는 선택값(미설정 부팅 정상, 어드바이저만 "not configured"). 번들 가드에 LLM 키 패턴 추가.
+- **A2 — 오케스트레이션 + API 라우트** ✅: `advisor.ts`(snapshot→prompt→provider→zod→validate) + `POST /api/advisor`(`{data}`·에러 매핑·`force-dynamic`). 어드바이저가 `placeOrder`/`createOrderRaw`를 호출하지 않음을 grep+의존성 테스트로 증명. 환각/무효 제안은 `validate`에서 탈락.
+- **A3 — UI 카드 + prefill → §6 연결** ✅: `AiAdvisor.tsx`(버튼·조언·제안·disclaimer) + Dashboard `prefill` lift + `OrderForm` prefill prop. **주문은 여전히 사람 confirm + §6** — prefill은 입력만 채우고 전송하지 않는다.
+- **시장 어드바이저** ✅: `MarketAiAdvisor.tsx` + `POST /api/market-advisor`(+ `GET /history`) — 차트 기준 지지/저항·마커·결정 이력을 캔들 차트에 오버레이(Redis 캐시).
 
 ---
+
+# 이터레이션 이력 (append-only)
+
+> 자가 개선 루프의 반복별 기록(#1~#18). **감사 목적의 원문 보존** — 회로차단기가 정체·반복 실패를 감지하려면 이력이 필요했고, 점수 인플레 방지를 위해 각 점수에 근거를 함께 남겼다. 변경 이력의 source는 git/PR이며, 아래는 루프 당시 기록 그대로다.
+>
+> 형식: `#N | phase | 한 일 | 점수+근거(6축) | 최저축 | 다음 개선`. 점수 1~5, 근거 없는 점수는 무효(0점). Safety/Security는 5 타협 불가.
 
 ## #1 | phase1 | 부트스트랩: Next.js 15 스캐폴드 + env(zod)·OAuth 토큰 모듈(TDD)
 
@@ -168,7 +217,7 @@
 - UX **5** — UI 미변경(데이터 계층), #7 대시보드 4섹션 유지(무회귀). 근거: 컴포넌트 무변경.
 - Code quality **5** — 외과적 추가(그룹/스키마/엔드포인트/라우트), 무관 리팩토링 없음. 근거: 기존 파일 확장만.
 
-**최저축**: 없음(전 축 5). 
+**최저축**: 없음(전 축 5).
 **Phase 1 상태**: 종료조건 4개 중 3 완료(GET 17/17 ✅·시크릿 번들 ✅·gates ✅), 대시보드 렌더는 컴포넌트 레벨 ✅·**Playwright E2E(#9)만 남음**.
 **다음 개선(next pick #9)**: Playwright E2E(브라우저 설치 + route-mock 대시보드 렌더 스펙) → Phase 1 종료 판정 → Phase 2(수동 거래) 진입.
 
@@ -190,8 +239,8 @@
 - UX **5** — 실 브라우저에서 4섹션 렌더 확인(aria region 단언). 근거: e2e.
 - Code quality **5** — testid 없이 기존 aria region 활용, 외과적. 근거: 컴포넌트 무변경.
 
-**최저축**: 없음(전 축 5). 
-**★ Phase 1 종료 판정**: 4 종료조건 전부 충족 + 루브릭 전 축 ≥목표(Safety/Security=5) → **§5.3 advance_phase() → Phase 2(수동 거래) 진입**.
+**최저축**: 없음(전 축 5).
+**★ Phase 1 종료 판정**: 4 종료조건 전부 충족 + 루브릭 전 축 ≥목표(Safety/Security=5) → **advance_phase() → Phase 2(수동 거래) 진입**.
 **다음 개선(next pick #10)**: Phase 2 — 주문 생성(POST) §6 안전 계층 + dry-run 실행기(DRY_RUN 기본·kill switch·한도·확인 게이트·confirmHighValue·멱등성·감사 로그) + **실 POST 경로 게이트 미통과 시 도달불가 증명 테스트**. ⚠️ 실거래 코드 시작 — Safety 축 최우선.
 
 ---
@@ -211,7 +260,7 @@
 - UX **5** — UI 무변경(백엔드 안전), 회귀 없음.
 - Code quality **5** — 순수 게이트/DI 실행기/fail-safe 순서/ungated 명시. 근거: 구조.
 
-**최저축**: **Safety(4)**. §5.3 적용: Safety<5 → advance·확장 금지, **갭 수정을 즉시 다음 pick으로 강제**.
+**최저축**: **Safety(4)**. Safety<5 → advance·확장 금지, **갭 수정을 즉시 다음 pick으로 강제**.
 **다음 개선(next pick #11)**: notional 통화-인지 수정 — 심볼로 통화 추론(KRX `^\d{6}$`→KRW, 그 외→USD), USD는 fxRate로 KRW 환산, **USD인데 fxRate 없으면 BLOCK(fail-safe)**. US LIMIT 대형 주문 한도초과 BLOCK 회귀 테스트. → Safety 5 복귀 후에야 정정/취소·라우트·UI로 확장.
 
 ---
@@ -300,7 +349,7 @@
 - Security **5** — 클라이언트 시크릿 미노출(35파일). UX **5** — 정정/취소 인라인 + 결과 표시. Code quality **5** — OrderForm 패턴 재사용·postOrderJson 추출·외과적.
 
 **최저축**: 없음(전 축 5).
-**★ Phase 2 종료 판정**: 종료조건 4개 전부 충족(dry-run 일치·실주문 게이트 없이 도달불가·사전검증 실패 처리·gates) + 루브릭 전 축 ≥목표(Safety/Security=5) → **§5.3 advance_phase() → Phase 3(제한적 자동거래)**.
+**★ Phase 2 종료 판정**: 종료조건 4개 전부 충족(dry-run 일치·실주문 게이트 없이 도달불가·사전검증 실패 처리·gates) + 루브릭 전 축 ≥목표(Safety/Security=5) → **advance_phase() → Phase 3(제한적 자동거래)**.
 **다음 개선(next pick #16)**: 전략 intent 순수 계층(스냅샷→intent[], 결정적, I/O 없음) + 단위 테스트. 실행 배선 없음(executor는 #18, §6 게이트+사전 활성화 뒤). ⚠️ 자동거래 승인은 사람 사전 부여, 에이전트 자가 발급 금지.
 
 ---
@@ -354,7 +403,7 @@
 - Security **5** — auto-* server-only, 번들 클린. UX **5** — 백엔드(영향 없음). Code quality **5** — 순수 변환·DI·facade, safety.ts untouched.
 
 **최저축**: 없음(전 축 5).
-**★ Phase 3 종료 판정**: 종료조건 4개 충족 + 루브릭 전 축 ≥목표(Safety/Security=5) → §5.3 advance. **3개 Phase(읽기 대시보드/수동 거래/제한적 자동거래) 로드맵 전체 완료 → dev-loop §0 따라 루프 종료.**
+**★ Phase 3 종료 판정**: 종료조건 4개 충족 + 루브릭 전 축 ≥목표(Safety/Security=5) → advance. **3개 Phase(읽기 대시보드/수동 거래/제한적 자동거래) 로드맵 전체 완료 → 루프 종료.**
 
 ---
 
@@ -364,4 +413,4 @@
 - Phase 3: 제한적 자동거래(SELL-only 전략 순수 계층 + 결정적 백테스트 + 게이트된 auto-executor, AUTO_TRADE_ENABLED 기본 false).
 - 누적 **306 tests**, 4게이트+E2E green. 안전: DRY_RUN/AUTO_TRADE_ENABLED 기본 false·kill switch·한도·고액 confirm·통화-인지 notional·번들 시크릿 가드. 루프가 자체 안전 갭(#10 USD notional)을 발견·수정(#11)한 사례 포함.
 
-**남은 후속(사람 요청 시)**: DAILY_LOSS_LIMIT 강제, ORDER 피크 3/s, 자동 트리거 배선(라우트/cron, 사람 결정), modify/cancel·시세 E2E, 차트 페이지네이션·테마, 주문조회 CLOSED.
+> 루프 종료 이후 사람 주도 UI 개선(시세 그래프 확장·포트폴리오 구성/손익 차트 등)으로 현 시점 **30 파일 396 tests**. 세부는 git/PR 이력 참고.

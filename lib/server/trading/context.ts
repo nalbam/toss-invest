@@ -1,20 +1,11 @@
 import "server-only";
+import { isKrwSymbol } from "@/lib/server/trading/symbol";
 import type { ServerTossClient } from "@/lib/server/toss/container";
 import type {
   Order,
   OrderCreateRequest,
   OrderModifyRequest,
 } from "@/lib/server/toss/schemas";
-
-/**
- * KRX symbols are 6-digit numeric (e.g. `005930`) and trade in KRW; everything
- * else (US tickers like `AAPL`) trades in USD. Mirrors the API's symbol rule and
- * the same predicate used by the §6 gate in `safety.ts` (kept in sync here since
- * that helper is intentionally not exported).
- */
-function isKrwSymbol(symbol: string): boolean {
-  return /^\d{6}$/.test(symbol);
-}
 
 /** A LIMIT order carries its own price, so no reference price is needed. */
 function needsReferencePrice(orderType: string): boolean {

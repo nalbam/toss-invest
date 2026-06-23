@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { recordCandleSnapshot } from "@/lib/server/cache/market-history";
 import { getServerTossClient } from "@/lib/server/toss/container";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const symbolPattern = /^[A-Za-z0-9.\-]+$/;
 
@@ -43,6 +45,11 @@ export async function GET(request: Request): Promise<Response> {
       before: parsed.data.before,
       adjusted: parsed.data.adjusted,
     });
+    void recordCandleSnapshot(
+      parsed.data.symbol,
+      parsed.data.interval,
+      data.candles,
+    );
     return ok(data);
   } catch (error) {
     return handleError(error);

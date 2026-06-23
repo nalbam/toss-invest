@@ -1,5 +1,6 @@
 import "server-only";
 import { getEnv } from "@/lib/server/env";
+import { isKrwSymbol } from "@/lib/server/trading/symbol";
 import type {
   CancelOrderRawParams,
   CreateOrderRawParams,
@@ -96,14 +97,6 @@ function isAmountBased(
   request: OrderCreateRequest,
 ): request is Extract<OrderCreateRequest, { orderAmount: string }> {
   return "orderAmount" in request;
-}
-
-/**
- * KRX symbols are 6-digit numeric (e.g. `005930`) and trade in KRW; everything
- * else (US tickers like `AAPL`) trades in USD. Mirrors the API's symbol rule.
- */
-function isKrwSymbol(symbol: string): boolean {
-  return /^\d{6}$/.test(symbol);
 }
 
 /**

@@ -16,6 +16,7 @@ import {
   mulDecimalStrings,
 } from "@/lib/client/format";
 import { CollapsibleCard } from "./CollapsibleCard";
+import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
@@ -25,9 +26,52 @@ type OrderType = "LIMIT" | "MARKET";
 type TimeInForce = "DAY" | "CLS";
 type PricingMode = "QUANTITY" | "AMOUNT";
 
+interface OrderFormPreferences {
+  mode: OrderMode;
+  side: Side;
+  orderType: OrderType;
+  pricingMode: PricingMode;
+}
+
 interface SubmitError {
   code: string;
   message: string;
+}
+
+const ORDER_FORM_PREFERENCES_KEY = "toss-invest:order-form-preferences";
+
+function isOrderMode(value: unknown): value is OrderMode {
+  return value === "GENERAL" || value === "QUICK";
+}
+
+function isSide(value: unknown): value is Side {
+  return value === "BUY" || value === "SELL";
+}
+
+function isOrderType(value: unknown): value is OrderType {
+  return value === "LIMIT" || value === "MARKET";
+}
+
+function isPricingMode(value: unknown): value is PricingMode {
+  return value === "QUANTITY" || value === "AMOUNT";
+}
+
+function isOrderFormPreferences(value: unknown): value is OrderFormPreferences {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const prefs = value as Partial<OrderFormPreferences>;
+  return (
+    isOrderMode(prefs.mode) &&
+    isSide(prefs.side) &&
+    isOrderType(prefs.orderType) &&
+    isPricingMode(prefs.pricingMode) &&
+    (prefs.orderType === "MARKET" || prefs.pricingMode === "QUANTITY")
+  );
+}
+
+function writeOrderFormPreferences(prefs: OrderFormPreferences): void {
+  writeStoredJson(ORDER_FORM_PREFERENCES_KEY, prefs);
 }
 
 /** Formats a price/amount in the given trading currency. */
@@ -59,12 +103,19 @@ export function OrderForm({
   name,
   cash,
   fxRate,
+  prefill,
 }: {
   accountSeq: number | undefined;
   symbol?: string;
   name?: string;
   cash?: { krw?: string; usd?: string };
   fxRate?: string;
+  /**
+   * Side + quantity proposed by the AI advisor ("폼에 담기"). Fills the inputs
+   * only — it never arms a quick order or checks the confirm box, so the user
+   * still reviews and passes the §6 gate (§6.A-2). A fresh object per selection.
+   */
+  prefill?: { side: Side; quantity: number };
 }) {
   const [mode, setMode] = useState<OrderMode>("QUICK");
   const [symbol, setSymbol] = useState(selectedSymbol ?? "");
@@ -76,13 +127,29 @@ export function OrderForm({
   const [price, setPrice] = useState("");
   const [orderAmount, setOrderAmount] = useState("");
   const [confirm, setConfirm] = useState(false);
-  // Quick-order two-step confirm: the side that is armed and awaiting the
-  // explicit 확정 click, or null when no order is armed.
-  const [armedSide, setArmedSide] = useState<Side | null>(null);
+  // Quick-order two-step confirm: the side + order type (시장가 vs 현재가) armed
+  // and awaiting the explicit 확정 click, or null when no order is armed.
+  const [armed, setArmed] = useState<{ side: Side; market: boolean } | null>(
+    null,
+  );
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<OrderPlaceResult | null>(null);
   const [error, setError] = useState<SubmitError | null>(null);
+
+  useEffect(() => {
+    const stored = readStoredJson(
+      ORDER_FORM_PREFERENCES_KEY,
+      isOrderFormPreferences,
+    );
+    if (stored === null) {
+      return;
+    }
+    setMode(stored.mode);
+    setSide(stored.side);
+    setOrderType(stored.orderType);
+    setPricingMode(stored.pricingMode);
+  }, []);
 
   const trimmedSymbol = symbol.trim();
   const quickActive = mode === "QUICK" && trimmedSymbol.length > 0;
@@ -121,26 +188,67 @@ export function OrderForm({
   useEffect(() => {
     if (selectedSymbol) {
       setSymbol(selectedSymbol);
-      setArmedSide(null);
+      setArmed(null);
     }
   }, [selectedSymbol]);
+
+  // Apply an advisor proposal selected via "폼에 담기": fill the side + quantity
+  // only. It never arms a quick order or checks the confirm box, so a prefilled
+  // order can never be sent without the user's explicit confirm + the §6 gate
+  // (§6.A-2). A new prefill object per selection re-applies the values.
+  useEffect(() => {
+    if (!prefill) return;
+    setSide(prefill.side);
+    setQuantity(String(prefill.quantity));
+    setPricingMode("QUANTITY");
+    setArmed(null);
+    setConfirm(false);
+  }, [prefill]);
 
   // Amount-based ordering is US MARKET only; LIMIT always uses quantity.
   const amountMode = pricingMode === "AMOUNT" && orderType === "MARKET";
   const showPrice = orderType === "LIMIT";
+
+  function updatePreferences(next: Partial<OrderFormPreferences>) {
+    writeOrderFormPreferences({
+      mode,
+      side,
+      orderType,
+      pricingMode,
+      ...next,
+    });
+  }
+
+  function changeMode(next: OrderMode) {
+    setMode(next);
+    updatePreferences({ mode: next });
+  }
+
+  function changeSide(next: Side) {
+    setSide(next);
+    updatePreferences({ side: next });
+  }
+
+  function changePricingMode(next: PricingMode) {
+    setPricingMode(next);
+    updatePreferences({ pricingMode: next });
+  }
 
   function handleOrderTypeChange(next: OrderType) {
     setOrderType(next);
     // LIMIT cannot be amount-based; drop back to quantity pricing.
     if (next === "LIMIT") {
       setPricingMode("QUANTITY");
+      updatePreferences({ orderType: next, pricingMode: "QUANTITY" });
+      return;
     }
+    updatePreferences({ orderType: next });
   }
 
   /** Sets the quantity and disarms any pending quick-order confirmation. */
   function changeQuantity(next: string) {
     setQuantity(next);
-    setArmedSide(null);
+    setArmed(null);
   }
 
   function stepQuantity(delta: number) {
@@ -217,7 +325,7 @@ export function OrderForm({
       (submitter.value === "BUY" || submitter.value === "SELL")
         ? submitter.value
         : side;
-    setSide(submitSide);
+    changeSide(submitSide);
     if (trimmedSymbol.length === 0) {
       setResult(null);
       setError({ code: "invalid-input", message: "종목코드를 입력하세요." });
@@ -233,41 +341,72 @@ export function OrderForm({
   }
 
   /** Arms the quick-order confirmation for a side (no order is sent yet). */
-  function armQuick(armSide: Side) {
+  function armQuick(armSide: Side, market: boolean) {
     if (!hasQuantity) {
       setResult(null);
       setError({ code: "invalid-input", message: "수량을 입력하세요." });
       return;
     }
-    if (lastPrice === undefined) {
+    if (!market && lastPrice === undefined) {
       setResult(null);
       setError({ code: "no-price", message: "현재가를 불러오지 못했습니다." });
       return;
     }
     setError(null);
     setResult(null);
-    setSide(armSide);
-    setArmedSide(armSide);
+    changeSide(armSide);
+    setArmed({ side: armSide, market });
   }
 
-  // Quick order: the explicit second click. Sends a current-price LIMIT order
-  // with confirm:true — the §6 gate still decides whether it sends or stays a
-  // DRY_RUN preview.
-  async function confirmQuick() {
-    if (armedSide === null || lastPrice === undefined) {
+  // Sends a quick order for `quickSide` with confirm:true. `market` chooses a
+  // MARKET order (no price; the server values it via the current price) over a
+  // current-price LIMIT order. Shared by the two-step confirm (confirmQuick) and
+  // the modifier+click shortcut. The §6 gate still decides SEND vs DRY_RUN.
+  async function submitQuick(quickSide: Side, market: boolean) {
+    if (submitting) {
       return;
     }
-    const body: OrderCreateBody = {
-      symbol: trimmedSymbol,
-      side: armedSide,
-      orderType: "LIMIT",
-      timeInForce: "DAY",
-      quantity: quantity.trim(),
-      price: lastPrice,
-      confirm: true,
-    };
+    if (!hasQuantity) {
+      setResult(null);
+      setError({ code: "invalid-input", message: "수량을 입력하세요." });
+      return;
+    }
+    let body: OrderCreateBody;
+    if (market) {
+      body = {
+        symbol: trimmedSymbol,
+        side: quickSide,
+        orderType: "MARKET",
+        timeInForce: "DAY",
+        quantity: quantity.trim(),
+        confirm: true,
+      };
+    } else {
+      if (lastPrice === undefined) {
+        setResult(null);
+        setError({ code: "no-price", message: "현재가를 불러오지 못했습니다." });
+        return;
+      }
+      body = {
+        symbol: trimmedSymbol,
+        side: quickSide,
+        orderType: "LIMIT",
+        timeInForce: "DAY",
+        quantity: quantity.trim(),
+        price: lastPrice,
+        confirm: true,
+      };
+    }
     await send(body);
-    setArmedSide(null);
+    setArmed(null);
+  }
+
+  // Quick order: the explicit second click of the two-step confirm.
+  async function confirmQuick() {
+    if (armed === null) {
+      return;
+    }
+    await submitQuick(armed.side, armed.market);
   }
 
   return (
@@ -278,7 +417,7 @@ export function OrderForm({
           className={styles.orderTab}
           role="tab"
           aria-selected={mode === "QUICK"}
-          onClick={() => setMode("QUICK")}
+          onClick={() => changeMode("QUICK")}
         >
           빠른주문
         </button>
@@ -287,7 +426,7 @@ export function OrderForm({
           className={styles.orderTab}
           role="tab"
           aria-selected={mode === "GENERAL"}
-          onClick={() => setMode("GENERAL")}
+          onClick={() => changeMode("GENERAL")}
         >
           일반주문
         </button>
@@ -317,7 +456,7 @@ export function OrderForm({
                 type="button"
                 className={styles.orderBuyTab}
                 aria-pressed={side === "BUY"}
-                onClick={() => setSide("BUY")}
+                onClick={() => changeSide("BUY")}
               >
                 구매
               </button>
@@ -325,7 +464,7 @@ export function OrderForm({
                 type="button"
                 className={styles.orderSellTab}
                 aria-pressed={side === "SELL"}
-                onClick={() => setSide("SELL")}
+                onClick={() => changeSide("SELL")}
               >
                 판매
               </button>
@@ -358,7 +497,7 @@ export function OrderForm({
                   type="button"
                   className={page.select}
                   aria-pressed={pricingMode === "QUANTITY"}
-                  onClick={() => setPricingMode("QUANTITY")}
+                  onClick={() => changePricingMode("QUANTITY")}
                 >
                   수량
                 </button>
@@ -366,7 +505,7 @@ export function OrderForm({
                   type="button"
                   className={page.select}
                   aria-pressed={pricingMode === "AMOUNT"}
-                  onClick={() => setPricingMode("AMOUNT")}
+                  onClick={() => changePricingMode("AMOUNT")}
                 >
                   금액 (US)
                 </button>
@@ -567,7 +706,7 @@ export function OrderForm({
                 disabled={!maxBuyable || maxBuyable === "0"}
               >
                 <span className={styles.metricLabel}>구매가능</span>
-                <strong>
+                <strong data-private-value="true">
                   {maxBuyable !== null ? `${formatDecimal(maxBuyable)}주` : "-"}
                 </strong>
               </button>
@@ -578,7 +717,7 @@ export function OrderForm({
                 disabled={!sellableQty || Number(sellableQty) <= 0}
               >
                 <span className={styles.metricLabel}>판매가능</span>
-                <strong>
+                <strong data-private-value="true">
                   {sellableQty !== undefined
                     ? `${formatDecimal(sellableQty, { maxFractionDigits: 4 })}주`
                     : "-"}
@@ -589,11 +728,13 @@ export function OrderForm({
             <div className={styles.quickBalances}>
               <span>
                 <span className={styles.metricLabel}>주문가능금액</span>
-                <strong>{formatPrice(buyingPower, currency)}</strong>
+                <strong data-private-value="true">
+                  {formatPrice(buyingPower, currency)}
+                </strong>
               </span>
               <span>
                 <span className={styles.metricLabel}>예상 체결금액</span>
-                <strong>
+                <strong data-private-value="true">
                   {estimated !== null ? formatPrice(estimated, currency) : "-"}
                   {estimatedKrw !== null ? (
                     <span className={styles.metricSecondary}>
@@ -605,59 +746,113 @@ export function OrderForm({
               </span>
             </div>
 
-            {armedSide === null ? (
-              <div className={styles.quickActionGrid}>
-                <button
-                  type="button"
-                  className={styles.quickSell}
-                  onClick={() => armQuick("SELL")}
-                  disabled={lastPrice === undefined}
-                >
-                  현재가 판매
-                  {estimated !== null ? (
-                    <span className={styles.quickBtnAmount}>
-                      {formatPrice(estimated, currency)}
-                    </span>
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  className={styles.quickBuy}
-                  onClick={() => armQuick("BUY")}
-                  disabled={lastPrice === undefined}
-                >
-                  현재가 구매
-                  {estimated !== null ? (
-                    <span className={styles.quickBtnAmount}>
-                      {formatPrice(estimated, currency)}
-                    </span>
-                  ) : null}
-                </button>
+            {armed === null ? (
+              <div className={styles.quickActionStack}>
+                <div className={styles.quickActionGrid}>
+                  <button
+                    type="button"
+                    className={styles.quickSell}
+                    onClick={(event) =>
+                      event.ctrlKey || event.metaKey
+                        ? submitQuick("SELL", false)
+                        : armQuick("SELL", false)
+                    }
+                    disabled={submitting || lastPrice === undefined}
+                  >
+                    현재가 판매
+                    {estimated !== null ? (
+                      <span
+                        className={styles.quickBtnAmount}
+                        data-private-value="true"
+                      >
+                        {formatPrice(estimated, currency)}
+                      </span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.quickBuy}
+                    onClick={(event) =>
+                      event.ctrlKey || event.metaKey
+                        ? submitQuick("BUY", false)
+                        : armQuick("BUY", false)
+                    }
+                    disabled={submitting || lastPrice === undefined}
+                  >
+                    현재가 구매
+                    {estimated !== null ? (
+                      <span
+                        className={styles.quickBtnAmount}
+                        data-private-value="true"
+                      >
+                        {formatPrice(estimated, currency)}
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
+                <div className={styles.quickActionGrid}>
+                  <button
+                    type="button"
+                    className={styles.quickSell}
+                    onClick={(event) =>
+                      event.ctrlKey || event.metaKey
+                        ? submitQuick("SELL", true)
+                        : armQuick("SELL", true)
+                    }
+                    disabled={submitting}
+                  >
+                    시장가 판매
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.quickBuy}
+                    onClick={(event) =>
+                      event.ctrlKey || event.metaKey
+                        ? submitQuick("BUY", true)
+                        : armQuick("BUY", true)
+                    }
+                    disabled={submitting}
+                  >
+                    시장가 구매
+                  </button>
+                </div>
               </div>
             ) : (
               <div className={styles.quickConfirm} role="alert">
                 <p className={styles.quickConfirmText}>
-                  정말 {armedSide === "BUY" ? "구매" : "판매"}하시겠어요?{" "}
-                  {quantity.trim()}주 ·{" "}
-                  {estimated !== null ? formatPrice(estimated, currency) : "-"}
+                  정말 {armed.market ? "시장가로 " : ""}
+                  {armed.side === "BUY" ? "구매" : "판매"}하시겠어요?{" "}
+                  <span data-private-value="true">{quantity.trim()}주</span>
+                  {armed.market ? null : (
+                    <>
+                      {" "}·{" "}
+                      <span data-private-value="true">
+                        {estimated !== null
+                          ? formatPrice(estimated, currency)
+                          : "-"}
+                      </span>
+                    </>
+                  )}
                 </p>
                 <div className={styles.quickActionGrid}>
                   <button
                     type="button"
                     className={
-                      armedSide === "BUY" ? styles.quickBuy : styles.quickSell
+                      armed.side === "BUY" ? styles.quickBuy : styles.quickSell
                     }
                     onClick={confirmQuick}
                     disabled={submitting}
                   >
                     {submitting
                       ? "전송 중…"
-                      : `${armedSide === "BUY" ? "구매" : "판매"} 확정`}
+                      : `${armed.market ? "시장가 " : ""}${
+                          armed.side === "BUY" ? "구매" : "판매"
+                        } 확정`}
                   </button>
                   <button
                     type="button"
                     className={styles.quickCancel}
-                    onClick={() => setArmedSide(null)}
+                    onClick={() => setArmed(null)}
                     disabled={submitting}
                   >
                     되돌리기
@@ -667,8 +862,9 @@ export function OrderForm({
             )}
 
             <p className={styles.confirmHint}>
-              확정을 누르면 현재가 지정가(LIMIT)로 주문합니다. 서버 안전 게이트가
-              최종 판정하며, DRY_RUN 모드에서는 미리보기만 실행됩니다.
+              확정을 누르면 현재가 지정가(LIMIT) 또는 시장가(MARKET)로 주문합니다.
+              서버 안전 게이트가 최종 판정하며, DRY_RUN 모드에서는 미리보기만
+              실행됩니다.
             </p>
           </>
         )}
@@ -730,7 +926,7 @@ function OrderResult({
   return (
     <div className={`${styles.orderResult} ${styles.positive}`} role="status">
       <p className={styles.resultTitle}>✅ 전송됨</p>
-      <p>주문번호: {result.response.orderId}</p>
+      <p>주문이 정상적으로 전송되었습니다.</p>
     </div>
   );
 }
@@ -754,19 +950,19 @@ function WouldSend({ body }: { body: OrderCreateBody }) {
       {body.quantity !== undefined ? (
         <div>
           <dt>수량</dt>
-          <dd>{body.quantity}</dd>
+          <dd data-private-value="true">{body.quantity}</dd>
         </div>
       ) : null}
       {body.price !== undefined ? (
         <div>
           <dt>가격</dt>
-          <dd>{body.price}</dd>
+          <dd data-private-value="true">{body.price}</dd>
         </div>
       ) : null}
       {body.orderAmount !== undefined ? (
         <div>
           <dt>주문금액</dt>
-          <dd>{body.orderAmount}</dd>
+          <dd data-private-value="true">{body.orderAmount}</dd>
         </div>
       ) : null}
     </dl>
@@ -785,7 +981,9 @@ function PrevalidationView({
 }) {
   return (
     <p className={styles.prevalidation}>
-      사전검증 — 가용: {available ?? "확인 불가"} / 요청: {requested ?? "-"}
+      사전검증 — 가용:{" "}
+      <span data-private-value="true">{available ?? "확인 불가"}</span> / 요청:{" "}
+      <span data-private-value="true">{requested ?? "-"}</span>
       {insufficient ? " (부족 가능성)" : ""}
     </p>
   );
