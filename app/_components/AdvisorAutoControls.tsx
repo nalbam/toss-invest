@@ -2,6 +2,9 @@ import type { CSSProperties } from "react";
 import styles from "./dashboard.module.css";
 
 export const ADVISOR_AUTO_INTERVALS = [
+  { label: "1분", value: 60_000 },
+  { label: "2분", value: 120_000 },
+  { label: "3분", value: 180_000 },
   { label: "5분", value: 300_000 },
   { label: "10분", value: 600_000 },
   { label: "30분", value: 1_800_000 },

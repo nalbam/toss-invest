@@ -139,7 +139,7 @@ describe("MarketAiAdvisor", () => {
     await vi.advanceTimersByTimeAsync(1_800_000);
 
     expect(screen.getByRole("option", { name: "30분" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "1분" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "1분" })).toBeInTheDocument();
     expect(screen.getByLabelText("자동 재실행 활성화")).toHaveStyle({
       "--advisor-spin-duration": "6s",
     });
