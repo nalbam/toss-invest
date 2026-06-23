@@ -206,12 +206,67 @@ describe("OrderForm — quick order (default)", () => {
     // Second click sends the real order.
     fireEvent.click(screen.getByRole("button", { name: "구매 확정" }));
     expect(await screen.findByText("✅ 전송됨")).toBeInTheDocument();
-    expect(screen.getByText("주문번호: ord-9")).toBeInTheDocument();
+    expect(
+      screen.getByText("주문이 정상적으로 전송되었습니다."),
+    ).toBeInTheDocument();
     expect(lastPostBody()).toMatchObject({
       symbol: "AAPL",
       side: "BUY",
       orderType: "LIMIT",
       timeInForce: "DAY",
+      quantity: "3",
+      price: "185.70",
+      confirm: true,
+    });
+  });
+
+  it("submits immediately on modifier+click, skipping the confirm step", async () => {
+    fetchMock.mockImplementation(
+      quoteFetch(
+        () =>
+          jsonResponse({
+            data: {
+              status: "SENT",
+              response: { orderId: "ord-9", clientOrderId: null },
+              notionalKrw: 557100,
+              prevalidation: {
+                side: "BUY",
+                available: "5000",
+                requested: "3",
+                insufficient: false,
+              },
+            },
+          }),
+        { price: { lastPrice: "185.70", currency: "USD" }, sellable: "10" },
+      ),
+    );
+
+    renderForm(
+      <OrderForm
+        accountSeq={1}
+        symbol="AAPL"
+        cash={{ usd: "5000" }}
+        fxRate="1350"
+      />,
+    );
+
+    await screen.findByText("$185.70");
+    fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
+      target: { value: "3" },
+    });
+
+    // Modifier+click skips the two-step confirm and sends immediately.
+    fireEvent.click(screen.getByRole("button", { name: /현재가 구매/ }), {
+      metaKey: true,
+    });
+    expect(
+      screen.queryByRole("button", { name: "구매 확정" }),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByText("✅ 전송됨")).toBeInTheDocument();
+    expect(lastPostBody()).toMatchObject({
+      symbol: "AAPL",
+      side: "BUY",
+      orderType: "LIMIT",
       quantity: "3",
       price: "185.70",
       confirm: true,
@@ -318,7 +373,7 @@ describe("OrderForm — general order", () => {
     expect(screen.getByText("dry-run-enabled")).toBeInTheDocument();
   });
 
-  it("submits confirm:true and renders SENT with the order id", async () => {
+  it("submits confirm:true and renders the SENT success message", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
         data: {
@@ -342,7 +397,9 @@ describe("OrderForm — general order", () => {
     fireEvent.click(screen.getByRole("button", { name: "구매하기" }));
 
     expect(await screen.findByText("✅ 전송됨")).toBeInTheDocument();
-    expect(screen.getByText("주문번호: ord-123")).toBeInTheDocument();
+    expect(
+      screen.getByText("주문이 정상적으로 전송되었습니다."),
+    ).toBeInTheDocument();
     expect(lastPostBody().confirm).toBe(true);
   });
 

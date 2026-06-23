@@ -1134,6 +1134,38 @@
   animation: advisorSpin var(--advisor-spin-duration, 10s) linear infinite;
 }
 
+.chartOverlayControls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chartOverlayButton {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  /* Off state: dimmed and desaturated emoji. */
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.chartOverlayButtonActive {
+  border-color: #0f9f6e;
+  background: rgba(15, 159, 110, 0.12);
+  opacity: 1;
+  filter: none;
+}
+
 @keyframes advisorSpin {
   to {
     transform: rotate(360deg);

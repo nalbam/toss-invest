@@ -331,6 +331,9 @@ export function CandleChart({
   averagePurchasePrice,
   annotations,
   advisorEvents = [],
+  showAnnotationLabels = true,
+  showAnnotationLines = true,
+  showAdviceLines = true,
 }: {
   candles: Candle[];
   priceLimits?: PriceLimitResponse | null;
@@ -340,6 +343,9 @@ export function CandleChart({
   averagePurchasePrice?: string;
   annotations?: MarketChartAnnotations;
   advisorEvents?: MarketAdvisorHistoryEvent[];
+  showAnnotationLabels?: boolean;
+  showAnnotationLines?: boolean;
+  showAdviceLines?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const adviceOverlayRef = useRef<HTMLDivElement | null>(null);
@@ -366,6 +372,9 @@ export function CandleChart({
       return;
     }
     overlay.replaceChildren();
+    if (!showAdviceLines) {
+      return;
+    }
     const range = chartTimeRangeRef.current;
     if (range === null) {
       return;
@@ -398,7 +407,7 @@ export function CandleChart({
       line.title = `${event.decision.label}: ${event.decision.reason}`;
       overlay.append(line);
     }
-  }, [advisorEvents]);
+  }, [advisorEvents, showAdviceLines]);
 
   // Create the chart and its series once; recreate only if the overlay shape
   // (volume toggle or number of MA lines) changes. Defaults have stable
@@ -608,8 +617,9 @@ export function CandleChart({
         color: "#64748b",
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: item.label,
+        lineVisible: showAnnotationLines,
+        axisLabelVisible: showAnnotationLabels,
+        title: showAnnotationLabels ? item.label : "",
       }),
     );
     const resistanceLines = annotations.resistanceLevels.map((item) =>
@@ -618,8 +628,9 @@ export function CandleChart({
         color: "#94a3b8",
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: item.label,
+        lineVisible: showAnnotationLines,
+        axisLabelVisible: showAnnotationLabels,
+        title: showAnnotationLabels ? item.label : "",
       }),
     );
     annotationLineRefs.current = [...supportLines, ...resistanceLines];
@@ -646,7 +657,7 @@ export function CandleChart({
         (a, b) => (a.time as number) - (b.time as number),
       ),
     );
-  }, [markers, annotations]);
+  }, [markers, annotations, showAnnotationLabels, showAnnotationLines]);
 
   return (
     <div ref={containerRef} className={styles.chart} aria-label="캔들 차트">

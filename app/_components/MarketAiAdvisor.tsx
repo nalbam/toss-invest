@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import { ApiClientError } from "@/lib/client/hooks";
 import {
   fetchMarketAdvisor,
@@ -8,6 +8,7 @@ import {
   type MarketAdvisorResult,
 } from "@/lib/client/market-advisor";
 import { AdvisorAutoControls } from "./AdvisorAutoControls";
+import { ChartOverlayControls } from "./ChartOverlayControls";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
 import { readStoredJson, writeStoredJson } from "./localStorageJson";
@@ -50,9 +51,11 @@ function isMarketAdvisorResult(value: unknown): value is MarketAdvisorResult {
 export function MarketAiAdvisor({
   input,
   onResult,
+  chartOverlay,
 }: {
   input: MarketAdvisorInput;
   onResult?: (result: MarketAdvisorResult | undefined) => void;
+  chartOverlay?: ComponentProps<typeof ChartOverlayControls>;
 }) {
   const [state, setState] = useState<State>({ status: "idle" });
   const resultStorageKey = `${MARKET_ADVISOR_RESULT_KEY}:${input.symbol}:${input.interval}`;
@@ -102,6 +105,7 @@ export function MarketAiAdvisor({
           >
             {state.status === "loading" ? "분석 중…" : "조언 받기"}
           </button>
+          {chartOverlay ? <ChartOverlayControls {...chartOverlay} /> : null}
           <AdvisorAutoControls
             enabled={autoEnabled}
             intervalMs={autoIntervalMs}

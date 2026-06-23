@@ -356,16 +356,23 @@ export function OrderForm({
     setArmedSide(armSide);
   }
 
-  // Quick order: the explicit second click. Sends a current-price LIMIT order
-  // with confirm:true — the §6 gate still decides whether it sends or stays a
-  // DRY_RUN preview.
-  async function confirmQuick() {
-    if (armedSide === null || lastPrice === undefined) {
+  // Sends a current-price LIMIT order for `quickSide` with confirm:true. Shared
+  // by the two-step confirm (confirmQuick) and the modifier+click shortcut. The
+  // §6 gate still decides whether it sends or stays a DRY_RUN preview.
+  async function submitQuick(quickSide: Side) {
+    if (!hasQuantity) {
+      setResult(null);
+      setError({ code: "invalid-input", message: "수량을 입력하세요." });
+      return;
+    }
+    if (lastPrice === undefined) {
+      setResult(null);
+      setError({ code: "no-price", message: "현재가를 불러오지 못했습니다." });
       return;
     }
     const body: OrderCreateBody = {
       symbol: trimmedSymbol,
-      side: armedSide,
+      side: quickSide,
       orderType: "LIMIT",
       timeInForce: "DAY",
       quantity: quantity.trim(),
@@ -374,6 +381,14 @@ export function OrderForm({
     };
     await send(body);
     setArmedSide(null);
+  }
+
+  // Quick order: the explicit second click of the two-step confirm.
+  async function confirmQuick() {
+    if (armedSide === null) {
+      return;
+    }
+    await submitQuick(armedSide);
   }
 
   return (
@@ -718,7 +733,11 @@ export function OrderForm({
                 <button
                   type="button"
                   className={styles.quickSell}
-                  onClick={() => armQuick("SELL")}
+                  onClick={(event) =>
+                    event.ctrlKey || event.metaKey
+                      ? submitQuick("SELL")
+                      : armQuick("SELL")
+                  }
                   disabled={lastPrice === undefined}
                 >
                   현재가 판매
@@ -734,7 +753,11 @@ export function OrderForm({
                 <button
                   type="button"
                   className={styles.quickBuy}
-                  onClick={() => armQuick("BUY")}
+                  onClick={(event) =>
+                    event.ctrlKey || event.metaKey
+                      ? submitQuick("BUY")
+                      : armQuick("BUY")
+                  }
                   disabled={lastPrice === undefined}
                 >
                   현재가 구매
@@ -846,7 +869,7 @@ function OrderResult({
   return (
     <div className={`${styles.orderResult} ${styles.positive}`} role="status">
       <p className={styles.resultTitle}>✅ 전송됨</p>
-      <p>주문번호: {result.response.orderId}</p>
+      <p>주문이 정상적으로 전송되었습니다.</p>
     </div>
   );
 }

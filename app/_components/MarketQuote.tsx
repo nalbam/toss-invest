@@ -26,10 +26,30 @@ import { MarketAiAdvisor } from "./MarketAiAdvisor";
 import { Orderbook } from "./Orderbook";
 import { OrderbookDepth } from "./OrderbookDepth";
 import { TradesChart } from "./TradesChart";
+import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
 const CHART_INTERVAL_KEY = "toss-invest:chart-interval";
+const CHART_OVERLAYS_KEY = "toss-invest:chart-overlays";
+
+interface ChartOverlayState {
+  labels: boolean;
+  lines: boolean;
+  advice: boolean;
+}
+
+function isChartOverlayState(value: unknown): value is ChartOverlayState {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const state = value as Partial<ChartOverlayState>;
+  return (
+    typeof state.labels === "boolean" &&
+    typeof state.lines === "boolean" &&
+    typeof state.advice === "boolean"
+  );
+}
 const DEFAULT_TITLE = "토스증권 대시보드";
 
 /** Formats a price in the given trading currency. */
@@ -84,6 +104,11 @@ export function MarketQuote({
   const [loadedStoredInterval, setLoadedStoredInterval] = useState(false);
   const [marketAdvisorResult, setMarketAdvisorResult] =
     useState<MarketAdvisorResult | undefined>(undefined);
+  const [overlays, setOverlays] = useState<ChartOverlayState>({
+    labels: true,
+    lines: true,
+    advice: true,
+  });
 
   const prices = usePrices([symbol]);
   const limits = usePriceLimits(symbol);
@@ -137,9 +162,24 @@ export function MarketQuote({
     [],
   );
 
+  const toggleOverlay = useCallback((key: keyof ChartOverlayState) => {
+    setOverlays((current) => {
+      const next = { ...current, [key]: !current[key] };
+      writeStoredJson(CHART_OVERLAYS_KEY, next);
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     setIntervalState(readStoredInterval());
     setLoadedStoredInterval(true);
+  }, []);
+
+  useEffect(() => {
+    const stored = readStoredJson(CHART_OVERLAYS_KEY, isChartOverlayState);
+    if (stored) {
+      setOverlays(stored);
+    }
   }, []);
 
   useEffect(() => {
@@ -238,10 +278,21 @@ export function MarketQuote({
             averagePurchasePrice={averagePurchasePrice}
             annotations={marketAdvisorResult?.annotations}
             advisorEvents={marketAdvisorHistory.data?.events ?? []}
+            showAnnotationLabels={overlays.labels}
+            showAnnotationLines={overlays.lines}
+            showAdviceLines={overlays.advice}
           />
           <MarketAiAdvisor
             input={marketAdvisorInput}
             onResult={handleMarketAdvisorResult}
+            chartOverlay={{
+              showLabels: overlays.labels,
+              showLines: overlays.lines,
+              showAdvice: overlays.advice,
+              onToggleLabels: () => toggleOverlay("labels"),
+              onToggleLines: () => toggleOverlay("lines"),
+              onToggleAdvice: () => toggleOverlay("advice"),
+            }}
           />
         </>
       ) : null}
