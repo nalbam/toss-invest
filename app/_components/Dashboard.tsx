@@ -21,6 +21,7 @@ import { OrdersTable } from "./OrdersTable";
 import { PortfolioComposition } from "./PortfolioComposition";
 import { PortfolioSummary } from "./PortfolioSummary";
 import { ThemeSelector } from "./ThemeSelector";
+import { WatchlistControls } from "./WatchlistControls";
 import page from "@/app/page.module.css";
 import styles from "./dashboard.module.css";
 
@@ -355,12 +356,14 @@ export function Dashboard() {
               name={selectedName}
               orders={orders.data?.orders ?? []}
               averagePurchasePrice={selectedHolding?.averagePurchasePrice}
+              quantity={selectedHolding?.quantity}
             />
           ) : (
             <CollapsibleCard title="시세" storageId="market-quote">
               <p className={styles.placeholder}>보유 종목을 선택하세요.</p>
             </CollapsibleCard>
           )}
+          <WatchlistControls />
         </div>
 
         {/* Center: order form and order history. */}

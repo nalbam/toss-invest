@@ -49,4 +49,17 @@ describe("buildMarketAdvisorPrompt", () => {
   it("is deterministic for the same request", () => {
     expect(buildMarketAdvisorPrompt(request)).toEqual(buildMarketAdvisorPrompt(request));
   });
+
+  it("includes position info in the user message when held", () => {
+    const user = buildMarketAdvisorPrompt({
+      ...request,
+      position: { quantity: "10", averagePrice: "650" },
+    })[1].content;
+    expect(user).toContain("보유: 10주, 평단가: 650");
+  });
+
+  it("omits position info when not held", () => {
+    const user = buildMarketAdvisorPrompt(request)[1].content;
+    expect(user).not.toContain("보유:");
+  });
 });

@@ -25,6 +25,14 @@ export const marketAdvisorRequestSchema = z.object({
   currency: z.string().min(1),
   lastPrice: z.string().optional(),
   candles: z.array(candleSchema).max(300),
+  // Present only for held symbols, so the advisor can judge profit-taking/
+  // stop-loss against the user's actual average price, not just the chart.
+  position: z
+    .object({
+      quantity: z.string(),
+      averagePrice: z.string(),
+    })
+    .optional(),
 });
 
 const annotationLevelSchema = z.object({

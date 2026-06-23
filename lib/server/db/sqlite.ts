@@ -37,11 +37,41 @@ CREATE TABLE IF NOT EXISTS portfolio_advice (
 );
 CREATE INDEX IF NOT EXISTS idx_portfolio_advice_lookup
   ON portfolio_advice (account_seq, id DESC);
+
+CREATE TABLE IF NOT EXISTS advisor_watchlist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol TEXT NOT NULL,
+  name TEXT,
+  interval TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'KRW',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  run_every_minutes INTEGER NOT NULL DEFAULT 60,
+  last_run_at TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE(symbol, interval)
+);
 `;
+
+// Additive migrations for DBs created before a column existed. SQLite lacks
+// "ADD COLUMN IF NOT EXISTS", so each column is checked via PRAGMA first.
+function migrate(db: Database.Database): void {
+  const columns = (
+    db.prepare("PRAGMA table_info(advisor_watchlist)").all() as { name: string }[]
+  ).map((column) => column.name);
+  if (!columns.includes("run_every_minutes")) {
+    db.exec(
+      "ALTER TABLE advisor_watchlist ADD COLUMN run_every_minutes INTEGER NOT NULL DEFAULT 60",
+    );
+  }
+  if (!columns.includes("last_run_at")) {
+    db.exec("ALTER TABLE advisor_watchlist ADD COLUMN last_run_at TEXT");
+  }
+}
 
 /** Creates the advice tables/indexes if absent. Safe to call repeatedly. */
 export function initSchema(db: Database.Database): void {
   db.exec(SCHEMA);
+  migrate(db);
 }
 
 let cached: Database.Database | null = null;

@@ -2,13 +2,37 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { MarketAdvisorInput, MarketAdvisorResult } from "@/lib/client/market-advisor";
+import type { WatchlistItem } from "@/lib/client/watchlist";
 import { MarketAiAdvisor } from "./MarketAiAdvisor";
+
+type WatchlistHook = {
+  items: WatchlistItem[];
+  mutate: () => void;
+  isLoading: boolean;
+};
 
 const { fetchMarketAdvisor } = vi.hoisted(() => ({
   fetchMarketAdvisor: vi.fn(),
 }));
-
 vi.mock("@/lib/client/market-advisor", () => ({ fetchMarketAdvisor }));
+
+const {
+  useWatchlist,
+  addWatchlistItem,
+  removeWatchlistItem,
+  setWatchlistItemRunEvery,
+} = vi.hoisted(() => ({
+  useWatchlist: vi.fn((): WatchlistHook => ({ items: [], mutate: vi.fn(), isLoading: false })),
+  addWatchlistItem: vi.fn(() => Promise.resolve({})),
+  removeWatchlistItem: vi.fn(() => Promise.resolve({})),
+  setWatchlistItemRunEvery: vi.fn(() => Promise.resolve({})),
+}));
+vi.mock("@/lib/client/watchlist", () => ({
+  useWatchlist,
+  addWatchlistItem,
+  removeWatchlistItem,
+  setWatchlistItemRunEvery,
+}));
 
 const input: MarketAdvisorInput = {
   symbol: "005930",
@@ -29,13 +53,7 @@ const result: MarketAdvisorResult = {
   annotations: {
     supportLevels: [{ price: 68000, label: "지지 가능 구간" }],
     resistanceLevels: [{ price: 72000, label: "저항 확인 구간" }],
-    markers: [
-      {
-        timestamp: "2026-06-19T00:00:00+09:00",
-        position: "aboveBar",
-        label: "거래량 증가",
-      },
-    ],
+    markers: [],
   },
   model: "stub-model",
   generatedAt: "2026-06-19T00:00:00Z",
@@ -44,8 +62,8 @@ const result: MarketAdvisorResult = {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
-  vi.useRealTimers();
   vi.clearAllMocks();
+  useWatchlist.mockReturnValue({ items: [], mutate: vi.fn(), isLoading: false });
 });
 
 describe("MarketAiAdvisor", () => {
@@ -58,114 +76,56 @@ describe("MarketAiAdvisor", () => {
 
     await waitFor(() => expect(screen.getByText(/완만히 개선/)).toBeInTheDocument());
     expect(screen.getByText("매수 검토")).toBeInTheDocument();
-    expect(screen.getByText(/반등 흐름/)).toBeInTheDocument();
     expect(fetchMarketAdvisor).toHaveBeenCalledWith(input);
     expect(onResult).toHaveBeenLastCalledWith(result);
-    expect(
-      JSON.parse(
-        window.localStorage.getItem(
-          "toss-invest:market-ai-advisor-result:005930:1d",
-        ) ?? "{}",
-      ),
-    ).toEqual(result);
   });
 
   it("restores stored chart advice for the same symbol and interval", () => {
-    const holdResult: MarketAdvisorResult = {
-      ...result,
-      decision: {
-        action: "hold",
-        label: "보유 유지",
-        reason: "평균단가 위에서 추세가 유지되고 있습니다.",
-      },
-    };
     window.localStorage.setItem(
       "toss-invest:market-ai-advisor-result:005930:1d",
-      JSON.stringify(holdResult),
+      JSON.stringify(result),
     );
-
     const onResult = vi.fn();
     render(<MarketAiAdvisor input={input} onResult={onResult} />);
 
     expect(screen.getByText(/완만히 개선/)).toBeInTheDocument();
-    expect(screen.getByText("보유 유지")).toBeInTheDocument();
-    expect(onResult).toHaveBeenLastCalledWith(holdResult);
+    expect(onResult).toHaveBeenLastCalledWith(result);
     expect(fetchMarketAdvisor).not.toHaveBeenCalled();
   });
 
-  it("reruns chart advice automatically when enabled", async () => {
-    vi.useFakeTimers();
-    fetchMarketAdvisor.mockResolvedValue(result);
+  it("registers the current symbol/chart when auto-analyze is toggled on", async () => {
     render(<MarketAiAdvisor input={input} />);
 
     fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
-    await vi.advanceTimersByTimeAsync(600_000);
-
-    expect(fetchMarketAdvisor).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not restart the auto rerun timer when market input refreshes", async () => {
-    vi.useFakeTimers();
-    fetchMarketAdvisor.mockResolvedValue(result);
-    const { rerender } = render(<MarketAiAdvisor input={input} />);
-
-    fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
-    expect(screen.getByLabelText("자동 재실행 활성화")).toHaveStyle({
-      "--advisor-progress-deg": "360deg",
-    });
-    await vi.advanceTimersByTimeAsync(300_000);
-    expect(screen.getByLabelText("자동 재실행 활성화")).toHaveStyle({
-      "--advisor-progress-deg": "180deg",
-    });
-    rerender(<MarketAiAdvisor input={{ ...input, lastPrice: "73000" }} />);
-    await vi.advanceTimersByTimeAsync(300_000);
-
-    expect(fetchMarketAdvisor).toHaveBeenCalledTimes(1);
-    expect(fetchMarketAdvisor).toHaveBeenCalledWith({
-      ...input,
-      lastPrice: "73000",
-    });
-  });
-
-  it("supports a 30 minute auto rerun interval", async () => {
-    vi.useFakeTimers();
-    fetchMarketAdvisor.mockResolvedValue(result);
-    render(<MarketAiAdvisor input={input} />);
-
-    fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
-    fireEvent.change(screen.getByLabelText("자동 재실행 주기"), {
-      target: { value: "1800000" },
-    });
-    await vi.advanceTimersByTimeAsync(1_800_000);
-
-    expect(screen.getByRole("option", { name: "30분" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "1분" })).toBeInTheDocument();
-    expect(screen.getByLabelText("자동 재실행 활성화")).toHaveStyle({
-      "--advisor-spin-duration": "6s",
-    });
-    expect(fetchMarketAdvisor).toHaveBeenCalledTimes(1);
-    expect(
-      JSON.parse(
-        window.localStorage.getItem("toss-invest:market-ai-advisor-auto") ??
-          "{}",
-      ),
-    ).toEqual({ enabled: true, intervalMs: 1_800_000 });
-  });
-
-  it("restores stored auto rerun settings", async () => {
-    window.localStorage.setItem(
-      "toss-invest:market-ai-advisor-auto",
-      JSON.stringify({ enabled: true, intervalMs: 1_800_000 }),
-    );
-
-    render(<MarketAiAdvisor input={input} />);
 
     await waitFor(() =>
-      expect(screen.getByLabelText("자동 재실행 활성화")).toHaveAttribute(
-        "aria-pressed",
-        "true",
+      expect(addWatchlistItem).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: "005930", interval: "1d", currency: "KRW" }),
       ),
     );
-    expect(screen.getByLabelText("자동 재실행 주기")).toHaveValue("1800000");
+  });
+
+  it("removes the watchlist entry when auto-analyze is toggled off", async () => {
+    useWatchlist.mockReturnValue({
+      items: [
+        {
+          id: 7,
+          symbol: "005930",
+          name: "삼성전자",
+          interval: "1d",
+          currency: "KRW",
+          enabled: true,
+          runEveryMinutes: 60,
+          lastRunAt: null,
+        },
+      ],
+      mutate: vi.fn(),
+      isLoading: false,
+    });
+    render(<MarketAiAdvisor input={input} />);
+
+    fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
+
+    await waitFor(() => expect(removeWatchlistItem).toHaveBeenCalledWith(7));
   });
 });

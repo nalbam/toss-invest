@@ -92,6 +92,13 @@ vi.mock("@/lib/client/hooks", () => ({
   cancelOrder: vi.fn(),
 }));
 
+vi.mock("@/lib/client/watchlist", () => ({
+  useWatchlist: () => ({ items: [], mutate: vi.fn(), isLoading: false }),
+  addWatchlistItem: vi.fn(),
+  removeWatchlistItem: vi.fn(),
+  setWatchlistItemEnabled: vi.fn(),
+}));
+
 vi.mock("swr", () => ({
   useSWRConfig: () => ({ mutate: vi.fn() }),
 }));

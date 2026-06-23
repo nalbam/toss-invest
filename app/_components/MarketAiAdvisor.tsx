@@ -1,20 +1,25 @@
 "use client";
 
-import { useCallback, type ComponentProps } from "react";
+import { useCallback, useState, type ComponentProps } from "react";
 import {
   fetchMarketAdvisor,
   type MarketAdvisorInput,
   type MarketAdvisorResult,
 } from "@/lib/client/market-advisor";
-import { AdvisorAutoControls } from "./AdvisorAutoControls";
+import {
+  addWatchlistItem,
+  removeWatchlistItem,
+  setWatchlistItemRunEvery,
+  useWatchlist,
+} from "@/lib/client/watchlist";
+import { AdvisorAutoControls, ANALYSIS_INTERVALS } from "./AdvisorAutoControls";
 import { ChartOverlayControls } from "./ChartOverlayControls";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
-import { useAdvisorAutoRerun } from "./useAdvisorAutoRerun";
 import { useAdvisorRun } from "./useAdvisorRun";
 
 const MARKET_ADVISOR_RESULT_KEY = "toss-invest:market-ai-advisor-result";
-const MARKET_ADVISOR_AUTO_KEY = "toss-invest:market-ai-advisor-auto";
+const DEFAULT_RUN_EVERY_MS = 900_000; // 15분
 
 function isMarketAdvisorResult(value: unknown): value is MarketAdvisorResult {
   if (typeof value !== "object" || value === null) {
@@ -59,13 +64,50 @@ export function MarketAiAdvisor({
     errorMessage: "시세 조언을 불러오지 못했습니다.",
     onResult,
   });
-  const {
-    autoEnabled,
-    autoIntervalMs,
-    autoRemainingRatio,
-    setAutoEnabled,
-    setAutoIntervalMs,
-  } = useAdvisorAutoRerun(run, MARKET_ADVISOR_AUTO_KEY);
+
+  // The auto-analyze indicator now drives the server-side background watchlist:
+  // toggling/changing the period registers/updates this {symbol, interval}.
+  const { items, mutate } = useWatchlist();
+  const current = items.find(
+    (item) => item.symbol === input.symbol && item.interval === input.interval,
+  );
+  const [pendingIntervalMs, setPendingIntervalMs] = useState(DEFAULT_RUN_EVERY_MS);
+  const autoEnabled = current?.enabled ?? false;
+  const autoIntervalMs = current ? current.runEveryMinutes * 60_000 : pendingIntervalMs;
+  const autoRemainingRatio = (() => {
+    if (!current?.enabled) {
+      return 0;
+    }
+    if (current.lastRunAt === null) {
+      return 1;
+    }
+    const total = current.runEveryMinutes * 60_000;
+    const elapsed = Date.now() - Date.parse(current.lastRunAt);
+    return Math.max(0, Math.min(1, 1 - elapsed / total));
+  })();
+
+  async function handleAutoEnabledChange(next: boolean) {
+    if (next) {
+      await addWatchlistItem({
+        symbol: input.symbol,
+        name: input.name,
+        interval: input.interval,
+        currency: input.currency,
+        runEveryMinutes: Math.round(autoIntervalMs / 60_000),
+      });
+    } else if (current) {
+      await removeWatchlistItem(current.id);
+    }
+    await mutate();
+  }
+
+  async function handleAutoIntervalChange(intervalMs: number) {
+    setPendingIntervalMs(intervalMs);
+    if (current) {
+      await setWatchlistItemRunEvery(current.id, Math.round(intervalMs / 60_000));
+      await mutate();
+    }
+  }
 
   return (
     <CollapsibleCard title="시세 AI 어드바이저" storageId="market-ai-advisor">
@@ -84,12 +126,13 @@ export function MarketAiAdvisor({
             enabled={autoEnabled}
             intervalMs={autoIntervalMs}
             remainingRatio={autoRemainingRatio}
-            onEnabledChange={setAutoEnabled}
-            onIntervalChange={setAutoIntervalMs}
+            onEnabledChange={(next) => void handleAutoEnabledChange(next)}
+            onIntervalChange={(ms) => void handleAutoIntervalChange(ms)}
+            intervals={ANALYSIS_INTERVALS}
           />
         </div>
         <p className={styles.advisorDisclaimer}>
-          ※ 시세 AI 조언은 차트 데이터 기반 참고용입니다. 실제 주문은 직접 확인하세요.
+          ※ 시세 AI 조언은 차트 데이터 기반 참고용입니다. 자동분석은 서버 백그라운드에서 주기적으로 실행됩니다.
         </p>
 
         {state.status === "error" ? (

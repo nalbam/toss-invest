@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "advisor:run": "node scripts/advisor-run.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

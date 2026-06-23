@@ -11,9 +11,21 @@ export const ADVISOR_AUTO_INTERVALS = [
   { label: "1시간", value: 3_600_000 },
 ] as const;
 
-export type AdvisorAutoInterval = (typeof ADVISOR_AUTO_INTERVALS)[number]["value"];
+// Background analysis periods (ms) for the market advisor: minute → day, so a
+// daily chart can be analyzed e.g. once a day instead of every minute.
+export const ANALYSIS_INTERVALS = [
+  { label: "1분", value: 60_000 },
+  { label: "5분", value: 300_000 },
+  { label: "15분", value: 900_000 },
+  { label: "30분", value: 1_800_000 },
+  { label: "1시간", value: 3_600_000 },
+  { label: "4시간", value: 14_400_000 },
+  { label: "1일", value: 86_400_000 },
+] as const;
 
-function spinnerDuration(intervalMs: AdvisorAutoInterval): string {
+export type AdvisorAutoInterval = number;
+
+function spinnerDuration(intervalMs: number): string {
   return `${Math.max(1, intervalMs / 300_000)}s`;
 }
 
@@ -27,12 +39,14 @@ export function AdvisorAutoControls({
   remainingRatio,
   onEnabledChange,
   onIntervalChange,
+  intervals = ADVISOR_AUTO_INTERVALS,
 }: {
   enabled: boolean;
-  intervalMs: AdvisorAutoInterval;
+  intervalMs: number;
   remainingRatio: number;
   onEnabledChange: (enabled: boolean) => void;
-  onIntervalChange: (intervalMs: AdvisorAutoInterval) => void;
+  onIntervalChange: (intervalMs: number) => void;
+  intervals?: ReadonlyArray<{ label: string; value: number }>;
 }) {
   return (
     <div className={styles.advisorControls}>
@@ -57,13 +71,11 @@ export function AdvisorAutoControls({
       <select
         className={styles.advisorIntervalSelect}
         value={intervalMs}
-        onChange={(event) =>
-          onIntervalChange(Number(event.target.value) as AdvisorAutoInterval)
-        }
+        onChange={(event) => onIntervalChange(Number(event.target.value))}
         disabled={!enabled}
         aria-label="자동 재실행 주기"
       >
-        {ADVISOR_AUTO_INTERVALS.map((item) => (
+        {intervals.map((item) => (
           <option key={item.value} value={item.value}>
             {item.label}
           </option>

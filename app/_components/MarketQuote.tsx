@@ -94,11 +94,13 @@ export function MarketQuote({
   name,
   orders = [],
   averagePurchasePrice,
+  quantity,
 }: {
   symbol: string;
   name?: string;
   orders?: Order[];
   averagePurchasePrice?: string;
+  quantity?: string;
 }) {
   const [interval, setIntervalState] = useState<ChartInterval>("1d");
   const [loadedStoredInterval, setLoadedStoredInterval] = useState(false);
@@ -146,8 +148,21 @@ export function MarketQuote({
       currency,
       lastPrice: quote?.lastPrice,
       candles: chartCandles,
+      position:
+        averagePurchasePrice && quantity
+          ? { quantity, averagePrice: averagePurchasePrice }
+          : undefined,
     }),
-    [chartCandles, currency, interval, name, quote?.lastPrice, symbol],
+    [
+      averagePurchasePrice,
+      chartCandles,
+      currency,
+      interval,
+      name,
+      quantity,
+      quote?.lastPrice,
+      symbol,
+    ],
   );
 
   function setInterval(interval: ChartInterval) {

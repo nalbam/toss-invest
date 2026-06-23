@@ -9,6 +9,8 @@ export interface MarketAdvisorInput {
   currency: Currency;
   lastPrice?: string;
   candles: Candle[];
+  /** Present for held symbols so advice can weigh profit/loss vs. average price. */
+  position?: { quantity: string; averagePrice: string };
 }
 
 export interface MarketAdvisorResult {

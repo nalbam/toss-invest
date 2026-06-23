@@ -586,6 +586,55 @@
   opacity: 0.75;
 }
 
+.watchlistBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.watchlistForm {
+  margin: 0;
+}
+
+.watchlistList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.watchlistItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.watchlistToggle,
+.watchlistRemove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--muted);
+  padding: 2px;
+}
+
+.watchlistSymbol {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.watchlistInterval {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .chartControls {
   flex-wrap: wrap;
 }
