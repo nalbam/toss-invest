@@ -31,6 +31,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -402,5 +403,82 @@ describe("OrderForm — general order", () => {
         screen.getByText("[already-canceled] Order already canceled"),
       ).toBeInTheDocument();
     });
+  });
+
+  it("prefills side and quantity from a proposal without arming or confirming (§6.A-2)", () => {
+    fetchMock.mockImplementation(quoteFetch(() => jsonResponse({ data: {} })));
+    renderForm(
+      <OrderForm accountSeq={1} symbol="005930" prefill={{ side: "SELL", quantity: 7 }} />,
+    );
+    goGeneral();
+
+    expect(screen.getByRole("button", { name: "판매" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("수량")).toHaveDisplayValue("7");
+    // The confirm box is never auto-checked, and nothing is sent — the user must
+    // still confirm and pass the §6 gate.
+    expect(screen.getByLabelText("실주문 확인 (confirm)")).not.toBeChecked();
+    expect(hasPosted()).toBe(false);
+  });
+
+  it("stores repeatable order form preferences without sensitive inputs", () => {
+    renderForm(<OrderForm accountSeq={1} />);
+    goGeneral();
+
+    fireEvent.click(screen.getByRole("button", { name: "판매" }));
+    fireEvent.change(screen.getByLabelText("주문 유형"), {
+      target: { value: "MARKET" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "금액 (US)" }));
+    fireEvent.change(screen.getByLabelText("주문금액"), {
+      target: { value: "1000" },
+    });
+    fireEvent.click(screen.getByLabelText("실주문 확인 (confirm)"));
+
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("toss-invest:order-form-preferences") ??
+          "{}",
+      ),
+    ).toEqual({
+      mode: "GENERAL",
+      side: "SELL",
+      orderType: "MARKET",
+      pricingMode: "AMOUNT",
+    });
+  });
+
+  it("restores stored order form preferences on reload", async () => {
+    window.localStorage.setItem(
+      "toss-invest:order-form-preferences",
+      JSON.stringify({
+        mode: "GENERAL",
+        side: "SELL",
+        orderType: "MARKET",
+        pricingMode: "AMOUNT",
+      }),
+    );
+
+    renderForm(<OrderForm accountSeq={1} symbol="AAPL" />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "일반주문" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+    expect(screen.getByRole("button", { name: "판매" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("주문 유형")).toHaveValue("MARKET");
+    expect(screen.getByRole("button", { name: "금액 (US)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("주문금액")).toHaveValue("");
+    expect(screen.getByLabelText("실주문 확인 (confirm)")).not.toBeChecked();
   });
 });

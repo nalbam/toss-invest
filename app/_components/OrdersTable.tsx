@@ -53,14 +53,21 @@ function isCancelable(status: string): boolean {
 export function OrdersTable({
   orders,
   accountSeq,
+  selectedSymbol,
   onChanged,
   refreshing,
 }: {
   orders: Order[];
   accountSeq?: number | undefined;
+  selectedSymbol?: string;
   onChanged?: () => void;
   refreshing?: boolean;
 }) {
+  const selectedOrders =
+    selectedSymbol === undefined
+      ? []
+      : orders.filter((order) => order.symbol === selectedSymbol);
+
   if (orders.length === 0) {
     return (
       <CollapsibleCard
@@ -79,34 +86,74 @@ export function OrdersTable({
       storageId="orders"
       refreshing={refreshing}
     >
-      <div className={styles.tableScroll}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">종목</th>
-              <th scope="col">구분</th>
-              <th scope="col">유형</th>
-              <th scope="col">상태</th>
-              <th scope="col">수량</th>
-              <th scope="col">체결수량</th>
-              <th scope="col">가격</th>
-              <th scope="col">주문시각</th>
-              <th scope="col">관리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <OrderRow
-                key={order.orderId}
-                order={order}
-                accountSeq={accountSeq}
-                onChanged={onChanged}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {selectedSymbol !== undefined ? (
+        <OrderSection
+          title={`${selectedSymbol} 주문 내역`}
+          emptyText="해당 종목 주문 없음"
+          orders={selectedOrders}
+          accountSeq={accountSeq}
+          onChanged={onChanged}
+        />
+      ) : null}
+      <OrderSection
+        title="전체 주문 내역"
+        emptyText="주문 없음"
+        orders={orders}
+        accountSeq={accountSeq}
+        onChanged={onChanged}
+      />
     </CollapsibleCard>
+  );
+}
+
+function OrderSection({
+  title,
+  emptyText,
+  orders,
+  accountSeq,
+  onChanged,
+}: {
+  title: string;
+  emptyText: string;
+  orders: Order[];
+  accountSeq?: number | undefined;
+  onChanged?: () => void;
+}) {
+  return (
+    <section className={styles.orderSection} aria-label={title}>
+      <h3 className={styles.sectionTitle}>{title}</h3>
+      {orders.length === 0 ? (
+        <p className={styles.empty}>{emptyText}</p>
+      ) : (
+        <div className={styles.tableScroll}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">종목</th>
+                <th scope="col">구분</th>
+                <th scope="col">유형</th>
+                <th scope="col">상태</th>
+                <th scope="col">수량</th>
+                <th scope="col">체결수량</th>
+                <th scope="col">가격</th>
+                <th scope="col">주문시각</th>
+                <th scope="col">관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <OrderRow
+                  key={order.orderId}
+                  order={order}
+                  accountSeq={accountSeq}
+                  onChanged={onChanged}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -16,6 +16,7 @@ import {
   mulDecimalStrings,
 } from "@/lib/client/format";
 import { CollapsibleCard } from "./CollapsibleCard";
+import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
@@ -25,9 +26,52 @@ type OrderType = "LIMIT" | "MARKET";
 type TimeInForce = "DAY" | "CLS";
 type PricingMode = "QUANTITY" | "AMOUNT";
 
+interface OrderFormPreferences {
+  mode: OrderMode;
+  side: Side;
+  orderType: OrderType;
+  pricingMode: PricingMode;
+}
+
 interface SubmitError {
   code: string;
   message: string;
+}
+
+const ORDER_FORM_PREFERENCES_KEY = "toss-invest:order-form-preferences";
+
+function isOrderMode(value: unknown): value is OrderMode {
+  return value === "GENERAL" || value === "QUICK";
+}
+
+function isSide(value: unknown): value is Side {
+  return value === "BUY" || value === "SELL";
+}
+
+function isOrderType(value: unknown): value is OrderType {
+  return value === "LIMIT" || value === "MARKET";
+}
+
+function isPricingMode(value: unknown): value is PricingMode {
+  return value === "QUANTITY" || value === "AMOUNT";
+}
+
+function isOrderFormPreferences(value: unknown): value is OrderFormPreferences {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const prefs = value as Partial<OrderFormPreferences>;
+  return (
+    isOrderMode(prefs.mode) &&
+    isSide(prefs.side) &&
+    isOrderType(prefs.orderType) &&
+    isPricingMode(prefs.pricingMode) &&
+    (prefs.orderType === "MARKET" || prefs.pricingMode === "QUANTITY")
+  );
+}
+
+function writeOrderFormPreferences(prefs: OrderFormPreferences): void {
+  writeStoredJson(ORDER_FORM_PREFERENCES_KEY, prefs);
 }
 
 /** Formats a price/amount in the given trading currency. */
@@ -59,12 +103,19 @@ export function OrderForm({
   name,
   cash,
   fxRate,
+  prefill,
 }: {
   accountSeq: number | undefined;
   symbol?: string;
   name?: string;
   cash?: { krw?: string; usd?: string };
   fxRate?: string;
+  /**
+   * Side + quantity proposed by the AI advisor ("폼에 담기"). Fills the inputs
+   * only — it never arms a quick order or checks the confirm box, so the user
+   * still reviews and passes the §6 gate (§6.A-2). A fresh object per selection.
+   */
+  prefill?: { side: Side; quantity: number };
 }) {
   const [mode, setMode] = useState<OrderMode>("QUICK");
   const [symbol, setSymbol] = useState(selectedSymbol ?? "");
@@ -83,6 +134,20 @@ export function OrderForm({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<OrderPlaceResult | null>(null);
   const [error, setError] = useState<SubmitError | null>(null);
+
+  useEffect(() => {
+    const stored = readStoredJson(
+      ORDER_FORM_PREFERENCES_KEY,
+      isOrderFormPreferences,
+    );
+    if (stored === null) {
+      return;
+    }
+    setMode(stored.mode);
+    setSide(stored.side);
+    setOrderType(stored.orderType);
+    setPricingMode(stored.pricingMode);
+  }, []);
 
   const trimmedSymbol = symbol.trim();
   const quickActive = mode === "QUICK" && trimmedSymbol.length > 0;
@@ -125,16 +190,57 @@ export function OrderForm({
     }
   }, [selectedSymbol]);
 
+  // Apply an advisor proposal selected via "폼에 담기": fill the side + quantity
+  // only. It never arms a quick order or checks the confirm box, so a prefilled
+  // order can never be sent without the user's explicit confirm + the §6 gate
+  // (§6.A-2). A new prefill object per selection re-applies the values.
+  useEffect(() => {
+    if (!prefill) return;
+    setSide(prefill.side);
+    setQuantity(String(prefill.quantity));
+    setPricingMode("QUANTITY");
+    setArmedSide(null);
+    setConfirm(false);
+  }, [prefill]);
+
   // Amount-based ordering is US MARKET only; LIMIT always uses quantity.
   const amountMode = pricingMode === "AMOUNT" && orderType === "MARKET";
   const showPrice = orderType === "LIMIT";
+
+  function updatePreferences(next: Partial<OrderFormPreferences>) {
+    writeOrderFormPreferences({
+      mode,
+      side,
+      orderType,
+      pricingMode,
+      ...next,
+    });
+  }
+
+  function changeMode(next: OrderMode) {
+    setMode(next);
+    updatePreferences({ mode: next });
+  }
+
+  function changeSide(next: Side) {
+    setSide(next);
+    updatePreferences({ side: next });
+  }
+
+  function changePricingMode(next: PricingMode) {
+    setPricingMode(next);
+    updatePreferences({ pricingMode: next });
+  }
 
   function handleOrderTypeChange(next: OrderType) {
     setOrderType(next);
     // LIMIT cannot be amount-based; drop back to quantity pricing.
     if (next === "LIMIT") {
       setPricingMode("QUANTITY");
+      updatePreferences({ orderType: next, pricingMode: "QUANTITY" });
+      return;
     }
+    updatePreferences({ orderType: next });
   }
 
   /** Sets the quantity and disarms any pending quick-order confirmation. */
@@ -217,7 +323,7 @@ export function OrderForm({
       (submitter.value === "BUY" || submitter.value === "SELL")
         ? submitter.value
         : side;
-    setSide(submitSide);
+    changeSide(submitSide);
     if (trimmedSymbol.length === 0) {
       setResult(null);
       setError({ code: "invalid-input", message: "종목코드를 입력하세요." });
@@ -246,7 +352,7 @@ export function OrderForm({
     }
     setError(null);
     setResult(null);
-    setSide(armSide);
+    changeSide(armSide);
     setArmedSide(armSide);
   }
 
@@ -278,7 +384,7 @@ export function OrderForm({
           className={styles.orderTab}
           role="tab"
           aria-selected={mode === "QUICK"}
-          onClick={() => setMode("QUICK")}
+          onClick={() => changeMode("QUICK")}
         >
           빠른주문
         </button>
@@ -287,7 +393,7 @@ export function OrderForm({
           className={styles.orderTab}
           role="tab"
           aria-selected={mode === "GENERAL"}
-          onClick={() => setMode("GENERAL")}
+          onClick={() => changeMode("GENERAL")}
         >
           일반주문
         </button>
@@ -317,7 +423,7 @@ export function OrderForm({
                 type="button"
                 className={styles.orderBuyTab}
                 aria-pressed={side === "BUY"}
-                onClick={() => setSide("BUY")}
+                onClick={() => changeSide("BUY")}
               >
                 구매
               </button>
@@ -325,7 +431,7 @@ export function OrderForm({
                 type="button"
                 className={styles.orderSellTab}
                 aria-pressed={side === "SELL"}
-                onClick={() => setSide("SELL")}
+                onClick={() => changeSide("SELL")}
               >
                 판매
               </button>
@@ -358,7 +464,7 @@ export function OrderForm({
                   type="button"
                   className={page.select}
                   aria-pressed={pricingMode === "QUANTITY"}
-                  onClick={() => setPricingMode("QUANTITY")}
+                  onClick={() => changePricingMode("QUANTITY")}
                 >
                   수량
                 </button>
@@ -366,7 +472,7 @@ export function OrderForm({
                   type="button"
                   className={page.select}
                   aria-pressed={pricingMode === "AMOUNT"}
-                  onClick={() => setPricingMode("AMOUNT")}
+                  onClick={() => changePricingMode("AMOUNT")}
                 >
                   금액 (US)
                 </button>
@@ -567,7 +673,7 @@ export function OrderForm({
                 disabled={!maxBuyable || maxBuyable === "0"}
               >
                 <span className={styles.metricLabel}>구매가능</span>
-                <strong>
+                <strong data-private-value="true">
                   {maxBuyable !== null ? `${formatDecimal(maxBuyable)}주` : "-"}
                 </strong>
               </button>
@@ -578,7 +684,7 @@ export function OrderForm({
                 disabled={!sellableQty || Number(sellableQty) <= 0}
               >
                 <span className={styles.metricLabel}>판매가능</span>
-                <strong>
+                <strong data-private-value="true">
                   {sellableQty !== undefined
                     ? `${formatDecimal(sellableQty, { maxFractionDigits: 4 })}주`
                     : "-"}
@@ -589,11 +695,13 @@ export function OrderForm({
             <div className={styles.quickBalances}>
               <span>
                 <span className={styles.metricLabel}>주문가능금액</span>
-                <strong>{formatPrice(buyingPower, currency)}</strong>
+                <strong data-private-value="true">
+                  {formatPrice(buyingPower, currency)}
+                </strong>
               </span>
               <span>
                 <span className={styles.metricLabel}>예상 체결금액</span>
-                <strong>
+                <strong data-private-value="true">
                   {estimated !== null ? formatPrice(estimated, currency) : "-"}
                   {estimatedKrw !== null ? (
                     <span className={styles.metricSecondary}>
@@ -615,7 +723,10 @@ export function OrderForm({
                 >
                   현재가 판매
                   {estimated !== null ? (
-                    <span className={styles.quickBtnAmount}>
+                    <span
+                      className={styles.quickBtnAmount}
+                      data-private-value="true"
+                    >
                       {formatPrice(estimated, currency)}
                     </span>
                   ) : null}
@@ -628,7 +739,10 @@ export function OrderForm({
                 >
                   현재가 구매
                   {estimated !== null ? (
-                    <span className={styles.quickBtnAmount}>
+                    <span
+                      className={styles.quickBtnAmount}
+                      data-private-value="true"
+                    >
                       {formatPrice(estimated, currency)}
                     </span>
                   ) : null}
@@ -638,8 +752,10 @@ export function OrderForm({
               <div className={styles.quickConfirm} role="alert">
                 <p className={styles.quickConfirmText}>
                   정말 {armedSide === "BUY" ? "구매" : "판매"}하시겠어요?{" "}
-                  {quantity.trim()}주 ·{" "}
-                  {estimated !== null ? formatPrice(estimated, currency) : "-"}
+                  <span data-private-value="true">{quantity.trim()}주</span> ·{" "}
+                  <span data-private-value="true">
+                    {estimated !== null ? formatPrice(estimated, currency) : "-"}
+                  </span>
                 </p>
                 <div className={styles.quickActionGrid}>
                   <button
@@ -754,19 +870,19 @@ function WouldSend({ body }: { body: OrderCreateBody }) {
       {body.quantity !== undefined ? (
         <div>
           <dt>수량</dt>
-          <dd>{body.quantity}</dd>
+          <dd data-private-value="true">{body.quantity}</dd>
         </div>
       ) : null}
       {body.price !== undefined ? (
         <div>
           <dt>가격</dt>
-          <dd>{body.price}</dd>
+          <dd data-private-value="true">{body.price}</dd>
         </div>
       ) : null}
       {body.orderAmount !== undefined ? (
         <div>
           <dt>주문금액</dt>
-          <dd>{body.orderAmount}</dd>
+          <dd data-private-value="true">{body.orderAmount}</dd>
         </div>
       ) : null}
     </dl>
@@ -785,7 +901,9 @@ function PrevalidationView({
 }) {
   return (
     <p className={styles.prevalidation}>
-      사전검증 — 가용: {available ?? "확인 불가"} / 요청: {requested ?? "-"}
+      사전검증 — 가용:{" "}
+      <span data-private-value="true">{available ?? "확인 불가"}</span> / 요청:{" "}
+      <span data-private-value="true">{requested ?? "-"}</span>
       {insufficient ? " (부족 가능성)" : ""}
     </p>
   );

@@ -30,6 +30,8 @@ const useCandles =
     (symbol: string | undefined, interval: TossCandleInterval) => QueryResult<CandlePageResponse>
   >();
 const useTrades = vi.fn<(symbol?: string) => QueryResult<Trade[]>>();
+const useMarketAdvisorHistory =
+  vi.fn<(symbol: string | undefined, interval: string) => QueryResult<{ events: [] }>>();
 
 vi.mock("@/lib/client/hooks", () => ({
   usePrices: (symbols: string[]) => usePrices(symbols),
@@ -38,6 +40,8 @@ vi.mock("@/lib/client/hooks", () => ({
   useCandles: (symbol: string | undefined, interval: TossCandleInterval) =>
     useCandles(symbol, interval),
   useTrades: (symbol?: string) => useTrades(symbol),
+  useMarketAdvisorHistory: (symbol: string | undefined, interval: string) =>
+    useMarketAdvisorHistory(symbol, interval),
 }));
 
 vi.mock("lightweight-charts", () => ({
@@ -45,13 +49,21 @@ vi.mock("lightweight-charts", () => ({
     addSeries: () => ({
       setData: () => {},
       priceScale: () => ({ applyOptions: () => {} }),
-      createPriceLine: () => ({}),
+      createPriceLine: () => ({ applyOptions: () => {} }),
       removePriceLine: () => {},
     }),
-    timeScale: () => ({ fitContent: () => {} }),
+    timeScale: () => ({
+      fitContent: () => {},
+      timeToCoordinate: () => 120,
+      subscribeVisibleLogicalRangeChange: () => {},
+      unsubscribeVisibleLogicalRangeChange: () => {},
+    }),
     remove: () => {},
   }),
-  createSeriesMarkers: () => ({ setMarkers: () => {} }),
+  createSeriesMarkers: () => ({
+    setMarkers: () => {},
+    detach: () => {},
+  }),
   CandlestickSeries: "CandlestickSeries",
   HistogramSeries: "HistogramSeries",
   LineSeries: "LineSeries",
@@ -96,10 +108,12 @@ beforeEach(() => {
   );
   useCandles.mockReturnValue(loaded({ candles: [], nextBefore: null }));
   useTrades.mockReturnValue(loaded([]));
+  useMarketAdvisorHistory.mockReturnValue(loaded({ events: [] }));
 });
 
 afterEach(() => {
   cleanup();
+  document.title = "";
   window.localStorage.clear();
   vi.clearAllMocks();
 });
@@ -143,8 +157,41 @@ describe("MarketQuote", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the holding name in the header when provided", () => {
+  it("updates the browser title with price, change rate, and name", async () => {
+    const bar = (timestamp: string, closePrice: string) => ({
+      timestamp,
+      openPrice: "0",
+      highPrice: "0",
+      lowPrice: "0",
+      closePrice,
+      volume: "0",
+      currency: "KRW" as const,
+    });
+    useCandles.mockReturnValue(
+      loaded({
+        candles: [
+          bar("2026-06-18T00:00:00+09:00", "70000"),
+          bar("2026-06-19T00:00:00+09:00", "71000"),
+        ],
+        nextBefore: null,
+      }),
+    );
+
     render(<MarketQuote symbol="005930" name="삼성전자" />);
+
+    await waitFor(() => {
+      expect(document.title).toBe("₩72,000 +2.86% 삼성전자");
+    });
+  });
+
+  it("shows the holding name in the header when provided", () => {
+    render(
+      <MarketQuote
+        symbol="005930"
+        name="삼성전자"
+        averagePurchasePrice="65000"
+      />,
+    );
     expect(screen.getByText("삼성전자 (005930)")).toBeInTheDocument();
   });
 

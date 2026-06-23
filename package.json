@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 4107",
     "build": "rm -rf .next && next build && node scripts/check-bundle-secrets.mjs",
     "start": "next start",
     "lint": "eslint",

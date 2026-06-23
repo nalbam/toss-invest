@@ -2,6 +2,7 @@
 
 import useSWR, { type SWRConfiguration } from "swr";
 import type { TossCandleInterval } from "@/lib/client/candles";
+import type { MarketAdvisorHistoryEvent } from "@/lib/client/market-advisor";
 import { POLLING_INTERVAL_MS } from "@/lib/client/polling";
 import type {
   Account,
@@ -158,6 +159,11 @@ const candlesConfig: SWRConfiguration = {
   ...sharedConfig,
   refreshInterval: POLLING_INTERVAL_MS.candles,
   dedupingInterval: POLLING_INTERVAL_MS.candles,
+};
+
+const marketAdvisorHistoryConfig: SWRConfiguration = {
+  ...sharedConfig,
+  refreshInterval: POLLING_INTERVAL_MS.candles,
 };
 
 const exchangeRateConfig: SWRConfiguration = {
@@ -347,6 +353,28 @@ export function useCandles(
     CandlePageResponse,
     ApiClientError
   >(key, fetcher, candlesConfig);
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
+}
+
+export function useMarketAdvisorHistory(
+  symbol: string | undefined,
+  interval: string,
+): QueryResult<{ events: MarketAdvisorHistoryEvent[] }> {
+  const key =
+    symbol === undefined
+      ? null
+      : `/api/market-advisor/history?symbol=${encodeURIComponent(
+          symbol,
+        )}&interval=${encodeURIComponent(interval)}`;
+  const { data, error, isLoading, isValidating } = useSWR<
+    { events: MarketAdvisorHistoryEvent[] },
+    ApiClientError
+  >(key, fetcher, marketAdvisorHistoryConfig);
   return {
     data,
     error,

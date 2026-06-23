@@ -3,8 +3,8 @@
 ## 현재 상태
 
 - **Phase 1·2·3 전체 완료** → 자가 개선 루프 종료([development.md](development.md)).
-- 루프(#18) 이후 사람 주도 UI 개선(시세 그래프 확장·포트폴리오 구성 도넛·종목별 손익 막대 등). 현 시점 **30 파일 396 tests**, lint·typecheck·test·build green.
-- **Phase 4(AI 어드바이저)는 계획만 존재, 미구현.**
+- 루프(#18) 이후 사람 주도 UI 개선(시세 그래프 확장·포트폴리오 구성 도넛·종목별 손익 막대 등)과 Phase 4 AI 어드바이저 통합. 현 시점 **45 파일 518 tests**, lint·typecheck·test·build green.
+- **Phase 4(AI 어드바이저) 완료** — Provider 추상화·오케스트레이션·UI 카드·시장 어드바이저·prefill→§6 게이트.
 
 ## Phase 로드맵 + 종료 조건
 
@@ -34,16 +34,17 @@
 ## 미해결 / 후속 (사람 요청 시)
 
 - `DAILY_LOSS_LIMIT` 강제, ORDER 피크 3/s 선제 스로틀, 자동 트리거 배선(라우트/cron, 사람 결정).
-- modify/cancel·시세 E2E, 차트 페이지네이션, 심볼 검증, 테마 토큰, market-calendar 폴링 완화.
+- modify/cancel·시세 E2E, 차트 페이지네이션, market-calendar 폴링 완화.
 - 주문조회 CLOSED 미지원(현재 OPEN만), dev `allowedDevOrigins` 경고(무해), build 매번 `rm -rf .next` 클린.
 
-## Phase 4 — AI 어드바이저 (계획 — 미구현)
+## Phase 4 — AI 어드바이저 ✅
 
-LLM(OpenAI·xAI) 기반 포트폴리오 분석·조언·주문 제안. 설계·안전은 [architecture.md](architecture.md)·[trading-safety.md](trading-safety.md) §6.A 참고. 로드맵(미착수):
+LLM(OpenAI·xAI) 기반 포트폴리오 분석·조언·주문 제안. 설계·안전은 [architecture.md](architecture.md)·[trading-safety.md](trading-safety.md) §6.A 참고. 완료된 작업:
 
-- **A1 — Provider 추상화 + 결정적 코어(UI 없음)**: `LlmProvider` 인터페이스 + OpenAI·xAI 어댑터 + `snapshot`(마스킹)·`prompt`·`schema`(zod)·`validate`(전부 순수). env(`LLM_PROVIDER`·`OPENAI_API_KEY`·`XAI_API_KEY`·`LLM_MODEL`)는 선택값(미설정 부팅 정상, 어드바이저만 "not configured"). 번들 가드에 LLM 키 패턴 추가.
-- **A2 — 오케스트레이션 + API 라우트(provider stub)**: `advisor.ts`(snapshot→prompt→provider→zod→validate) + `POST /api/advisor`(`{data}`·에러 매핑·`force-dynamic`). 어드바이저가 `placeOrder`/`createOrderRaw`를 호출하지 않음을 grep+의존성 테스트로 증명. 환각/무효 제안은 `validate`에서 탈락.
-- **A3 — UI 카드 + prefill → §6 연결**: `AiAdvisor.tsx`(버튼·조언·제안·disclaimer) + Dashboard `prefill` lift + `OrderForm` prefill prop. **주문은 여전히 사람 confirm + §6** — prefill은 입력만 채우고 전송하지 않는다.
+- **A1 — Provider 추상화 + 결정적 코어(UI 없음)** ✅: `LlmProvider` 인터페이스 + OpenAI·xAI 어댑터 + `snapshot`(마스킹)·`prompt`·`schema`(zod)·`validate`(전부 순수). env(`LLM_PROVIDER`·`OPENAI_API_KEY`·`XAI_API_KEY`·`LLM_MODEL`)는 선택값(미설정 부팅 정상, 어드바이저만 "not configured"). 번들 가드에 LLM 키 패턴 추가.
+- **A2 — 오케스트레이션 + API 라우트** ✅: `advisor.ts`(snapshot→prompt→provider→zod→validate) + `POST /api/advisor`(`{data}`·에러 매핑·`force-dynamic`). 어드바이저가 `placeOrder`/`createOrderRaw`를 호출하지 않음을 grep+의존성 테스트로 증명. 환각/무효 제안은 `validate`에서 탈락.
+- **A3 — UI 카드 + prefill → §6 연결** ✅: `AiAdvisor.tsx`(버튼·조언·제안·disclaimer) + Dashboard `prefill` lift + `OrderForm` prefill prop. **주문은 여전히 사람 confirm + §6** — prefill은 입력만 채우고 전송하지 않는다.
+- **시장 어드바이저** ✅: `MarketAiAdvisor.tsx` + `POST /api/market-advisor`(+ `GET /history`) — 차트 기준 지지/저항·마커·결정 이력을 캔들 차트에 오버레이(Redis 캐시).
 
 ---
 

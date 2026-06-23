@@ -28,6 +28,21 @@ const optionalPositiveAmount = z.preprocess(
   positiveAmountFromString.optional(),
 );
 
+/**
+ * Optional config string that treats an empty/whitespace value as unset — same
+ * `.env.example` trap as the amounts above: a bare `OPENAI_API_KEY=` line loads
+ * as "" (present, not undefined), so map blank to undefined to keep it optional.
+ */
+const blankToUndefined = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+
+const optionalConfigString = z.preprocess(blankToUndefined, z.string().min(1).optional());
+
+const optionalLlmProvider = z.preprocess(
+  blankToUndefined,
+  z.enum(["openai", "xai"]).optional(),
+);
+
 const envSchema = z.object({
   TOSS_CLIENT_ID: z.string().min(1),
   TOSS_CLIENT_SECRET: z.string().min(1),
@@ -43,6 +58,13 @@ const envSchema = z.object({
   // Hard limits (§6). Unset/blank => the gate blocks real orders (fail-safe).
   MAX_ORDER_AMOUNT: optionalPositiveAmount,
   DAILY_LOSS_LIMIT: optionalPositiveAmount,
+  // AI advisor (Phase 4). All optional so the app boots without LLM credentials;
+  // only the advisor path reports "not configured". Keys are server-only
+  // (lib/server/llm/**) — never exposed to the client bundle (build gate guards).
+  LLM_PROVIDER: optionalLlmProvider,
+  OPENAI_API_KEY: optionalConfigString,
+  XAI_API_KEY: optionalConfigString,
+  LLM_MODEL: optionalConfigString,
 });
 
 export type Env = z.infer<typeof envSchema>;

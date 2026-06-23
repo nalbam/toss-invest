@@ -16,6 +16,12 @@ const FORBIDDEN = [
   "TOSS_ACCOUNT_SEQ",
   "client_secret",
   "process.env.TOSS_",
+  // AI advisor (Phase 4) LLM secrets — server-only (lib/server/llm/**), must
+  // never reach the client bundle.
+  "OPENAI_API_KEY",
+  "XAI_API_KEY",
+  "process.env.OPENAI",
+  "process.env.XAI",
 ];
 
 async function collectJsFiles(dir) {

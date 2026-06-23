@@ -9,7 +9,9 @@ import {
   useHoldings,
   useOrders,
 } from "@/lib/client/hooks";
+import type { AdvisorProposal } from "@/lib/client/advisor";
 import { AccountCash } from "./AccountCash";
+import { AiAdvisor } from "./AiAdvisor";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { HoldingsPnL } from "./HoldingsPnL";
 import { HoldingsTable } from "./HoldingsTable";
@@ -18,10 +20,36 @@ import { OrderForm } from "./OrderForm";
 import { OrdersTable } from "./OrdersTable";
 import { PortfolioComposition } from "./PortfolioComposition";
 import { PortfolioSummary } from "./PortfolioSummary";
+import { ThemeSelector } from "./ThemeSelector";
 import page from "@/app/page.module.css";
 import styles from "./dashboard.module.css";
 
+const SELECTED_ACCOUNT_KEY = "toss-invest:selected-account-seq";
 const LAST_SYMBOL_KEY = "toss-invest:last-symbol";
+const LAST_SYMBOL_SELECTION_KEY = "toss-invest:last-symbol-selection";
+const DEFAULT_TITLE = "토스증권 대시보드";
+
+interface StoredSymbolSelection {
+  symbol: string;
+  name?: string;
+}
+
+function symbolStorageKey(accountSeq: number): string {
+  return `${LAST_SYMBOL_KEY}:${accountSeq}`;
+}
+
+function symbolSelectionStorageKey(accountSeq: number): string {
+  return `${LAST_SYMBOL_SELECTION_KEY}:${accountSeq}`;
+}
+
+function maskAccountNo(accountNo: string): string {
+  if (accountNo.length <= 6) {
+    return accountNo;
+  }
+  return `${accountNo.slice(0, 3)}${"*".repeat(
+    accountNo.length - 6,
+  )}${accountNo.slice(-3)}`;
+}
 
 function readLastSymbol(): string | null {
   try {
@@ -31,9 +59,106 @@ function readLastSymbol(): string | null {
   }
 }
 
-function writeLastSymbol(symbol: string): void {
+function readStoredAccountSeq(): number | null {
   try {
+    const stored = window.localStorage.getItem(SELECTED_ACCOUNT_KEY);
+    if (stored === null) return null;
+    const parsed = Number(stored);
+    return Number.isInteger(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredAccountSeq(accountSeq: number): void {
+  try {
+    window.localStorage.setItem(SELECTED_ACCOUNT_KEY, String(accountSeq));
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function readStoredSymbol(accountSeq: number): string | null {
+  try {
+    return window.localStorage.getItem(symbolStorageKey(accountSeq));
+  } catch {
+    return null;
+  }
+}
+
+function isStoredSymbolSelection(
+  value: unknown,
+): value is StoredSymbolSelection {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const selection = value as Partial<StoredSymbolSelection>;
+  return (
+    typeof selection.symbol === "string" &&
+    selection.symbol.length > 0 &&
+    (selection.name === undefined || typeof selection.name === "string")
+  );
+}
+
+function readStoredSymbolSelection(
+  accountSeq: number,
+): StoredSymbolSelection | null {
+  try {
+    const stored = window.localStorage.getItem(
+      symbolSelectionStorageKey(accountSeq),
+    );
+    if (stored !== null) {
+      const parsed: unknown = JSON.parse(stored);
+      if (isStoredSymbolSelection(parsed)) {
+        return parsed;
+      }
+    }
+    const symbol = readStoredSymbol(accountSeq);
+    return symbol === null ? null : { symbol };
+  } catch {
+    return null;
+  }
+}
+
+function readLegacySymbolSelection(): StoredSymbolSelection | null {
+  try {
+    const stored = window.localStorage.getItem(LAST_SYMBOL_SELECTION_KEY);
+    if (stored !== null) {
+      const parsed: unknown = JSON.parse(stored);
+      if (isStoredSymbolSelection(parsed)) {
+        return parsed;
+      }
+    }
+    const symbol = readLastSymbol();
+    return symbol === null ? null : { symbol };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSymbol(accountSeq: number, symbol: string): void {
+  try {
+    window.localStorage.setItem(symbolStorageKey(accountSeq), symbol);
     window.localStorage.setItem(LAST_SYMBOL_KEY, symbol);
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function writeStoredSymbolSelection(
+  accountSeq: number,
+  selection: StoredSymbolSelection,
+): void {
+  writeStoredSymbol(accountSeq, selection.symbol);
+  try {
+    window.localStorage.setItem(
+      symbolSelectionStorageKey(accountSeq),
+      JSON.stringify(selection),
+    );
+    window.localStorage.setItem(
+      LAST_SYMBOL_SELECTION_KEY,
+      JSON.stringify(selection),
+    );
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.
   }
@@ -47,18 +172,52 @@ function writeLastSymbol(symbol: string): void {
 export function Dashboard() {
   const accounts = useAccounts();
   const [selectedSeq, setSelectedSeq] = useState<number | undefined>(undefined);
+  const [privacyBlurred, setPrivacyBlurred] = useState(false);
   // Symbol chosen from the holdings table; drives the market panel and order
   // form. Undefined until the user picks a holding (left panel shows a prompt).
   const [selectedSymbol, setSelectedSymbol] = useState<string | undefined>(
     undefined,
   );
+  // Side + quantity from an accepted AI advisor proposal, handed to the order
+  // form to prefill. A fresh object per acceptance so re-accepting re-applies;
+  // it only fills inputs (the user still confirms and passes the §6 gate).
+  const [prefill, setPrefill] = useState<
+    { side: "BUY" | "SELL"; quantity: number } | undefined
+  >(undefined);
+  // Display name for a selected symbol the user does not hold (resolved by the
+  // advisor route and restored from storage). Lets the market panel/order form
+  // label it like a holding.
+  const [selectedSymbolName, setSelectedSymbolName] = useState<
+    { symbol: string; name: string } | undefined
+  >(undefined);
 
-  // Default to the first account once the list arrives.
+  // Restore the selected account when possible; otherwise default to the first.
   useEffect(() => {
     if (selectedSeq === undefined && accounts.data && accounts.data.length > 0) {
-      setSelectedSeq(accounts.data[0].accountSeq);
+      const storedSeq = readStoredAccountSeq();
+      const nextSeq =
+        storedSeq !== null &&
+        accounts.data.some((account) => account.accountSeq === storedSeq)
+          ? storedSeq
+          : accounts.data[0].accountSeq;
+      setSelectedSeq(nextSeq);
     }
   }, [accounts.data, selectedSeq]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        event.shiftKey &&
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "b"
+      ) {
+        event.preventDefault();
+        setPrivacyBlurred((current) => !current);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const holdings = useHoldings(selectedSeq);
   const orders = useOrders(selectedSeq);
@@ -79,18 +238,58 @@ export function Dashboard() {
     if (selectedSymbol !== undefined || holdings.data === undefined) {
       return;
     }
-    const lastSymbol = readLastSymbol();
-    if (
-      lastSymbol &&
-      holdings.data.items.some((item) => item.symbol === lastSymbol)
-    ) {
-      setSelectedSymbol(lastSymbol);
+    if (selectedSeq === undefined) {
+      return;
     }
-  }, [holdings.data, selectedSymbol]);
+    const accountSelection = readStoredSymbolSelection(selectedSeq);
+    const legacySelection = readLegacySymbolSelection();
+    const lastSelection =
+      accountSelection ??
+      (legacySelection &&
+      holdings.data.items.some((item) => item.symbol === legacySelection.symbol)
+        ? legacySelection
+        : null);
+    if (lastSelection) {
+      setSelectedSymbol(lastSelection.symbol);
+      setSelectedSymbolName(
+        lastSelection.name
+          ? { symbol: lastSelection.symbol, name: lastSelection.name }
+          : undefined,
+      );
+    }
+  }, [holdings.data, selectedSeq, selectedSymbol]);
 
-  function selectSymbol(symbol: string) {
+  useEffect(() => {
+    if (selectedSymbol === undefined) {
+      document.title = DEFAULT_TITLE;
+    }
+  }, [selectedSymbol]);
+
+  function selectAccount(accountSeq: number) {
+    setSelectedSeq(accountSeq);
+    setSelectedSymbol(undefined);
+    setPrefill(undefined);
+    setSelectedSymbolName(undefined);
+    writeStoredAccountSeq(accountSeq);
+  }
+
+  function selectSymbol(symbol: string, name?: string) {
     setSelectedSymbol(symbol);
-    writeLastSymbol(symbol);
+    setSelectedSymbolName(name ? { symbol, name } : undefined);
+    if (selectedSeq !== undefined) {
+      writeStoredSymbolSelection(
+        selectedSeq,
+        name === undefined ? { symbol } : { symbol, name },
+      );
+    }
+  }
+
+  // "폼에 담기" from the advisor card: point the order form at the proposed
+  // symbol, prefill its side + quantity, and remember its resolved name so a
+  // non-held symbol is labelled like a holding. Never sends an order.
+  function applyProposal(proposal: AdvisorProposal, name?: string) {
+    selectSymbol(proposal.symbol, name);
+    setPrefill({ side: proposal.side, quantity: proposal.quantity });
   }
 
   if (accounts.isLoading) {
@@ -107,30 +306,43 @@ export function Dashboard() {
     return <p className={page.status}>사용 가능한 계좌가 없습니다.</p>;
   }
 
-  const selectedName = holdings.data?.items.find(
+  const selectedHolding = holdings.data?.items.find(
     (item) => item.symbol === selectedSymbol,
-  )?.name;
+  );
+  // Prefer the holding's name; fall back to a proposed symbol's resolved name so
+  // a non-held proposed symbol is labelled the same way a holding is.
+  const selectedName =
+    selectedHolding?.name ??
+    (selectedSymbolName && selectedSymbolName.symbol === selectedSymbol
+      ? selectedSymbolName.name
+      : undefined);
 
   return (
-    <div className={page.dashboard}>
+    <div
+      className={`${page.dashboard} ${privacyBlurred ? page.privacyBlurred : ""}`}
+      data-privacy-blurred={privacyBlurred ? "true" : "false"}
+    >
       <header className={page.header}>
         <h1 className={page.title}>토스증권 대시보드</h1>
-        <div className={page.controls}>
-          <label htmlFor="account-select" className={page.controlLabel}>
-            계좌
-          </label>
-          <select
-            id="account-select"
-            className={page.select}
-            value={selectedSeq ?? ""}
-            onChange={(event) => setSelectedSeq(Number(event.target.value))}
-          >
-            {accounts.data.map((account) => (
-              <option key={account.accountSeq} value={account.accountSeq}>
-                {account.accountNo} ({account.accountType})
-              </option>
-            ))}
-          </select>
+        <div className={page.headerControls}>
+          <ThemeSelector />
+          <div className={page.controls}>
+            <label htmlFor="account-select" className={page.controlLabel}>
+              계좌
+            </label>
+            <select
+              id="account-select"
+              className={page.select}
+              value={selectedSeq ?? ""}
+              onChange={(event) => selectAccount(Number(event.target.value))}
+            >
+              {accounts.data.map((account) => (
+                <option key={account.accountSeq} value={account.accountSeq}>
+                  {maskAccountNo(account.accountNo)} ({account.accountType})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </header>
 
@@ -142,6 +354,7 @@ export function Dashboard() {
               symbol={selectedSymbol}
               name={selectedName}
               orders={orders.data?.orders ?? []}
+              averagePurchasePrice={selectedHolding?.averagePurchasePrice}
             />
           ) : (
             <CollapsibleCard title="시세" storageId="market-quote">
@@ -150,7 +363,7 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* Center: order form for the selected symbol (or a prompt). */}
+        {/* Center: order form and order history. */}
         <div className={styles.column}>
           {selectedSymbol ? (
             <OrderForm
@@ -159,6 +372,7 @@ export function Dashboard() {
               name={selectedName}
               cash={cash}
               fxRate={fx.data?.rate}
+              prefill={prefill}
             />
           ) : (
             <CollapsibleCard title="주문하기" storageId="order-form">
@@ -167,9 +381,25 @@ export function Dashboard() {
               </p>
             </CollapsibleCard>
           )}
+
+          {orders.isLoading ? (
+            <p className={page.status}>주문 내역을 불러오는 중…</p>
+          ) : orders.error ? (
+            <p className={`${page.status} ${page.error}`} role="alert">
+              주문 내역을 불러오지 못했습니다: {orders.error.message}
+            </p>
+          ) : orders.data ? (
+            <OrdersTable
+              orders={orders.data.orders}
+              accountSeq={selectedSeq}
+              selectedSymbol={selectedSymbol}
+              onChanged={refreshOrders}
+              refreshing={Boolean(orders.isRefreshing)}
+            />
+          ) : null}
         </div>
 
-        {/* Right: account sidebar — cash, summary, holdings, orders. */}
+        {/* Right: account sidebar — cash, summary, holdings. */}
         <div className={styles.column}>
           {fx.data ? (
             <AccountCash
@@ -208,22 +438,11 @@ export function Dashboard() {
                 items={holdings.data.items}
                 refreshing={Boolean(holdings.isRefreshing)}
               />
+              <AiAdvisor
+                accountSeq={selectedSeq}
+                onSelectProposal={applyProposal}
+              />
             </>
-          ) : null}
-
-          {orders.isLoading ? (
-            <p className={page.status}>주문 내역을 불러오는 중…</p>
-          ) : orders.error ? (
-            <p className={`${page.status} ${page.error}`} role="alert">
-              주문 내역을 불러오지 못했습니다: {orders.error.message}
-            </p>
-          ) : orders.data ? (
-            <OrdersTable
-              orders={orders.data.orders}
-              accountSeq={selectedSeq}
-              onChanged={refreshOrders}
-              refreshing={Boolean(orders.isRefreshing)}
-            />
           ) : null}
         </div>
       </div>
