@@ -379,6 +379,10 @@ export function CandleChart({
     if (range === null) {
       return;
     }
+    // timeToCoordinate is relative to the plot (series) area, but the overlay
+    // spans the whole container. The price axis/labels sit on the left, so shift
+    // each line right by the left price-scale width to align it with its candle.
+    const leftPad = chart.priceScale("left").width();
     for (const event of advisorEvents) {
       const generatedSeconds = parseTimestampSeconds(event.generatedAt);
       const chartSeconds =
@@ -402,7 +406,7 @@ export function CandleChart({
       }
       const line = document.createElement("span");
       line.className = styles.chartAdviceLine;
-      line.style.left = `${coordinate}px`;
+      line.style.left = `${leftPad + coordinate}px`;
       line.style.setProperty("--advice-line-color", decisionColor(event.decision.action));
       line.title = `${event.decision.label}: ${event.decision.reason}`;
       overlay.append(line);

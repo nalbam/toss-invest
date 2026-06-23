@@ -38,6 +38,7 @@ const addSeries = vi.fn(() => ({
 const remove = vi.fn();
 const createChart = vi.fn(() => ({
   addSeries,
+  priceScale: () => ({ width: () => 0 }),
   timeScale: () => ({
     fitContent,
     timeToCoordinate,
