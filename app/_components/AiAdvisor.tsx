@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiClientError } from "@/lib/client/hooks";
+import { useCallback } from "react";
 import {
   fetchAdvisor,
   type AdvisorProposal,
@@ -11,14 +10,8 @@ import {
 import { AdvisorAutoControls } from "./AdvisorAutoControls";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
-import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import { useAdvisorAutoRerun } from "./useAdvisorAutoRerun";
-
-type State =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "loaded"; result: AdvisorResult }
-  | { status: "error"; message: string; notConfigured: boolean };
+import { useAdvisorRun } from "./useAdvisorRun";
 
 const ADVISOR_RESULT_KEY = "toss-invest:ai-advisor-result";
 const ADVISOR_AUTO_KEY = "toss-invest:ai-advisor-auto";
@@ -118,36 +111,13 @@ export function AiAdvisor({
   accountSeq?: number;
   onSelectProposal?: (proposal: AdvisorProposal, name?: string) => void;
 }) {
-  const [state, setState] = useState<State>({ status: "idle" });
-  const requestSeqRef = useRef(0);
-
-  useEffect(() => {
-    requestSeqRef.current += 1;
-    const stored = readStoredJson(storageKey(accountSeq), isAdvisorResult);
-    setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
-  }, [accountSeq]);
-
-  const run = useCallback(async () => {
-    const seq = ++requestSeqRef.current;
-    setState({ status: "loading" });
-    try {
-      const result = await fetchAdvisor(accountSeq);
-      if (seq !== requestSeqRef.current) return;
-      writeStoredJson(storageKey(accountSeq), result);
-      setState({ status: "loaded", result });
-    } catch (error) {
-      if (seq !== requestSeqRef.current) return;
-      const notConfigured =
-        error instanceof ApiClientError && error.code === "advisor-not-configured";
-      setState({
-        status: "error",
-        notConfigured,
-        message: notConfigured
-          ? "AI 어드바이저가 설정되지 않았습니다."
-          : "조언을 불러오지 못했습니다.",
-      });
-    }
-  }, [accountSeq]);
+  const fetcher = useCallback(() => fetchAdvisor(accountSeq), [accountSeq]);
+  const { state, run } = useAdvisorRun<AdvisorResult>({
+    storageKey: storageKey(accountSeq),
+    isResult: isAdvisorResult,
+    fetcher,
+    errorMessage: "조언을 불러오지 못했습니다.",
+  });
   const {
     autoEnabled,
     autoIntervalMs,

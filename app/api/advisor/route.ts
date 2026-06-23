@@ -4,6 +4,7 @@ import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
 import { getServerTossClient } from "@/lib/server/toss/container";
 import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
 import { AdvisorResponseError, runAdvisor } from "@/lib/server/advisor/advisor";
+import { advisorJsonSchema } from "@/lib/server/advisor/schema";
 import { buildAdvisorSnapshot } from "@/lib/server/advisor/snapshot";
 import type { ValidationContext } from "@/lib/server/advisor/validate";
 
@@ -17,36 +18,6 @@ const querySchema = z.object({
     z.coerce.number().int().positive().optional(),
   ),
 });
-
-// Provider-native structured output mirroring advisorResultSchema. Improves the
-// LLM's odds of returning well-formed JSON; the response is still re-parsed with
-// the zod schema in runAdvisor, so this is reliability help, not a trust anchor.
-const advisorJsonSchema = {
-  name: "portfolio_advice",
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    required: ["advice", "proposals"],
-    properties: {
-      advice: { type: "string" },
-      proposals: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["kind", "symbol", "side", "quantity", "rationale"],
-          properties: {
-            kind: { type: "string", enum: ["buy", "trim", "exit", "rebalance"] },
-            symbol: { type: "string" },
-            side: { type: "string", enum: ["BUY", "SELL"] },
-            quantity: { type: "integer" },
-            rationale: { type: "string" },
-          },
-        },
-      },
-    },
-  },
-} as const;
 
 /**
  * POST so the (paid, external) LLM call is an explicit, non-idempotent action.

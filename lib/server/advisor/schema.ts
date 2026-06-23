@@ -27,6 +27,36 @@ export const advisorResultSchema = z.object({
   proposals: z.array(advisorProposalSchema),
 });
 
+// Provider-native structured output mirroring advisorResultSchema. Improves the
+// LLM's odds of returning well-formed JSON; the response is still re-parsed with
+// the zod schema in runAdvisor, so this is reliability help, not a trust anchor.
+export const advisorJsonSchema = {
+  name: "portfolio_advice",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["advice", "proposals"],
+    properties: {
+      advice: { type: "string" },
+      proposals: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["kind", "symbol", "side", "quantity", "rationale"],
+          properties: {
+            kind: { type: "string", enum: ["buy", "trim", "exit", "rebalance"] },
+            symbol: { type: "string" },
+            side: { type: "string", enum: ["BUY", "SELL"] },
+            quantity: { type: "integer" },
+            rationale: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 export type ProposalKind = z.infer<typeof proposalKindSchema>;
 export type AdvisorProposal = z.infer<typeof advisorProposalSchema>;
 export type AdvisorResult = z.infer<typeof advisorResultSchema>;

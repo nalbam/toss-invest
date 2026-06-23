@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ComponentProps,
-} from "react";
-import { ApiClientError } from "@/lib/client/hooks";
+import { useCallback, type ComponentProps } from "react";
 import {
   fetchMarketAdvisor,
   type MarketAdvisorInput,
@@ -17,14 +10,8 @@ import { AdvisorAutoControls } from "./AdvisorAutoControls";
 import { ChartOverlayControls } from "./ChartOverlayControls";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
-import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import { useAdvisorAutoRerun } from "./useAdvisorAutoRerun";
-
-type State =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "loaded"; result: MarketAdvisorResult }
-  | { status: "error"; message: string };
+import { useAdvisorRun } from "./useAdvisorRun";
 
 const MARKET_ADVISOR_RESULT_KEY = "toss-invest:market-ai-advisor-result";
 const MARKET_ADVISOR_AUTO_KEY = "toss-invest:market-ai-advisor-auto";
@@ -63,39 +50,15 @@ export function MarketAiAdvisor({
   onResult?: (result: MarketAdvisorResult | undefined) => void;
   chartOverlay?: ComponentProps<typeof ChartOverlayControls>;
 }) {
-  const [state, setState] = useState<State>({ status: "idle" });
-  const requestSeqRef = useRef(0);
   const resultStorageKey = `${MARKET_ADVISOR_RESULT_KEY}:${input.symbol}:${input.interval}`;
-
-  useEffect(() => {
-    requestSeqRef.current += 1;
-    const stored = readStoredJson(resultStorageKey, isMarketAdvisorResult);
-    setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
-    onResult?.(stored ?? undefined);
-  }, [onResult, resultStorageKey]);
-
-  const run = useCallback(async () => {
-    const seq = ++requestSeqRef.current;
-    setState({ status: "loading" });
-    try {
-      const result = await fetchMarketAdvisor(input);
-      if (seq !== requestSeqRef.current) return;
-      writeStoredJson(resultStorageKey, result);
-      setState({ status: "loaded", result });
-      onResult?.(result);
-    } catch (error) {
-      if (seq !== requestSeqRef.current) return;
-      const notConfigured =
-        error instanceof ApiClientError && error.code === "advisor-not-configured";
-      setState({
-        status: "error",
-        message: notConfigured
-          ? "AI 어드바이저가 설정되지 않았습니다."
-          : "시세 조언을 불러오지 못했습니다.",
-      });
-      onResult?.(undefined);
-    }
-  }, [input, onResult, resultStorageKey]);
+  const fetcher = useCallback(() => fetchMarketAdvisor(input), [input]);
+  const { state, run } = useAdvisorRun<MarketAdvisorResult>({
+    storageKey: resultStorageKey,
+    isResult: isMarketAdvisorResult,
+    fetcher,
+    errorMessage: "시세 조언을 불러오지 못했습니다.",
+    onResult,
+  });
   const {
     autoEnabled,
     autoIntervalMs,

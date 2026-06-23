@@ -1,3 +1,4 @@
+import { isErrorEnvelope, isSuccessEnvelope } from "./envelope";
 import { ApiClientError } from "./hooks";
 import type { Candle, Currency } from "./types";
 
@@ -52,30 +53,6 @@ export interface MarketMarkerAnnotation {
   label: string;
 }
 
-function isErrorEnvelope(
-  body: unknown,
-): body is { error: { code: string; message: string; requestId?: string } } {
-  if (typeof body !== "object" || body === null || !("error" in body)) {
-    return false;
-  }
-  const error = (body as { error: unknown }).error;
-  if (typeof error !== "object" || error === null) {
-    return false;
-  }
-  const record = error as Record<string, unknown>;
-  return (
-    typeof record.code === "string" &&
-    typeof record.message === "string" &&
-    (record.requestId === undefined || typeof record.requestId === "string")
-  );
-}
-
-function hasDataEnvelope(
-  body: unknown,
-): body is { data: MarketAdvisorResult } {
-  return typeof body === "object" && body !== null && "data" in body;
-}
-
 export async function fetchMarketAdvisor(
   input: MarketAdvisorInput,
 ): Promise<MarketAdvisorResult> {
@@ -112,7 +89,7 @@ export async function fetchMarketAdvisor(
     });
   }
 
-  if (!hasDataEnvelope(body)) {
+  if (!isSuccessEnvelope<MarketAdvisorResult>(body)) {
     throw new ApiClientError({
       code: "invalid-response",
       message: "The server returned an unexpected response shape.",

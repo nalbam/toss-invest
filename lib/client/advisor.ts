@@ -1,3 +1,4 @@
+import { isErrorEnvelope, isSuccessEnvelope } from "./envelope";
 import { ApiClientError } from "./hooks";
 
 // Client-side types + on-demand fetcher for the AI advisor. The advisor is
@@ -28,28 +29,6 @@ export interface AdvisorResult {
   proposals: ValidatedProposal[];
   model: string;
   generatedAt: string;
-}
-
-function isErrorEnvelope(
-  body: unknown,
-): body is { error: { code: string; message: string; requestId?: string } } {
-  if (typeof body !== "object" || body === null || !("error" in body)) {
-    return false;
-  }
-  const error = (body as { error: unknown }).error;
-  if (typeof error !== "object" || error === null) {
-    return false;
-  }
-  const record = error as Record<string, unknown>;
-  return (
-    typeof record.code === "string" &&
-    typeof record.message === "string" &&
-    (record.requestId === undefined || typeof record.requestId === "string")
-  );
-}
-
-function isSuccessEnvelope(body: unknown): body is { data: AdvisorResult } {
-  return typeof body === "object" && body !== null && "data" in body;
 }
 
 /**
@@ -89,7 +68,7 @@ export async function fetchAdvisor(accountSeq?: number): Promise<AdvisorResult> 
     });
   }
 
-  if (!isSuccessEnvelope(body)) {
+  if (!isSuccessEnvelope<AdvisorResult>(body)) {
     throw new ApiClientError({
       code: "invalid-response",
       message: "The server returned an unexpected response shape.",
