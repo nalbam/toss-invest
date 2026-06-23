@@ -40,6 +40,12 @@ target/
 prompt.md
 docs/plans/
 
+# sqlite advice log
+/data/
+*.db
+*.db-shm
+*.db-wal
+
 # node / next.js
 /node_modules
 /.pnp

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
-import { recordPriceSnapshots } from "@/lib/server/cache/market-history";
 import { getServerTossClient } from "@/lib/server/toss/container";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +31,6 @@ export async function GET(request: Request): Promise<Response> {
     const data = await getServerTossClient().getPrices({
       symbols: parsed.data.symbols,
     });
-    void recordPriceSnapshots(data);
     return ok(data);
   } catch (error) {
     return handleError(error);

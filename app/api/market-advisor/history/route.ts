@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { invalidRequest, ok } from "@/lib/server/api/respond";
-import { readMarketAdviceHistory } from "@/lib/server/cache/market-history";
+import { readMarketAdviceHistory } from "@/lib/server/market-advisor/history";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,6 +24,6 @@ export async function GET(request: Request): Promise<Response> {
     return invalidRequest("Invalid market advisor history query parameters");
   }
 
-  const history = await readMarketAdviceHistory(parsed.data);
+  const history = readMarketAdviceHistory(parsed.data);
   return ok({ events: history });
 }

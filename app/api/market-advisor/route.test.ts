@@ -11,7 +11,7 @@ vi.mock("@/lib/server/llm/container", () => ({
   LlmNotConfiguredError,
 }));
 
-vi.mock("@/lib/server/cache/market-history", () => ({
+vi.mock("@/lib/server/market-advisor/history", () => ({
   recordMarketAdvice,
 }));
 

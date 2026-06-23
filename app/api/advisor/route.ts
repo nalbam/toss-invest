@@ -4,6 +4,7 @@ import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
 import { getServerTossClient } from "@/lib/server/toss/container";
 import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
 import { AdvisorResponseError, runAdvisor } from "@/lib/server/advisor/advisor";
+import { recordPortfolioAdvice } from "@/lib/server/advisor/history";
 import { advisorJsonSchema } from "@/lib/server/advisor/schema";
 import { buildAdvisorSnapshot } from "@/lib/server/advisor/snapshot";
 import type { ValidationContext } from "@/lib/server/advisor/validate";
@@ -93,11 +94,20 @@ export async function POST(request: Request): Promise<Response> {
       resolveSymbol,
     });
 
+    const generatedAt = new Date().toISOString();
+    recordPortfolioAdvice({
+      accountSeq,
+      generatedAt,
+      model: result.model,
+      advice: result.advice,
+      proposals: result.proposals,
+    });
+
     return ok({
       advice: result.advice,
       proposals: result.proposals,
       model: result.model,
-      generatedAt: new Date().toISOString(),
+      generatedAt,
     });
   } catch (error) {
     if (error instanceof LlmNotConfiguredError) {

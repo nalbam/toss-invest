@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
-import { recordMarketAdvice } from "@/lib/server/cache/market-history";
+import { recordMarketAdvice } from "@/lib/server/market-advisor/history";
 import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
 import {
   marketAdvisorJsonSchema,
@@ -50,6 +50,7 @@ export async function POST(request: Request): Promise<Response> {
       lastPrice: parsed.data.lastPrice,
       decision: result.decision,
       advice: result.advice,
+      annotations: result.annotations,
     });
 
     return ok({
