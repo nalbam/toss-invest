@@ -5,6 +5,11 @@
   background: var(--card-bg);
 }
 
+/* Nested cards (only inside the 시세 panel) are spaced like sidebar cards. */
+.card .card {
+  margin-top: 20px;
+}
+
 .cardHeader {
   margin-bottom: 16px;
 }
@@ -590,10 +595,6 @@
   border-color: var(--foreground);
   color: var(--background);
   font-weight: 700;
-}
-
-.marketAdvisorBlock {
-  margin-bottom: 18px;
 }
 
 .orderForm {

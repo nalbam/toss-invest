@@ -239,12 +239,10 @@ export function MarketQuote({
             annotations={marketAdvisorResult?.annotations}
             advisorEvents={marketAdvisorHistory.data?.events ?? []}
           />
-          <div className={styles.marketAdvisorBlock}>
-            <MarketAiAdvisor
-              input={marketAdvisorInput}
-              onResult={handleMarketAdvisorResult}
-            />
-          </div>
+          <MarketAiAdvisor
+            input={marketAdvisorInput}
+            onResult={handleMarketAdvisorResult}
+          />
         </>
       ) : null}
 
