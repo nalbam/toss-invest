@@ -127,14 +127,26 @@ function buildClient(): TossClient {
 /**
  * Process-wide live client, shared by the read facade and the gated trading
  * executor so both reuse the same token provider / rate limiter budgets.
+ *
+ * Stored on `globalThis` (not a plain module-scoped variable) on purpose: the
+ * in-process advisor worker is started from `instrumentation.ts`, which Next.js
+ * bundles as a SEPARATE entry with its own module registry. A module-scoped
+ * singleton would therefore be instantiated twice (once per bundle) — two token
+ * providers, each issuing its own access token. Because the Toss API invalidates
+ * a client's previous token when a new one is issued, the worker's token would
+ * knock out the routes' token (and vice-versa), surfacing as intermittent 401s.
+ * A `globalThis` handle is shared across bundles in the same process, so both
+ * the worker and the route handlers reuse one token cache.
  */
-let cachedClient: TossClient | null = null;
+const globalForToss = globalThis as typeof globalThis & {
+  __tossClient?: TossClient;
+};
 
 function getClient(): TossClient {
-  if (cachedClient === null) {
-    cachedClient = buildClient();
+  if (!globalForToss.__tossClient) {
+    globalForToss.__tossClient = buildClient();
   }
-  return cachedClient;
+  return globalForToss.__tossClient;
 }
 
 let cached: ServerTossClient | null = null;
