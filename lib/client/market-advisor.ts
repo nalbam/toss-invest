@@ -29,6 +29,7 @@ export interface MarketAdvisorHistoryEvent {
   lastPrice?: string;
   decision: MarketAdvisorDecision;
   advice: string;
+  annotations?: MarketChartAnnotations;
   cachedAt: string;
 }
 

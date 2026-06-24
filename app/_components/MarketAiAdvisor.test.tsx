@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { MarketAdvisorInput, MarketAdvisorResult } from "@/lib/client/market-advisor";
+import type { MarketAdvisorInput, MarketAdvisorHistoryEvent } from "@/lib/client/market-advisor";
 import type { WatchlistItem } from "@/lib/client/watchlist";
 import { MarketAiAdvisor } from "./MarketAiAdvisor";
 
@@ -11,10 +11,40 @@ type WatchlistHook = {
   isLoading: boolean;
 };
 
+type HistoryHook = {
+  data?: { events: MarketAdvisorHistoryEvent[] };
+  error?: unknown;
+  isLoading: boolean;
+  isRefreshing: boolean;
+};
+
 const { fetchMarketAdvisor } = vi.hoisted(() => ({
   fetchMarketAdvisor: vi.fn(),
 }));
 vi.mock("@/lib/client/market-advisor", () => ({ fetchMarketAdvisor }));
+
+const { useMarketAdvisorHistory, marketAdvisorHistoryKey, ApiClientError } = vi.hoisted(
+  () => ({
+    useMarketAdvisorHistory: vi.fn(
+      (): HistoryHook => ({ data: { events: [] }, isLoading: false, isRefreshing: false }),
+    ),
+    marketAdvisorHistoryKey: vi.fn(
+      (symbol: string, interval: string) =>
+        `/api/market-advisor/history?symbol=${symbol}&interval=${interval}`,
+    ),
+    ApiClientError: class ApiClientError extends Error {
+      code?: string;
+    },
+  }),
+);
+vi.mock("@/lib/client/hooks", () => ({
+  useMarketAdvisorHistory,
+  marketAdvisorHistoryKey,
+  ApiClientError,
+}));
+
+const { mutate } = vi.hoisted(() => ({ mutate: vi.fn(() => Promise.resolve()) }));
+vi.mock("swr", () => ({ useSWRConfig: () => ({ mutate }) }));
 
 const {
   useWatchlist,
@@ -43,20 +73,24 @@ const input: MarketAdvisorInput = {
   candles: [],
 };
 
-const result: MarketAdvisorResult = {
-  advice: "단기 추세가 완만히 개선되고 있습니다.",
+const event: MarketAdvisorHistoryEvent = {
+  symbol: "005930",
+  interval: "1d",
+  generatedAt: "2026-06-19T12:00:00Z",
+  chartTimestamp: "2026-06-19T12:00:00Z",
+  lastPrice: "72000",
   decision: {
     action: "buy",
     label: "매수 검토",
     reason: "지지선 위에서 반등 흐름이 확인됩니다.",
   },
+  advice: "단기 추세가 완만히 개선되고 있습니다.",
   annotations: {
     supportLevels: [{ price: 68000, label: "지지 가능 구간" }],
     resistanceLevels: [{ price: 72000, label: "저항 확인 구간" }],
     markers: [],
   },
-  model: "stub-model",
-  generatedAt: "2026-06-19T00:00:00Z",
+  cachedAt: "2026-06-19T12:00:00Z",
 };
 
 afterEach(() => {
@@ -64,33 +98,49 @@ afterEach(() => {
   window.localStorage.clear();
   vi.clearAllMocks();
   useWatchlist.mockReturnValue({ items: [], mutate: vi.fn(), isLoading: false });
+  useMarketAdvisorHistory.mockReturnValue({
+    data: { events: [] },
+    isLoading: false,
+    isRefreshing: false,
+  });
 });
 
 describe("MarketAiAdvisor", () => {
-  it("loads chart advice when the button is clicked", async () => {
-    fetchMarketAdvisor.mockResolvedValue(result);
-    const onResult = vi.fn();
-    render(<MarketAiAdvisor input={input} onResult={onResult} />);
+  it("displays the latest persisted advice from history with its timestamp", () => {
+    useMarketAdvisorHistory.mockReturnValue({
+      data: { events: [event] },
+      isLoading: false,
+      isRefreshing: false,
+    });
+    render(<MarketAiAdvisor input={input} />);
+
+    expect(screen.getByText("매수 검토")).toBeInTheDocument();
+    expect(screen.getByText(/완만히 개선/)).toBeInTheDocument();
+    expect(screen.getByText(/조언 일시: 2026-06-19/)).toBeInTheDocument();
+  });
+
+  it("does not read advice from localStorage", () => {
+    window.localStorage.setItem(
+      "toss-invest:market-ai-advisor-result:005930:1d",
+      JSON.stringify({ advice: "캐시된 조언" }),
+    );
+    render(<MarketAiAdvisor input={input} />);
+
+    expect(screen.queryByText(/캐시된 조언/)).not.toBeInTheDocument();
+  });
+
+  it("runs a manual analysis and revalidates the history on button click", async () => {
+    fetchMarketAdvisor.mockResolvedValue(undefined);
+    render(<MarketAiAdvisor input={input} />);
 
     fireEvent.click(screen.getByRole("button", { name: "조언 받기" }));
 
-    await waitFor(() => expect(screen.getByText(/완만히 개선/)).toBeInTheDocument());
-    expect(screen.getByText("매수 검토")).toBeInTheDocument();
-    expect(fetchMarketAdvisor).toHaveBeenCalledWith(input);
-    expect(onResult).toHaveBeenLastCalledWith(result);
-  });
-
-  it("restores stored chart advice for the same symbol and interval", () => {
-    window.localStorage.setItem(
-      "toss-invest:market-ai-advisor-result:005930:1d",
-      JSON.stringify(result),
+    await waitFor(() => expect(fetchMarketAdvisor).toHaveBeenCalledWith(input));
+    await waitFor(() =>
+      expect(mutate).toHaveBeenCalledWith(
+        "/api/market-advisor/history?symbol=005930&interval=1d",
+      ),
     );
-    const onResult = vi.fn();
-    render(<MarketAiAdvisor input={input} onResult={onResult} />);
-
-    expect(screen.getByText(/완만히 개선/)).toBeInTheDocument();
-    expect(onResult).toHaveBeenLastCalledWith(result);
-    expect(fetchMarketAdvisor).not.toHaveBeenCalled();
   });
 
   it("registers the current symbol/chart when auto-analyze is toggled on", async () => {

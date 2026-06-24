@@ -361,16 +361,19 @@ export function useCandles(
   };
 }
 
+/** SWR key for a symbol/interval advice history; exported so callers can revalidate it. */
+export function marketAdvisorHistoryKey(symbol: string, interval: string): string {
+  return `/api/market-advisor/history?symbol=${encodeURIComponent(
+    symbol,
+  )}&interval=${encodeURIComponent(interval)}`;
+}
+
 export function useMarketAdvisorHistory(
   symbol: string | undefined,
   interval: string,
 ): QueryResult<{ events: MarketAdvisorHistoryEvent[] }> {
   const key =
-    symbol === undefined
-      ? null
-      : `/api/market-advisor/history?symbol=${encodeURIComponent(
-          symbol,
-        )}&interval=${encodeURIComponent(interval)}`;
+    symbol === undefined ? null : marketAdvisorHistoryKey(symbol, interval);
   const { data, error, isLoading, isValidating } = useSWR<
     { events: MarketAdvisorHistoryEvent[] },
     ApiClientError

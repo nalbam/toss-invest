@@ -1268,6 +1268,12 @@
   white-space: pre-wrap;
 }
 
+.advisorTimestamp {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .marketDecision {
   display: flex;
   align-items: flex-start;

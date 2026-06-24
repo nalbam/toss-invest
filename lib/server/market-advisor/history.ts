@@ -30,6 +30,7 @@ export interface MarketAdviceHistoryRecord {
   lastPrice?: string;
   decision: Decision;
   advice: string;
+  annotations?: Annotations;
   cachedAt: string;
 }
 
@@ -43,7 +44,20 @@ interface MarketAdviceRow {
   decision_label: string;
   decision_reason: string;
   advice: string;
+  annotations: string | null;
   created_at: string;
+}
+
+/** Parses the stored annotations JSON; missing/corrupt values yield undefined. */
+function parseAnnotations(value: string | null): Annotations | undefined {
+  if (value === null) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(value) as Annotations;
+  } catch {
+    return undefined;
+  }
 }
 
 function rowToHistory(row: MarketAdviceRow): MarketAdviceHistoryRecord {
@@ -59,6 +73,7 @@ function rowToHistory(row: MarketAdviceRow): MarketAdviceHistoryRecord {
       reason: row.decision_reason,
     },
     advice: row.advice,
+    annotations: parseAnnotations(row.annotations),
     cachedAt: row.created_at,
   };
 }

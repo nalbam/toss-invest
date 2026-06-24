@@ -18,7 +18,6 @@ import {
 } from "@/lib/client/candles";
 import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
 import { previousClose, priceChange } from "@/lib/client/quote";
-import type { MarketAdvisorResult } from "@/lib/client/market-advisor";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import { CandleChart, toOrderMarkers } from "./CandleChart";
@@ -104,8 +103,6 @@ export function MarketQuote({
 }) {
   const [interval, setIntervalState] = useState<ChartInterval>("1d");
   const [loadedStoredInterval, setLoadedStoredInterval] = useState(false);
-  const [marketAdvisorResult, setMarketAdvisorResult] =
-    useState<MarketAdvisorResult | undefined>(undefined);
   const [overlays, setOverlays] = useState<ChartOverlayState>({
     labels: true,
     lines: true,
@@ -169,13 +166,6 @@ export function MarketQuote({
     setIntervalState(interval);
     writeStoredInterval(interval);
   }
-
-  const handleMarketAdvisorResult = useCallback(
-    (result: MarketAdvisorResult | undefined) => {
-      setMarketAdvisorResult(result);
-    },
-    [],
-  );
 
   const toggleOverlay = useCallback((key: keyof ChartOverlayState) => {
     setOverlays((current) => {
@@ -263,7 +253,7 @@ export function MarketQuote({
             priceLimits={limits.data}
             markers={orderMarkers}
             averagePurchasePrice={averagePurchasePrice}
-            annotations={marketAdvisorResult?.annotations}
+            annotations={marketAdvisorHistory.data?.events[0]?.annotations}
             advisorEvents={marketAdvisorHistory.data?.events ?? []}
             showAnnotationLabels={overlays.labels}
             showAnnotationLines={overlays.lines}
@@ -271,7 +261,6 @@ export function MarketQuote({
           />
           <MarketAiAdvisor
             input={marketAdvisorInput}
-            onResult={handleMarketAdvisorResult}
             chartOverlay={{
               showLabels: overlays.labels,
               showLines: overlays.lines,

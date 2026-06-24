@@ -58,4 +58,18 @@ describe("market advice history", () => {
     expect(rows[0].chartTimestamp).toBeNull();
     expect(rows[0].lastPrice).toBeUndefined();
   });
+
+  it("round-trips annotations and returns undefined when absent", () => {
+    const db = makeDb();
+    const annotations = {
+      supportLevels: [{ price: 68000, label: "지지" }],
+      resistanceLevels: [{ price: 72000, label: "저항" }],
+      markers: [{ timestamp: "2026-06-23T00:00:00.000Z", position: "aboveBar" as const, label: "돌파" }],
+    };
+    recordMarketAdvice({ ...base, advice: "with", annotations }, db);
+    recordMarketAdvice({ ...base, advice: "without" }, db);
+    const rows = readMarketAdviceHistory({ symbol: "005930", limit: 10 }, db);
+    expect(rows[0].annotations).toBeUndefined();
+    expect(rows[1].annotations).toEqual(annotations);
+  });
 });

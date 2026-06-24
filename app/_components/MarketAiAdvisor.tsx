@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useState, type ComponentProps } from "react";
+import { useSWRConfig } from "swr";
+import { fetchMarketAdvisor, type MarketAdvisorInput } from "@/lib/client/market-advisor";
 import {
-  fetchMarketAdvisor,
-  type MarketAdvisorInput,
-  type MarketAdvisorResult,
-} from "@/lib/client/market-advisor";
+  ApiClientError,
+  marketAdvisorHistoryKey,
+  useMarketAdvisorHistory,
+} from "@/lib/client/hooks";
 import {
   addWatchlistItem,
   removeWatchlistItem,
@@ -16,58 +18,63 @@ import { AdvisorAutoControls, ANALYSIS_INTERVALS } from "./AdvisorAutoControls";
 import { ChartOverlayControls } from "./ChartOverlayControls";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
-import { useAdvisorRun } from "./useAdvisorRun";
 
-const MARKET_ADVISOR_RESULT_KEY = "toss-invest:market-ai-advisor-result";
 const DEFAULT_RUN_EVERY_MS = 900_000; // 15분
+const NOT_CONFIGURED_MESSAGE = "AI 어드바이저가 설정되지 않았습니다.";
+const RUN_ERROR_MESSAGE = "시세 조언을 불러오지 못했습니다.";
 
-function isMarketAdvisorResult(value: unknown): value is MarketAdvisorResult {
-  if (typeof value !== "object" || value === null) {
-    return false;
+type RunState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string };
+
+/** Formats an ISO timestamp as `YYYY-MM-DD HH:mm` in the viewer's local time. */
+function formatAdviceTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
   }
-  const result = value as Partial<MarketAdvisorResult>;
+  const pad = (value: number) => String(value).padStart(2, "0");
   return (
-    typeof result.advice === "string" &&
-    typeof result.decision === "object" &&
-    result.decision !== null &&
-    (result.decision.action === "buy" ||
-      result.decision.action === "sell" ||
-      result.decision.action === "hold" ||
-      result.decision.action === "wait") &&
-    typeof result.decision.label === "string" &&
-    typeof result.decision.reason === "string" &&
-    typeof result.annotations === "object" &&
-    result.annotations !== null &&
-    Array.isArray(result.annotations.supportLevels) &&
-    Array.isArray(result.annotations.resistanceLevels) &&
-    Array.isArray(result.annotations.markers) &&
-    typeof result.model === "string" &&
-    typeof result.generatedAt === "string"
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}`
   );
 }
 
 export function MarketAiAdvisor({
   input,
-  onResult,
   chartOverlay,
 }: {
   input: MarketAdvisorInput;
-  onResult?: (result: MarketAdvisorResult | undefined) => void;
   chartOverlay?: ComponentProps<typeof ChartOverlayControls>;
 }) {
-  const resultStorageKey = `${MARKET_ADVISOR_RESULT_KEY}:${input.symbol}:${input.interval}`;
-  const fetcher = useCallback(() => fetchMarketAdvisor(input), [input]);
-  const { state, run } = useAdvisorRun<MarketAdvisorResult>({
-    storageKey: resultStorageKey,
-    isResult: isMarketAdvisorResult,
-    fetcher,
-    errorMessage: "시세 조언을 불러오지 못했습니다.",
-    onResult,
-  });
+  const { mutate } = useSWRConfig();
+  // The box reflects the latest persisted advice (manual run OR background
+  // worker), not a client-cached manual result — both sources write to the same
+  // history, so the displayed decision always matches the chart's advice line.
+  const history = useMarketAdvisorHistory(input.symbol, input.interval);
+  const latest = history.data?.events[0];
+  const [runState, setRunState] = useState<RunState>({ status: "idle" });
 
-  // The auto-analyze indicator now drives the server-side background watchlist:
+  const run = useCallback(async () => {
+    setRunState({ status: "loading" });
+    try {
+      await fetchMarketAdvisor(input); // persists to the advice history
+      await mutate(marketAdvisorHistoryKey(input.symbol, input.interval));
+      setRunState({ status: "idle" });
+    } catch (error) {
+      const notConfigured =
+        error instanceof ApiClientError && error.code === "advisor-not-configured";
+      setRunState({
+        status: "error",
+        message: notConfigured ? NOT_CONFIGURED_MESSAGE : RUN_ERROR_MESSAGE,
+      });
+    }
+  }, [input, mutate]);
+
+  // The auto-analyze indicator drives the server-side background watchlist:
   // toggling/changing the period registers/updates this {symbol, interval}.
-  const { items, mutate } = useWatchlist();
+  const { items, mutate: mutateWatchlist } = useWatchlist();
   const current = items.find(
     (item) => item.symbol === input.symbol && item.interval === input.interval,
   );
@@ -98,14 +105,14 @@ export function MarketAiAdvisor({
     } else if (current) {
       await removeWatchlistItem(current.id);
     }
-    await mutate();
+    await mutateWatchlist();
   }
 
   async function handleAutoIntervalChange(intervalMs: number) {
     setPendingIntervalMs(intervalMs);
     if (current) {
       await setWatchlistItemRunEvery(current.id, Math.round(intervalMs / 60_000));
-      await mutate();
+      await mutateWatchlist();
     }
   }
 
@@ -117,9 +124,9 @@ export function MarketAiAdvisor({
             type="button"
             className={styles.advisorRunButton}
             onClick={run}
-            disabled={state.status === "loading"}
+            disabled={runState.status === "loading"}
           >
-            {state.status === "loading" ? "분석 중…" : "조언 받기"}
+            {runState.status === "loading" ? "분석 중…" : "조언 받기"}
           </button>
           {chartOverlay ? <ChartOverlayControls {...chartOverlay} /> : null}
           <AdvisorAutoControls
@@ -135,21 +142,24 @@ export function MarketAiAdvisor({
           ※ 시세 AI 조언은 차트 데이터 기반 참고용입니다. 자동분석은 서버 백그라운드에서 주기적으로 실행됩니다.
         </p>
 
-        {state.status === "error" ? (
-          <p className={styles.advisorError}>{state.message}</p>
+        {runState.status === "error" ? (
+          <p className={styles.advisorError}>{runState.message}</p>
         ) : null}
 
-        {state.status === "loaded" ? (
+        {latest ? (
           <div className={styles.advisorResult}>
             <div
               className={`${styles.marketDecision} ${
-                styles[`marketDecision${state.result.decision.action}`]
+                styles[`marketDecision${latest.decision.action}`]
               }`}
             >
-              <strong>{state.result.decision.label}</strong>
-              <span>{state.result.decision.reason}</span>
+              <strong>{latest.decision.label}</strong>
+              <span>{latest.decision.reason}</span>
             </div>
-            <p className={styles.advisorAdvice}>{state.result.advice}</p>
+            <p className={styles.advisorAdvice}>{latest.advice}</p>
+            <p className={styles.advisorTimestamp}>
+              조언 일시: {formatAdviceTime(latest.generatedAt)}
+            </p>
           </div>
         ) : null}
       </div>
