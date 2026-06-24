@@ -42,6 +42,7 @@ const createChart = vi.fn(() => ({
   timeScale: () => ({
     fitContent,
     timeToCoordinate,
+    options: () => ({ barSpacing: 6 }),
     subscribeVisibleLogicalRangeChange,
     unsubscribeVisibleLogicalRangeChange,
   }),

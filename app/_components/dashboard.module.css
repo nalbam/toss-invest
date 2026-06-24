@@ -577,13 +577,14 @@
   overflow: hidden;
 }
 
-.chartAdviceLine {
+.chartAdviceMarker {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
+  top: 2px;
+  transform: translateX(-50%);
+  border-radius: 50%;
   background: var(--advice-line-color);
-  opacity: 0.75;
+  opacity: 0.85;
+  pointer-events: auto;
 }
 
 .watchlistBody {

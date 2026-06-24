@@ -56,6 +56,7 @@ vi.mock("lightweight-charts", () => ({
     timeScale: () => ({
       fitContent: () => {},
       timeToCoordinate: () => 120,
+      options: () => ({ barSpacing: 6 }),
       subscribeVisibleLogicalRangeChange: () => {},
       unsubscribeVisibleLogicalRangeChange: () => {},
     }),

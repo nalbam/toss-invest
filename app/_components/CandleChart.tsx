@@ -424,8 +424,12 @@ export function CandleChart({
     }
     // timeToCoordinate is relative to the plot (series) area, but the overlay
     // spans the whole container. The price axis/labels sit on the left, so shift
-    // each line right by the left price-scale width to align it with its candle.
+    // each marker right by the left price-scale width to align it with its candle.
     const leftPad = chart.priceScale("left").width();
+    // Draw each advice as a dot at the top of the plot, sized to the candle
+    // width (bar spacing), so it marks the time without crossing the candles.
+    const barSpacing = chart.timeScale().options().barSpacing;
+    const dotSize = Math.max(4, Math.min(barSpacing, 24));
     for (const event of advisorEvents) {
       const generatedSeconds = parseTimestampSeconds(event.generatedAt);
       const chartSeconds =
@@ -447,12 +451,14 @@ export function CandleChart({
       if (coordinate === null) {
         continue;
       }
-      const line = document.createElement("span");
-      line.className = styles.chartAdviceLine;
-      line.style.left = `${leftPad + coordinate}px`;
-      line.style.setProperty("--advice-line-color", decisionColor(event.decision.action));
-      line.title = `${event.decision.label}: ${event.decision.reason}`;
-      overlay.append(line);
+      const marker = document.createElement("span");
+      marker.className = styles.chartAdviceMarker;
+      marker.style.left = `${leftPad + coordinate}px`;
+      marker.style.width = `${dotSize}px`;
+      marker.style.height = `${dotSize}px`;
+      marker.style.setProperty("--advice-line-color", decisionColor(event.decision.action));
+      marker.title = `${event.decision.label}: ${event.decision.reason}`;
+      overlay.append(marker);
     }
   }, [advisorEvents, showAdviceLines]);
 
