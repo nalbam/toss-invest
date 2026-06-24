@@ -913,8 +913,11 @@
   grid-template-columns: 1fr;
 }
 
-.quickBalances span,
-.orderInfoPanel span {
+/* Only the direct-child metric rows are flex; nested spans (the metric label and
+   the <Money> currency symbol) must stay inline so the symbol does not wrap onto
+   its own line. */
+.quickBalances > span,
+.orderInfoPanel > span {
   display: flex;
   align-items: baseline;
   justify-content: space-between;

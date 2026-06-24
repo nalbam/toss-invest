@@ -19,6 +19,13 @@ function renderForm(ui: ReactElement) {
   );
 }
 
+// <Money> wraps the currency symbol in its own span, so an amount is split
+// across nodes. Match on the element's full textContent instead of a single node.
+const byMoney =
+  (t: string) =>
+  (_: string, el: Element | null): boolean =>
+    el?.textContent === t;
+
 // The form posts to `/api/orders` via the real `submitOrder`; mock `fetch` so we
 // can assert the exact body that leaves the client and feed back each status.
 // Quick mode also fetches `/api/prices` and `/api/sellable-quantity`.
@@ -138,10 +145,10 @@ describe("OrderForm — quick order (default)", () => {
     );
 
     // Price + currency badge.
-    expect(await screen.findByText("₩71,000")).toBeInTheDocument();
+    expect(await screen.findByText(byMoney("₩71,000"))).toBeInTheDocument();
     expect(screen.getByText("KRW ₩")).toBeInTheDocument();
     // Buying power (from props) in the trade currency.
-    expect(screen.getByText("₩1,000,000")).toBeInTheDocument();
+    expect(screen.getByText(byMoney("₩1,000,000"))).toBeInTheDocument();
     // Max buyable = floor(1,000,000 / 71,000) = 14; sellable from the API.
     expect(await screen.findByText("14주")).toBeInTheDocument();
     expect(await screen.findByText("10주")).toBeInTheDocument();
@@ -193,7 +200,7 @@ describe("OrderForm — quick order (default)", () => {
       />,
     );
 
-    await screen.findByText("$185.70");
+    await screen.findByText(byMoney("$185.70"));
     fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
       target: { value: "3" },
     });
@@ -250,7 +257,7 @@ describe("OrderForm — quick order (default)", () => {
       />,
     );
 
-    await screen.findByText("$185.70");
+    await screen.findByText(byMoney("$185.70"));
     fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
       target: { value: "3" },
     });
@@ -303,7 +310,7 @@ describe("OrderForm — quick order (default)", () => {
       />,
     );
 
-    await screen.findByText("$185.70");
+    await screen.findByText(byMoney("$185.70"));
     fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
       target: { value: "3" },
     });
@@ -336,7 +343,7 @@ describe("OrderForm — quick order (default)", () => {
     renderForm(
       <OrderForm accountSeq={1} symbol="005930" cash={{ krw: "1000000" }} />,
     );
-    await screen.findByText("₩71,000");
+    await screen.findByText(byMoney("₩71,000"));
     fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
       target: { value: "2" },
     });

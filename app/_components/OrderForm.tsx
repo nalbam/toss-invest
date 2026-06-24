@@ -16,6 +16,7 @@ import {
   mulDecimalStrings,
 } from "@/lib/client/format";
 import { CollapsibleCard } from "./CollapsibleCard";
+import { Money } from "./Money";
 import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
@@ -663,11 +664,13 @@ export function OrderForm({
                   {currency === "USD" ? "USD $" : "KRW ₩"}
                 </span>
                 <strong>
-                  {quickQuote.isLoading
-                    ? "불러오는 중…"
-                    : lastPrice !== undefined
-                      ? formatPrice(lastPrice, currency)
-                      : "-"}
+                  {quickQuote.isLoading ? (
+                    "불러오는 중…"
+                  ) : lastPrice !== undefined ? (
+                    <Money value={formatPrice(lastPrice, currency)} />
+                  ) : (
+                    "-"
+                  )}
                 </strong>
               </div>
             </div>
@@ -729,17 +732,19 @@ export function OrderForm({
               <span>
                 <span className={styles.metricLabel}>주문가능금액</span>
                 <strong data-private-value="true">
-                  {formatPrice(buyingPower, currency)}
+                  <Money value={formatPrice(buyingPower, currency)} />
                 </strong>
               </span>
               <span>
                 <span className={styles.metricLabel}>예상 체결금액</span>
                 <strong data-private-value="true">
-                  {estimated !== null ? formatPrice(estimated, currency) : "-"}
+                  <Money
+                    value={estimated !== null ? formatPrice(estimated, currency) : "-"}
+                  />
                   {estimatedKrw !== null ? (
                     <span className={styles.metricSecondary}>
                       {" "}
-                      ≈ {formatKrw(estimatedKrw)}
+                      ≈ <Money value={formatKrw(estimatedKrw)} />
                     </span>
                   ) : null}
                 </strong>
@@ -765,7 +770,7 @@ export function OrderForm({
                         className={styles.quickBtnAmount}
                         data-private-value="true"
                       >
-                        {formatPrice(estimated, currency)}
+                        <Money value={formatPrice(estimated, currency)} />
                       </span>
                     ) : null}
                   </button>
@@ -785,7 +790,7 @@ export function OrderForm({
                         className={styles.quickBtnAmount}
                         data-private-value="true"
                       >
-                        {formatPrice(estimated, currency)}
+                        <Money value={formatPrice(estimated, currency)} />
                       </span>
                     ) : null}
                   </button>
@@ -827,9 +832,13 @@ export function OrderForm({
                     <>
                       {" "}·{" "}
                       <span data-private-value="true">
-                        {estimated !== null
-                          ? formatPrice(estimated, currency)
-                          : "-"}
+                        <Money
+                          value={
+                            estimated !== null
+                              ? formatPrice(estimated, currency)
+                              : "-"
+                          }
+                        />
                       </span>
                     </>
                   )}
