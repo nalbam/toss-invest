@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { ApiClientError, cancelOrder } from "@/lib/client/hooks";
 import type { CancelOrderResult, Order } from "@/lib/client/types";
-import { formatDecimal, formatKrw, formatUsd } from "@/lib/client/format";
+import {
+  formatDecimal,
+  formatKrw,
+  formatRelativeTime,
+  formatUsd,
+} from "@/lib/client/format";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import { ModifyOrderForm } from "./ModifyOrderForm";
@@ -17,12 +22,48 @@ function formatPrice(value: string | null, currency: string): string {
 
 /**
  * Renders an ISO date-time as "YYYY-MM-DD HH:mm" when parseable, otherwise the
- * raw string. Keeps display deterministic without depending on locale/timezone
- * formatting that would differ between server and client.
+ * raw string. Used as the full-precision tooltip behind the compact relative
+ * age, deterministically (no locale/timezone dependence).
  */
 function formatOrderedAt(value: string): string {
   const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(value);
   return match ? `${match[1]} ${match[2]}` : value;
+}
+
+/** BUY/SELL glyph + label + color class (red buy / blue sell, KR convention). */
+const SIDE_META: Record<string, { icon: string; label: string; className: string }> = {
+  BUY: { icon: "▲", label: "매수", className: styles.orderSideBuy },
+  SELL: { icon: "▼", label: "매도", className: styles.orderSideSell },
+};
+
+function sideMeta(side: string) {
+  return SIDE_META[side] ?? { icon: "•", label: side, className: "" };
+}
+
+/** Abbreviated order type. */
+const ORDER_TYPE_LABEL: Record<string, string> = {
+  LIMIT: "지정",
+  MARKET: "시장",
+};
+
+/** Status glyph + Korean label + tone class, keyed by `orders[].status`. */
+const STATUS_META: Record<string, { icon: string; label: string; tone: string }> = {
+  PENDING: { icon: "⏳", label: "대기", tone: styles.statusPending },
+  PARTIAL_FILLED: { icon: "◐", label: "부분체결", tone: styles.statusPending },
+  PENDING_CANCEL: { icon: "↻", label: "취소중", tone: styles.statusPending },
+  PENDING_REPLACE: { icon: "↻", label: "정정중", tone: styles.statusPending },
+  FILLED: { icon: "✓", label: "체결", tone: styles.statusDone },
+  REPLACED: { icon: "↺", label: "정정됨", tone: styles.statusDone },
+  CANCELED: { icon: "✕", label: "취소", tone: styles.statusMuted },
+  REJECTED: { icon: "⚠", label: "거부", tone: styles.statusWarn },
+  CANCEL_REJECTED: { icon: "⚠", label: "취소거부", tone: styles.statusWarn },
+  REPLACE_REJECTED: { icon: "⚠", label: "정정거부", tone: styles.statusWarn },
+};
+
+function statusMeta(status: string) {
+  return (
+    STATUS_META[status] ?? { icon: "•", label: status, tone: styles.statusMuted }
+  );
 }
 
 /**
@@ -42,10 +83,11 @@ function isCancelable(status: string): boolean {
 }
 
 /**
- * Tabular view of orders. Each row shows the instrument, side, order type,
- * status, ordered/filled quantity, price, and order time. Pending orders also
- * expose inline modify/cancel actions. Renders an empty state when there are no
- * orders.
+ * Compact two-line card list of orders. Each card shows, on the top line, the
+ * side (▲ buy / ▼ sell), symbol, order type, and a status badge; on the bottom
+ * line, filled/ordered quantity, price, a relative order age, and (for pending
+ * orders) inline modify/cancel actions. The layout has no fixed columns so it
+ * never needs horizontal scrolling. Renders an empty state when there are none.
  *
  * `orders` carries the open (pending) orders. When a symbol is selected,
  * `completedOrders` carries that symbol's terminal orders (CLOSED:
@@ -82,6 +124,9 @@ export function OrdersTable({
     );
   }
 
+  // One reference instant for every relative age in this render pass.
+  const nowMs = Date.now();
+
   return (
     <CollapsibleCard title="주문 내역" storageId="orders" refreshing={refreshing}>
       {selectedSymbol !== undefined ? (
@@ -92,6 +137,7 @@ export function OrdersTable({
             orders={selectedOpenOrders}
             accountSeq={accountSeq}
             onChanged={onChanged}
+            nowMs={nowMs}
           />
           <OrderSection
             title={`${selectedSymbol} 체결·완료 내역`}
@@ -99,6 +145,7 @@ export function OrdersTable({
             orders={selectedCompletedOrders}
             accountSeq={accountSeq}
             onChanged={onChanged}
+            nowMs={nowMs}
           />
         </>
       ) : null}
@@ -108,6 +155,7 @@ export function OrdersTable({
         orders={orders}
         accountSeq={accountSeq}
         onChanged={onChanged}
+        nowMs={nowMs}
       />
     </CollapsibleCard>
   );
@@ -119,12 +167,14 @@ function OrderSection({
   orders,
   accountSeq,
   onChanged,
+  nowMs,
 }: {
   title: string;
   emptyText: string;
   orders: Order[];
   accountSeq?: number | undefined;
   onChanged?: () => void;
+  nowMs: number;
 }) {
   return (
     <section className={styles.orderSection} aria-label={title}>
@@ -132,33 +182,17 @@ function OrderSection({
       {orders.length === 0 ? (
         <p className={styles.empty}>{emptyText}</p>
       ) : (
-        <div className={styles.tableScroll}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th scope="col">종목</th>
-                <th scope="col">구분</th>
-                <th scope="col">유형</th>
-                <th scope="col">상태</th>
-                <th scope="col">수량</th>
-                <th scope="col">체결수량</th>
-                <th scope="col">가격</th>
-                <th scope="col">주문시각</th>
-                <th scope="col">관리</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => (
-                <OrderRow
-                  key={order.orderId}
-                  order={order}
-                  accountSeq={accountSeq}
-                  onChanged={onChanged}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className={styles.orderList}>
+          {orders.map((order) => (
+            <OrderCard
+              key={order.orderId}
+              order={order}
+              accountSeq={accountSeq}
+              onChanged={onChanged}
+              nowMs={nowMs}
+            />
+          ))}
+        </ul>
       )}
     </section>
   );
@@ -170,20 +204,22 @@ interface CancelState {
 }
 
 /**
- * A single order row plus its inline modify/cancel actions. Cancel uses a
- * two-step inline confirmation (never a browser dialog): "취소" reveals a
- * "정말 취소? [확인] [되돌리기]" prompt in the row, and only the explicit
- * [확인] click POSTs `{ confirm: true }` to the cancel route. The result status
- * (DRY_RUN / SENT / BLOCKED) or error is shown next to the row.
+ * A single order card plus its inline modify/cancel actions. Cancel uses a
+ * two-step inline confirmation (never a browser dialog): the ✕ button reveals a
+ * "정말 취소? [확인] [되돌리기]" prompt, and only the explicit [확인] click POSTs
+ * `{ confirm: true }` to the cancel route. The result status (DRY_RUN / SENT /
+ * BLOCKED) or error is shown below the card.
  */
-function OrderRow({
+function OrderCard({
   order,
   accountSeq,
   onChanged,
+  nowMs,
 }: {
   order: Order;
   accountSeq: number | undefined;
   onChanged?: () => void;
+  nowMs: number;
 }) {
   const cancelable = isCancelable(order.status);
   const [confirming, setConfirming] = useState(false);
@@ -221,92 +257,129 @@ function OrderRow({
     }
   }
 
+  const side = sideMeta(order.side);
+  const status = statusMeta(order.status);
+  // Limit orders carry an order price; market orders don't, so fall back to the
+  // average fill price once (partially) filled. Null only for an unfilled market
+  // order, which has no price yet → shown as "시장가".
+  const displayPrice = order.price ?? order.execution.averageFilledPrice;
+  const isFillPrice = order.price === null && displayPrice !== null;
+  const filled = formatDecimal(order.execution.filledQuantity, {
+    maxFractionDigits: 4,
+  });
+  const quantity = formatDecimal(order.quantity, { maxFractionDigits: 4 });
+
   return (
-    <>
-      <tr>
-        <td>
-          <span className={styles.symbolTicker}>{order.symbol}</span>
-        </td>
-        <td>{order.side}</td>
-        <td>{order.orderType}</td>
-        <td>
-          <span className={styles.marketBadge}>{order.status}</span>
-        </td>
-        <td>{formatDecimal(order.quantity, { maxFractionDigits: 4 })}</td>
-        <td>
-          {formatDecimal(order.execution.filledQuantity, {
-            maxFractionDigits: 4,
-          })}
-        </td>
-        <td>
-          <Money value={formatPrice(order.price, order.currency)} />
-        </td>
-        <td>{formatOrderedAt(order.orderedAt)}</td>
-        <td>
-          {cancelable ? (
-            <div className={styles.rowActions}>
-              <button
-                type="button"
-                className={page.select}
-                onClick={() => setShowModify((open) => !open)}
-              >
-                정정
-              </button>
-              {confirming ? (
-                <span className={styles.confirmInline}>
-                  <span>정말 취소?</span>
-                  <button
-                    type="button"
-                    className={page.select}
-                    onClick={handleConfirmCancel}
-                    disabled={canceling}
-                  >
-                    {canceling ? "취소 중…" : "확인"}
-                  </button>
-                  <button
-                    type="button"
-                    className={page.select}
-                    onClick={() => setConfirming(false)}
-                    disabled={canceling}
-                  >
-                    되돌리기
-                  </button>
-                </span>
-              ) : (
+    <li className={styles.orderCard}>
+      <div className={styles.orderCardTop}>
+        <span className={styles.orderIdent}>
+          <span
+            className={side.className}
+            role="img"
+            aria-label={side.label}
+            title={side.label}
+          >
+            {side.icon}
+          </span>
+          <span className={styles.orderSymbol}>{order.symbol}</span>
+          <span className={styles.orderTypeTag}>
+            {ORDER_TYPE_LABEL[order.orderType] ?? order.orderType}
+          </span>
+        </span>
+        <span className={`${styles.orderStatus} ${status.tone}`}>
+          <span aria-hidden="true">{status.icon}</span> {status.label}
+        </span>
+      </div>
+      <div className={styles.orderCardBottom}>
+        <span className={styles.orderMeta}>
+          <span className={styles.orderQty}>
+            {filled}/{quantity}
+          </span>
+          <span aria-hidden="true">·</span>
+          {displayPrice === null ? (
+            <span className={styles.orderPrice}>시장가</span>
+          ) : (
+            <span
+              className={styles.orderPrice}
+              title={isFillPrice ? "체결 평균가" : undefined}
+            >
+              <Money value={formatPrice(displayPrice, order.currency)} />
+            </span>
+          )}
+          <span aria-hidden="true">·</span>
+          <time
+            className={styles.orderTime}
+            dateTime={order.orderedAt}
+            title={formatOrderedAt(order.orderedAt)}
+          >
+            {formatRelativeTime(order.orderedAt, nowMs)}
+          </time>
+        </span>
+        {cancelable ? (
+          <div className={styles.rowActions}>
+            <button
+              type="button"
+              className={styles.iconButton}
+              aria-label="정정"
+              title="정정"
+              onClick={() => setShowModify((open) => !open)}
+            >
+              ✎
+            </button>
+            {confirming ? (
+              <span className={styles.confirmInline}>
+                <span>정말 취소?</span>
                 <button
                   type="button"
                   className={page.select}
-                  onClick={() => {
-                    setConfirming(true);
-                    setCancelResult(null);
-                    setCancelError(null);
-                  }}
+                  onClick={handleConfirmCancel}
+                  disabled={canceling}
                 >
-                  취소
+                  {canceling ? "취소 중…" : "확인"}
                 </button>
-              )}
-            </div>
-          ) : null}
-        </td>
-      </tr>
+                <button
+                  type="button"
+                  className={page.select}
+                  onClick={() => setConfirming(false)}
+                  disabled={canceling}
+                >
+                  되돌리기
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className={styles.iconButton}
+                aria-label="취소"
+                title="취소"
+                onClick={() => {
+                  setConfirming(true);
+                  setCancelResult(null);
+                  setCancelError(null);
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ) : null}
+      </div>
       {showModify || cancelResult || cancelError ? (
-        <tr>
-          <td colSpan={9}>
-            <CancelOutcome result={cancelResult} error={cancelError} />
-            {showModify ? (
-              <ModifyOrderForm
-                accountSeq={accountSeq}
-                orderId={order.orderId}
-                defaultOrderType={order.orderType === "MARKET" ? "MARKET" : "LIMIT"}
-                defaultQuantity={order.quantity}
-                defaultPrice={order.price ?? ""}
-                onModified={onChanged}
-              />
-            ) : null}
-          </td>
-        </tr>
+        <div className={styles.orderCardExtra}>
+          <CancelOutcome result={cancelResult} error={cancelError} />
+          {showModify ? (
+            <ModifyOrderForm
+              accountSeq={accountSeq}
+              orderId={order.orderId}
+              defaultOrderType={order.orderType === "MARKET" ? "MARKET" : "LIMIT"}
+              defaultQuantity={order.quantity}
+              defaultPrice={order.price ?? ""}
+              onModified={onChanged}
+            />
+          ) : null}
+        </div>
       ) : null}
-    </>
+    </li>
   );
 }
 

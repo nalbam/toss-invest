@@ -308,6 +308,48 @@ export function formatPercent(
   return `${signed}%`;
 }
 
+/**
+ * Formats an ISO timestamp as a compact relative age from `nowMs`, e.g. "10s",
+ * "5m", "3h", "2d", "3mo", "1y". `nowMs` is injected (not read from the clock)
+ * so the function stays pure and deterministically testable — the caller passes
+ * `Date.now()`. Returns "-" for a null/unparseable input and clamps future
+ * timestamps to "0s". Units: s (<60s), m (<60min), h (<24h), d (<30d), mo
+ * (<12 30-day months), else y. Minutes use "m" and months "mo" to avoid a clash.
+ */
+export function formatRelativeTime(
+  iso: string | null | undefined,
+  nowMs: number,
+): string {
+  if (iso === null || iso === undefined) {
+    return "-";
+  }
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) {
+    return "-";
+  }
+  const seconds = Math.max(0, Math.floor((nowMs - then) / 1000));
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+  const days = Math.floor(hours / 24);
+  if (days < 30) {
+    return `${days}d`;
+  }
+  const months = Math.floor(days / 30);
+  if (months < 12) {
+    return `${months}mo`;
+  }
+  return `${Math.floor(days / 365)}y`;
+}
+
 /** The sign of a decimal string: "positive" | "negative" | "zero". */
 export function signOf(
   value: string | null | undefined,

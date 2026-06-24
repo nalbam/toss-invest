@@ -5,6 +5,7 @@ import {
   formatDecimal,
   formatKrw,
   formatPercent,
+  formatRelativeTime,
   formatUsd,
   mulDecimalStrings,
   signOf,
@@ -198,5 +199,44 @@ describe("signOf", () => {
   it("treats null/invalid as zero", () => {
     expect(signOf(null)).toBe("zero");
     expect(signOf("abc")).toBe("zero");
+  });
+});
+
+describe("formatRelativeTime", () => {
+  // Fixed reference instant so the relative ages are deterministic.
+  const now = Date.parse("2026-06-24T12:00:00+09:00");
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+  const SEC = 1000;
+  const MIN = 60 * SEC;
+  const HOUR = 60 * MIN;
+  const DAY = 24 * HOUR;
+
+  it("renders seconds under a minute", () => {
+    expect(formatRelativeTime(ago(0), now)).toBe("0s");
+    expect(formatRelativeTime(ago(1 * SEC), now)).toBe("1s");
+    expect(formatRelativeTime(ago(59 * SEC), now)).toBe("59s");
+  });
+
+  it("renders minutes, hours, and days", () => {
+    expect(formatRelativeTime(ago(60 * SEC), now)).toBe("1m");
+    expect(formatRelativeTime(ago(10 * MIN), now)).toBe("10m");
+    expect(formatRelativeTime(ago(59 * MIN), now)).toBe("59m");
+    expect(formatRelativeTime(ago(3 * HOUR), now)).toBe("3h");
+    expect(formatRelativeTime(ago(23 * HOUR), now)).toBe("23h");
+    expect(formatRelativeTime(ago(1 * DAY), now)).toBe("1d");
+    expect(formatRelativeTime(ago(2 * DAY), now)).toBe("2d");
+    expect(formatRelativeTime(ago(29 * DAY), now)).toBe("29d");
+  });
+
+  it("renders months (mo) and years (y) for older timestamps", () => {
+    expect(formatRelativeTime(ago(30 * DAY), now)).toBe("1mo");
+    expect(formatRelativeTime(ago(90 * DAY), now)).toBe("3mo");
+    expect(formatRelativeTime(ago(365 * DAY), now)).toBe("1y");
+  });
+
+  it("clamps future timestamps to 0s and returns '-' for null/invalid", () => {
+    expect(formatRelativeTime(ago(-5 * SEC), now)).toBe("0s");
+    expect(formatRelativeTime(null, now)).toBe("-");
+    expect(formatRelativeTime("not-a-date", now)).toBe("-");
   });
 });

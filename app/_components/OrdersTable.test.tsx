@@ -104,22 +104,50 @@ const filledTerminal: Order = {
   status: "FILLED",
 };
 
+/** A market order with no fill yet: no order price and no average fill price. */
+const marketUnfilled: Order = {
+  ...sellUsPartial,
+  orderId: "ord-4",
+  status: "PENDING",
+  execution: {
+    ...sellUsPartial.execution,
+    filledQuantity: "0",
+    averageFilledPrice: null,
+    filledAmount: null,
+  },
+};
+
 describe("OrdersTable", () => {
-  it("renders a row per order with symbol, side, status, and filled quantity", () => {
+  it("renders a card per order with symbol, side, status, and filled/ordered quantity", () => {
     render(<OrdersTable orders={[buyLimit, sellUsPartial]} />);
     expect(screen.getByText("005930")).toBeInTheDocument();
     expect(screen.getByText("AAPL")).toBeInTheDocument();
-    expect(screen.getByText("BUY")).toBeInTheDocument();
-    expect(screen.getByText("SELL")).toBeInTheDocument();
-    expect(screen.getByText("PENDING")).toBeInTheDocument();
-    expect(screen.getByText("PARTIAL_FILLED")).toBeInTheDocument();
-    // KRW limit price formatted; market order with null price renders "-".
+    // Side is shown as a ▲/▼ glyph labelled for assistive tech.
+    expect(screen.getByLabelText("매수")).toBeInTheDocument();
+    expect(screen.getByLabelText("매도")).toBeInTheDocument();
+    // Status uses Korean badge labels.
+    expect(screen.getByText("대기")).toBeInTheDocument();
+    expect(screen.getByText("부분체결")).toBeInTheDocument();
+    // Filled/ordered quantities are combined into one cell.
+    expect(screen.getByText("0/10")).toBeInTheDocument();
+    expect(screen.getByText("2/5")).toBeInTheDocument();
+    // Limit order shows its order price; the partially-filled market order shows
+    // its average fill price (execution.averageFilledPrice).
     expect(screen.getByText(byMoney("₩71,000"))).toBeInTheDocument();
-    expect(screen.getByText("-")).toBeInTheDocument();
-    // Ordered time trimmed to date + HH:mm.
-    expect(screen.getByText("2026-03-25 09:30")).toBeInTheDocument();
-    // header + 2 rows.
-    expect(screen.getAllByRole("row")).toHaveLength(3);
+    expect(screen.getByText(byMoney("$190.50"))).toBeInTheDocument();
+    // Time is shown as a relative age, with the full date-time as the tooltip.
+    expect(screen.getByTitle("2026-03-25 09:30")).toBeInTheDocument();
+    // One list item per order.
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("shows a market order's average fill price, and 시장가 only while unfilled", () => {
+    render(<OrdersTable orders={[sellUsPartial, marketUnfilled]} />);
+    // Partially-filled market order: average fill price, flagged as such.
+    expect(screen.getByText(byMoney("$190.50"))).toBeInTheDocument();
+    expect(screen.getByTitle("체결 평균가")).toBeInTheDocument();
+    // Unfilled market order has no price yet → "시장가".
+    expect(screen.getByText("시장가")).toBeInTheDocument();
   });
 
   it("shows selected symbol orders above the full account order list", () => {
@@ -148,11 +176,11 @@ describe("OrdersTable", () => {
     );
 
     const completedSection = screen.getByLabelText("005930 체결·완료 내역");
-    expect(within(completedSection).getByText("FILLED")).toBeInTheDocument();
+    expect(within(completedSection).getByText("체결")).toBeInTheDocument();
     // The pending section must not show the terminal order, and vice versa.
     const pendingSection = screen.getByLabelText("005930 대기 주문");
-    expect(within(pendingSection).getByText("PENDING")).toBeInTheDocument();
-    expect(within(pendingSection).queryByText("FILLED")).not.toBeInTheDocument();
+    expect(within(pendingSection).getByText("대기")).toBeInTheDocument();
+    expect(within(pendingSection).queryByText("체결")).not.toBeInTheDocument();
     // Terminal orders expose no modify/cancel actions.
     expect(
       within(completedSection).queryByRole("button", { name: "취소" }),
@@ -172,7 +200,7 @@ describe("OrdersTable", () => {
   it("renders the empty state when there are no orders", () => {
     render(<OrdersTable orders={[]} />);
     expect(screen.getByText("주문 없음")).toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   });
 
   it("offers modify/cancel actions only for cancelable (pending) orders", () => {
@@ -343,16 +371,16 @@ describe("OrdersTable", () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
-  it("isolates actions per row (cancel on one row only)", () => {
+  it("isolates actions per card (cancel on one card only)", () => {
     render(
       <OrdersTable orders={[buyLimit, sellUsPartial]} accountSeq={1} />,
     );
-    const rows = screen.getAllByRole("row");
-    // header + 2 data rows; both pending => each has its own 취소 button.
-    const firstRowCancel = within(rows[1]).getByRole("button", {
+    const cards = screen.getAllByRole("listitem");
+    // Two cards, both pending => each has its own 취소 button.
+    const firstCardCancel = within(cards[0]).getByRole("button", {
       name: "취소",
     });
-    fireEvent.click(firstRowCancel);
+    fireEvent.click(firstCardCancel);
     // Only one inline confirm prompt is shown.
     expect(screen.getAllByText("정말 취소?")).toHaveLength(1);
   });

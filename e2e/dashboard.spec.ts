@@ -237,13 +237,14 @@ test("renders portfolio summary, holdings, orders, and market quote", async ({
   await expect(holdingsSection.getByText("삼성전자")).toBeVisible();
   await expect(holdingsSection.getByText("Apple")).toBeVisible();
 
-  // Orders (pending) section: the single open order's symbol and side.
+  // Orders section: the single open order's symbol and side (▲ buy glyph,
+  // labelled "매수" for assistive tech).
   const ordersSection = page.getByRole("region", {
-    name: "주문 내역 (대기 중)",
+    name: "주문 내역",
   });
   await expect(ordersSection).toBeVisible();
   await expect(ordersSection.getByText("005930")).toBeVisible();
-  await expect(ordersSection.getByText("BUY")).toBeVisible();
+  await expect(ordersSection.getByLabel("매수")).toBeVisible();
 
   // Market quote: last price for the default (first holding's) symbol. The
   // "현재가" label and its price live in the same `.metric` block; scope to that

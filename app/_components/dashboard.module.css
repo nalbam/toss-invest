@@ -322,6 +322,147 @@
   overflow-x: auto;
 }
 
+/* --- Order cards (compact two-line list, no horizontal scroll) ------------ */
+.orderList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.orderCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.orderList .orderCard:last-child {
+  border-bottom: none;
+}
+
+.orderCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.orderIdent {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.orderSideBuy {
+  color: var(--gain);
+  font-size: 11px;
+}
+
+.orderSideSell {
+  color: var(--loss);
+  font-size: 11px;
+}
+
+.orderSymbol {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orderTypeTag {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.orderStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.statusPending {
+  color: var(--muted);
+}
+
+.statusDone {
+  color: var(--foreground);
+}
+
+.statusMuted {
+  color: var(--muted);
+}
+
+.statusWarn {
+  color: var(--gain);
+}
+
+.orderCardBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.orderMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.orderQty {
+  color: var(--foreground);
+}
+
+.orderPrice {
+  white-space: nowrap;
+}
+
+.orderTime {
+  white-space: nowrap;
+}
+
+.iconButton {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--gray-alpha);
+}
+
+.orderCardExtra {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
 .holdingsList {
   display: flex;
   flex-direction: column;
