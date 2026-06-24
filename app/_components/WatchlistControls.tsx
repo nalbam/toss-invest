@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CHART_INTERVALS } from "@/lib/client/candles";
 import {
   removeWatchlistItem,
@@ -10,6 +11,8 @@ import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
+const MUTATE_ERROR_MESSAGE = "변경을 저장하지 못했습니다. 다시 시도해 주세요.";
+
 /**
  * Read/manage view of the background advisor watchlist. Entries are added/edited
  * from the market advisor card (current symbol+chart); here they are listed with
@@ -17,15 +20,26 @@ import page from "@/app/page.module.css";
  */
 export function WatchlistControls() {
   const { items, mutate, isLoading } = useWatchlist();
+  const [error, setError] = useState<string | null>(null);
 
   async function handleRemove(id: number) {
-    await removeWatchlistItem(id);
-    await mutate();
+    setError(null);
+    try {
+      await removeWatchlistItem(id);
+      await mutate();
+    } catch {
+      setError(MUTATE_ERROR_MESSAGE);
+    }
   }
 
   async function handleToggle(id: number, enabled: boolean) {
-    await setWatchlistItemEnabled(id, !enabled);
-    await mutate();
+    setError(null);
+    try {
+      await setWatchlistItemEnabled(id, !enabled);
+      await mutate();
+    } catch {
+      setError(MUTATE_ERROR_MESSAGE);
+    }
   }
 
   function intervalLabel(value: string): string {
@@ -48,6 +62,12 @@ export function WatchlistControls() {
         <p className={styles.advisorDisclaimer}>
           ※ 시세 AI 어드바이저에서 종목·차트의 자동분석을 켜면 여기에 등록됩니다.
         </p>
+
+        {error ? (
+          <p className={styles.advisorError} role="alert">
+            {error}
+          </p>
+        ) : null}
 
         {isLoading ? (
           <p className={page.status}>불러오는 중…</p>

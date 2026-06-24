@@ -78,19 +78,43 @@ export function initSchema(db: Database.Database): void {
   migrate(db);
 }
 
-let cached: Database.Database | null = null;
+/**
+ * Process-wide SQLite handle, opened (and schema-initialized) on first use.
+ * Stored on `globalThis` (not a module-scoped variable) so route handlers and
+ * the instrumentation-started advisor worker — which Next.js may bundle in
+ * separate module registries — share ONE connection instead of opening two WAL
+ * writers against the same file (mirrors the Toss client singleton).
+ */
+const globalForDb = globalThis as typeof globalThis & {
+  __advisorDb?: Database.Database;
+};
 
-/** Process-wide SQLite handle, opened (and schema-initialized) on first use. */
 export function getDb(): Database.Database {
-  if (cached === null) {
+  if (!globalForDb.__advisorDb) {
     const path = process.env.ADVISOR_DB_PATH ?? "data/advisor.db";
     if (path !== ":memory:") {
       mkdirSync(dirname(path), { recursive: true });
     }
     const db = new Database(path);
     db.pragma("journal_mode = WAL");
+    // Wait briefly instead of throwing SQLITE_BUSY if another handle holds the
+    // write lock, so watchlist writes don't fail under contention.
+    db.pragma("busy_timeout = 5000");
     initSchema(db);
-    cached = db;
+    globalForDb.__advisorDb = db;
   }
-  return cached;
+  return globalForDb.__advisorDb;
+}
+
+/**
+ * Best-effort WAL truncate checkpoint. Passive auto-checkpoints reuse (don't
+ * shrink) the WAL file, so it can sit large; a periodic TRUNCATE keeps it
+ * bounded. Opportunistic — never throws into the caller.
+ */
+export function checkpointWal(): void {
+  try {
+    getDb().pragma("wal_checkpoint(TRUNCATE)");
+  } catch {
+    // Checkpointing is a maintenance nicety, not correctness-critical.
+  }
 }

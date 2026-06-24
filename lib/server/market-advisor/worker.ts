@@ -1,4 +1,5 @@
 import "server-only";
+import { checkpointWal } from "@/lib/server/db/sqlite";
 import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
 import { getServerTossClient } from "@/lib/server/toss/container";
 import { runAdvisorJobsOnce } from "./jobs";
@@ -31,6 +32,8 @@ async function tick(): Promise<void> {
   } catch (error) {
     console.error("[advisor-worker] tick failed:", error);
   }
+  // Keep the WAL file from growing without bound (the worker is the main writer).
+  checkpointWal();
 }
 
 /** Starts the standing tick once. Subsequent calls are no-ops. */

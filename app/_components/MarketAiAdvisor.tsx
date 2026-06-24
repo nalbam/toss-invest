@@ -22,6 +22,7 @@ import styles from "./dashboard.module.css";
 const DEFAULT_RUN_EVERY_MS = 900_000; // 15분
 const NOT_CONFIGURED_MESSAGE = "AI 어드바이저가 설정되지 않았습니다.";
 const RUN_ERROR_MESSAGE = "시세 조언을 불러오지 못했습니다.";
+const AUTO_ERROR_MESSAGE = "자동분석 설정을 저장하지 못했습니다. 다시 시도해 주세요.";
 
 type RunState =
   | { status: "idle" }
@@ -79,6 +80,7 @@ export function MarketAiAdvisor({
     (item) => item.symbol === input.symbol && item.interval === input.interval,
   );
   const [pendingIntervalMs, setPendingIntervalMs] = useState(DEFAULT_RUN_EVERY_MS);
+  const [autoError, setAutoError] = useState<string | null>(null);
   const autoEnabled = current?.enabled ?? false;
   const autoIntervalMs = current ? current.runEveryMinutes * 60_000 : pendingIntervalMs;
   const autoRemainingRatio = (() => {
@@ -94,25 +96,36 @@ export function MarketAiAdvisor({
   })();
 
   async function handleAutoEnabledChange(next: boolean) {
-    if (next) {
-      await addWatchlistItem({
-        symbol: input.symbol,
-        name: input.name,
-        interval: input.interval,
-        currency: input.currency,
-        runEveryMinutes: Math.round(autoIntervalMs / 60_000),
-      });
-    } else if (current) {
-      await removeWatchlistItem(current.id);
+    setAutoError(null);
+    try {
+      if (next) {
+        await addWatchlistItem({
+          symbol: input.symbol,
+          name: input.name,
+          interval: input.interval,
+          currency: input.currency,
+          runEveryMinutes: Math.round(autoIntervalMs / 60_000),
+        });
+      } else if (current) {
+        await removeWatchlistItem(current.id);
+      }
+      await mutateWatchlist();
+    } catch {
+      setAutoError(AUTO_ERROR_MESSAGE);
     }
-    await mutateWatchlist();
   }
 
   async function handleAutoIntervalChange(intervalMs: number) {
     setPendingIntervalMs(intervalMs);
-    if (current) {
+    if (!current) {
+      return;
+    }
+    setAutoError(null);
+    try {
       await setWatchlistItemRunEvery(current.id, Math.round(intervalMs / 60_000));
       await mutateWatchlist();
+    } catch {
+      setAutoError(AUTO_ERROR_MESSAGE);
     }
   }
 
@@ -144,6 +157,12 @@ export function MarketAiAdvisor({
 
         {runState.status === "error" ? (
           <p className={styles.advisorError}>{runState.message}</p>
+        ) : null}
+
+        {autoError ? (
+          <p className={styles.advisorError} role="alert">
+            {autoError}
+          </p>
         ) : null}
 
         {latest ? (

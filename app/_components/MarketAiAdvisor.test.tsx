@@ -155,6 +155,17 @@ describe("MarketAiAdvisor", () => {
     );
   });
 
+  it("surfaces an error when saving the auto-analyze selection fails", async () => {
+    addWatchlistItem.mockRejectedValueOnce(new Error("network"));
+    render(<MarketAiAdvisor input={input} />);
+
+    fireEvent.click(screen.getByLabelText("자동 재실행 활성화"));
+
+    expect(
+      await screen.findByText(/자동분석 설정을 저장하지 못했습니다/),
+    ).toBeInTheDocument();
+  });
+
   it("removes the watchlist entry when auto-analyze is toggled off", async () => {
     useWatchlist.mockReturnValue({
       items: [
