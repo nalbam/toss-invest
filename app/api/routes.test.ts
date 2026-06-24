@@ -535,24 +535,18 @@ describe("GET /api/orders", () => {
     expect(facade.getOrders).not.toHaveBeenCalled();
   });
 
-  it("forwards the upstream closed-not-supported error and sanitizes the body", async () => {
-    facade.getOrders.mockRejectedValue(
-      new TossApiError({
-        status: 400,
-        code: "closed-not-supported",
-        message: "CLOSED orders are not supported",
-        requestId: "req-1",
-      }),
-    );
+  it("forwards status=CLOSED and the symbol and returns the order list", async () => {
+    facade.getOrders.mockResolvedValue(page);
 
     const res = await ordersGET(
-      req("http://localhost/api/orders?accountSeq=1&status=CLOSED"),
+      req("http://localhost/api/orders?accountSeq=1&status=CLOSED&symbol=005930"),
     );
 
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error.code).toBe("closed-not-supported");
-    expect(JSON.stringify(body)).not.toContain(SECRET);
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: page });
+    expect(facade.getOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "CLOSED", symbol: "005930" }),
+    );
   });
 });
 

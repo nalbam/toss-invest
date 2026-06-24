@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TokenProvider } from "@/lib/server/toss/auth";
-import { createTossClient, TossApiError } from "@/lib/server/toss/client";
+import { createTossClient } from "@/lib/server/toss/client";
 import {
   getAccounts,
   getBuyingPower,
@@ -578,30 +578,31 @@ describe("getOrders", () => {
     expect(page.orders[0].status).toBe("SOMETHING_NEW");
   });
 
-  it("maps a CLOSED 400 to a TossApiError with the upstream code", async () => {
-    const { client } = harness([
-      jsonResponse(
-        {
-          error: {
-            requestId: "req-1",
-            code: "closed-not-supported",
-            message: "CLOSED orders are not supported",
-          },
+  it("fetches CLOSED (terminal) orders with symbol/limit and unwraps pagination", async () => {
+    const { fetchFn, client } = harness([
+      jsonResponse({
+        result: {
+          orders: [{ ...openOrder, status: "FILLED" }],
+          nextCursor: "next-1",
+          hasNext: true,
         },
-        { status: 400 },
-      ),
+      }),
     ]);
 
-    const error = await getOrders(client, {
+    const page = await getOrders(client, {
       accountSeq: 1,
       status: "CLOSED",
-    }).catch((e: unknown) => e);
-
-    expect(error).toBeInstanceOf(TossApiError);
-    expect(error).toMatchObject({
-      status: 400,
-      code: "closed-not-supported",
+      symbol: "005930",
+      limit: 20,
     });
+
+    const { url } = lastRequest(fetchFn);
+    expect(url.searchParams.get("status")).toBe("CLOSED");
+    expect(url.searchParams.get("symbol")).toBe("005930");
+    expect(url.searchParams.get("limit")).toBe("20");
+    expect(page.orders[0].status).toBe("FILLED");
+    expect(page.nextCursor).toBe("next-1");
+    expect(page.hasNext).toBe(true);
   });
 });
 

@@ -184,7 +184,7 @@ export function getExchangeRate(
 
 export interface GetOrdersParams {
   accountSeq: number | string;
-  /** Required by the API. `CLOSED` currently yields 400 `closed-not-supported`. */
+  /** Required: `OPEN` (pending) or `CLOSED` (terminal: FILLED/CANCELED/REJECTED/REPLACED). */
   status: string;
   symbol?: string;
   from?: string;

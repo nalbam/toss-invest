@@ -214,13 +214,14 @@ export function useHoldings(
 }
 
 /**
- * Loads the order list for an account. Defaults to `status=OPEN` because the
- * upstream API does not yet support `CLOSED` (it returns `closed-not-supported`).
- * The request is paused (key is `null`) until an `accountSeq` is known.
+ * Loads the order list for an account. `status` selects the lifecycle group:
+ * `OPEN` (default) returns pending orders; `CLOSED` returns terminal orders
+ * (FILLED/CANCELED/REJECTED/REPLACED, most recent first). The request is paused
+ * (key is `null`) until an `accountSeq` is known.
  */
 export function useOrders(
   accountSeq: number | undefined,
-  options: { status?: "OPEN"; symbol?: string } = {},
+  options: { status?: "OPEN" | "CLOSED"; symbol?: string } = {},
 ): QueryResult<PaginatedOrderResponse> {
   const status = options.status ?? "OPEN";
   let key: string | null = null;

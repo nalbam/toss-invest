@@ -9,13 +9,13 @@
 ## 기능
 
 - **읽기 대시보드** — 포트폴리오 요약·구성(도넛)·종목별 손익, 보유종목, 환율(FX), 주문내역,
-  시세(현재가·상하한가·호가·호가 뎁스·체결 추이·캔들 차트[거래량·이동평균·상하한가 기준선·주문 체결 마커]).
+  시세(현재가·상하한가·호가·호가 뎁스·체결 추이·캔들 차트[분/일/주/월/년 인터벌·거래량·이동평균·상하한가 기준선·주문 체결 마커]).
 - **수동 거래** — 주문 생성/정정/취소. 기본은 dry-run 미리보기, 주문 단위 사용자 확인(confirm) 시에만 전송.
 - **제한적 자동거래** — SELL-only 전략 intent 순수 계층 + 결정적 백테스트 + 게이트된 auto-executor.
   `AUTO_TRADE_ENABLED` 기본 false.
 - **AI 어드바이저** (선택 — LLM 설정 시) — ① **포트폴리오 어드바이저**: 마스킹된 포트폴리오 스냅샷 → LLM →
   조언 + 주문 제안(보유·매도가능수량·심볼 실재 검증 후 "폼에 담기"로 주문 폼 prefill). ② **차트 어드바이저**:
-  선택 종목 캔들 → LLM → 조언 + 참고 판단(buy/sell/hold/wait) + 차트 지지/저항선·마커(조언 히스토리는 SQLite 영속).
+  선택 종목 캔들 + 기술지표(이동평균·RSI·거래량/변동성)·상위 시간대 추세 → LLM → 다중 시간대 조언 + 참고 판단(buy/sell/hold/wait) + 차트 지지/저항선·마커(조언 히스토리는 SQLite 영속).
   둘 다 온디맨드 실행이며, 자동분석은 서버 백그라운드 워커(watchlist)가 주기적으로 실행한다.
   **LLM은 제안자이지 집행자가 아니다** — 제안은 자동 전송 없이 confirm·§6 게이트를 거친다.
 - **종목 검색·즐겨찾기** — 종목명/코드로 검색(로컬 디렉터리, `pnpm seed:stocks`로 KRX·Nasdaq 상장목록 적재),
@@ -99,7 +99,7 @@ lib/
     favorites/         # 즐겨찾기 스토어
     stocks/            # 종목 이름검색 디렉터리
     api/               # respond 헬퍼 ({data}/sanitized error)
-  client/**            # types · format · hooks · quote · candles · polling · advisor · market-advisor · favorites · watchlist (서버 import 금지)
+  client/**            # types · format · hooks · quote · candles · indicators · polling · advisor · market-advisor · favorites · watchlist · envelope (서버 import 금지)
 ```
 
 - **시크릿 격리**: 모든 서버 코드는 `lib/server/**` + `server-only`. `build` 시

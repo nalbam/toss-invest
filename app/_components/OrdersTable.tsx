@@ -47,57 +47,64 @@ function isCancelable(status: string): boolean {
  * expose inline modify/cancel actions. Renders an empty state when there are no
  * orders.
  *
- * The upstream API does not yet support `CLOSED`, so this only ever lists
- * open (pending) orders — the title reflects that.
+ * `orders` carries the open (pending) orders. When a symbol is selected,
+ * `completedOrders` carries that symbol's terminal orders (CLOSED:
+ * FILLED/CANCELED/REJECTED/REPLACED), rendered in a separate section so
+ * completed fills are distinguished from still-pending orders.
  */
 export function OrdersTable({
   orders,
+  completedOrders,
   accountSeq,
   selectedSymbol,
   onChanged,
   refreshing,
 }: {
   orders: Order[];
+  completedOrders?: Order[];
   accountSeq?: number | undefined;
   selectedSymbol?: string;
   onChanged?: () => void;
   refreshing?: boolean;
 }) {
-  const selectedOrders =
+  const selectedOpenOrders =
     selectedSymbol === undefined
       ? []
       : orders.filter((order) => order.symbol === selectedSymbol);
+  const selectedCompletedOrders =
+    selectedSymbol === undefined ? [] : completedOrders ?? [];
 
-  if (orders.length === 0) {
+  if (orders.length === 0 && selectedCompletedOrders.length === 0) {
     return (
-      <CollapsibleCard
-        title="주문 내역 (대기 중)"
-        storageId="orders"
-        refreshing={refreshing}
-      >
+      <CollapsibleCard title="주문 내역" storageId="orders" refreshing={refreshing}>
         <p className={styles.empty}>주문 없음</p>
       </CollapsibleCard>
     );
   }
 
   return (
-    <CollapsibleCard
-      title="주문 내역 (대기 중)"
-      storageId="orders"
-      refreshing={refreshing}
-    >
+    <CollapsibleCard title="주문 내역" storageId="orders" refreshing={refreshing}>
       {selectedSymbol !== undefined ? (
-        <OrderSection
-          title={`${selectedSymbol} 주문 내역`}
-          emptyText="해당 종목 주문 없음"
-          orders={selectedOrders}
-          accountSeq={accountSeq}
-          onChanged={onChanged}
-        />
+        <>
+          <OrderSection
+            title={`${selectedSymbol} 대기 주문`}
+            emptyText="대기 주문 없음"
+            orders={selectedOpenOrders}
+            accountSeq={accountSeq}
+            onChanged={onChanged}
+          />
+          <OrderSection
+            title={`${selectedSymbol} 체결·완료 내역`}
+            emptyText="완료 내역 없음"
+            orders={selectedCompletedOrders}
+            accountSeq={accountSeq}
+            onChanged={onChanged}
+          />
+        </>
       ) : null}
       <OrderSection
-        title="전체 주문 내역"
-        emptyText="주문 없음"
+        title="전체 대기 주문"
+        emptyText="대기 주문 없음"
         orders={orders}
         accountSeq={accountSeq}
         onChanged={onChanged}

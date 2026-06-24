@@ -130,19 +130,43 @@ describe("OrdersTable", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "005930 주문 내역" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "전체 주문 내역" })).toBeInTheDocument();
-    const selectedSection = screen.getByLabelText("005930 주문 내역");
+    expect(screen.getByRole("heading", { name: "005930 대기 주문" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "전체 대기 주문" })).toBeInTheDocument();
+    const selectedSection = screen.getByLabelText("005930 대기 주문");
     expect(within(selectedSection).getByText("005930")).toBeInTheDocument();
     expect(within(selectedSection).queryByText("AAPL")).not.toBeInTheDocument();
+  });
+
+  it("shows the selected symbol's completed orders in a separate section", () => {
+    render(
+      <OrdersTable
+        orders={[buyLimit]}
+        completedOrders={[filledTerminal]}
+        selectedSymbol="005930"
+        accountSeq={1}
+      />,
+    );
+
+    const completedSection = screen.getByLabelText("005930 체결·완료 내역");
+    expect(within(completedSection).getByText("FILLED")).toBeInTheDocument();
+    // The pending section must not show the terminal order, and vice versa.
+    const pendingSection = screen.getByLabelText("005930 대기 주문");
+    expect(within(pendingSection).getByText("PENDING")).toBeInTheDocument();
+    expect(within(pendingSection).queryByText("FILLED")).not.toBeInTheDocument();
+    // Terminal orders expose no modify/cancel actions.
+    expect(
+      within(completedSection).queryByRole("button", { name: "취소" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows an empty selected symbol section when that symbol has no orders", () => {
     render(<OrdersTable orders={[sellUsPartial]} selectedSymbol="005930" />);
 
-    expect(screen.getByRole("heading", { name: "005930 주문 내역" })).toBeInTheDocument();
-    expect(screen.getByText("해당 종목 주문 없음")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "전체 주문 내역" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "005930 대기 주문" })).toBeInTheDocument();
+    expect(screen.getByText("대기 주문 없음")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "005930 체결·완료 내역" })).toBeInTheDocument();
+    expect(screen.getByText("완료 내역 없음")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "전체 대기 주문" })).toBeInTheDocument();
   });
 
   it("renders the empty state when there are no orders", () => {

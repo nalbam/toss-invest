@@ -215,6 +215,11 @@ export function Dashboard() {
 
   const holdings = useHoldings(selectedSeq);
   const orders = useOrders(selectedSeq);
+  // Terminal orders for the selected symbol only (paused until one is picked).
+  const completedOrders = useOrders(
+    selectedSymbol === undefined ? undefined : selectedSeq,
+    { status: "CLOSED", symbol: selectedSymbol },
+  );
   const fx = useExchangeRate("USD", "KRW");
   const cashBalances = useCashBalances(selectedSeq);
   const cash = { krw: cashBalances.krw, usd: cashBalances.usd };
@@ -403,10 +408,13 @@ export function Dashboard() {
           ) : orders.data ? (
             <OrdersTable
               orders={orders.data.orders}
+              completedOrders={completedOrders.data?.orders ?? []}
               accountSeq={selectedSeq}
               selectedSymbol={selectedSymbol}
               onChanged={refreshOrders}
-              refreshing={Boolean(orders.isRefreshing)}
+              refreshing={Boolean(
+                orders.isRefreshing || completedOrders.isRefreshing,
+              )}
             />
           ) : null}
         </div>

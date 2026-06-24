@@ -36,7 +36,7 @@ lib/
     db/                # SQLite(better-sqlite3): sqlite.ts(globalThis 싱글톤·WAL·migrate)
     favorites/         # 즐겨찾기 스토어
     stocks/            # 종목 이름검색 디렉터리
-  client/**            # types · format · hooks · quote · candles · polling · advisor · market-advisor · favorites · watchlist (서버 import 금지)
+  client/**            # types · format · hooks · quote · candles · indicators · polling · advisor · market-advisor · favorites · watchlist · envelope (서버 import 금지)
 ```
 
 ### 시크릿 격리 (필수)
@@ -59,13 +59,13 @@ lib/
 
 `Dashboard` 루트의 3-컬럼 레이아웃:
 
-- **시세(좌)**: `MarketQuote`(현재가·상하한가, 헤더 별★ 즐겨찾기 토글) → `CandleChart`(캔들·거래량·이동평균·상하한가 기준선·주문 체결 마커·어드바이저 결정 점) · `MarketAiAdvisor`(차트 어드바이저 + 자동분석 watchlist 컨트롤) · `Orderbook` · `OrderbookDepth` · `TradesChart`.
+- **시세(좌)**: `MarketQuote`(현재가·상하한가, 헤더 별★ 즐겨찾기 토글, 캔들 인터벌 선택 분/일/주/월/년) → `CandleChart`(캔들·거래량·이동평균·상하한가 기준선·주문 체결 마커·어드바이저 결정 점) · `ChartOverlayControls`(지지/저항 라벨·선·AI 조언 세로선 토글) · `MarketAiAdvisor`(차트 어드바이저 + `AdvisorAutoControls` 자동분석 주기) · `Orderbook` · `OrderbookDepth` · `TradesChart`.
 - **주문(중앙)**: `OrderForm`(빠른주문/일반주문, dry-run 미리보기·confirm, 종목별 최근 수량·금액 복원).
 - **사이드바(우)**: `AccountCash` · `PortfolioSummary` · `HoldingsTable` · `PortfolioComposition` · `HoldingsPnL` · `OrdersTable` + `ModifyOrderForm` · `AiAdvisor`(포트폴리오) · `WatchlistControls`(자동분석 종목).
-- **헤더/검색**: `StockSearchModal`(종목명·코드 검색 + 즐겨찾기 목록, `Dashboard` 헤더 "종목 검색"으로 열림).
+- **헤더/검색**: `StockSearchModal`(종목명·코드 검색 + 즐겨찾기 목록, `Dashboard` 헤더 "종목 검색"으로 열림) · `ThemeSelector`(시스템/라이트/다크 테마).
 - **공용**: `CollapsibleCard` · `Money`.
 
-클라이언트 계층 `lib/client/{types,format,hooks,quote,candles,polling,advisor,market-advisor,favorites,watchlist}.ts`(서버 import 금지). 차트 데이터 변환은 순수 함수로 분리(`toChartSeries`·`toVolumeSeries`·`movingAverage`·`toOrderMarkers`·`toDepth`·`toComposition`·`toPnlBars`·`toTradeSeries`)해 캔버스 없이 단위 테스트.
+클라이언트 계층 `lib/client/{types,format,hooks,quote,candles,indicators,polling,advisor,market-advisor,favorites,watchlist,envelope}.ts`(서버 import 금지). 차트 데이터 변환·지표는 순수 함수로 분리(`toChartSeries`·`toVolumeSeries`·`movingAverage`·`toOrderMarkers`·`toDepth`·`toComposition`·`toPnlBars`·`toTradeSeries`·`aggregateCandles`·`computeIndicators`·`summarizeTrend`)해 캔버스 없이 단위 테스트.
 
 ## AI 어드바이저 (구현 완료)
 
@@ -81,6 +81,8 @@ app/api/market-advisor/history    # GET: 종목/인터벌별 조언 히스토리
 lib/client/{advisor,market-advisor}.ts   # fetcher
 app/_components/{AiAdvisor,MarketAiAdvisor}.tsx  # 버튼·조언·제안목록·"폼에 담기"·disclaimer
 ```
+
+차트 어드바이저는 캔들에서 기술지표(`computeIndicators`: 이동평균·RSI14·최근 고저·거래량 추세·변동성/ATR)와, 하위(분봉 등) 차트일 땐 **상위 시간대 추세**(`summarizeTrend` → 일봉 등)를 결정적으로 계산해 프롬프트에 실어 LLM이 다중 시간대로 판단하게 한다(지표·추세는 순수 함수, LLM은 해석만).
 
 원칙: HTTP는 `fetch` 직접(SDK 미도입), LLM 키는 `lib/server/llm/`에서만(번들 가드에 키 패턴 포함), 응답은 신뢰 경계 밖으로 취급해 zod 재검증, 기존 거래 코드는 무수정(연결점만 외과적 추가). 어드바이저 고유 안전 불변식은 [trading-safety.md](trading-safety.md) §6.A.
 
