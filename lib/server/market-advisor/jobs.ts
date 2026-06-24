@@ -1,5 +1,6 @@
 import "server-only";
 import { aggregateCandles, sourceInterval, type ChartInterval } from "@/lib/client/candles";
+import { summarizeTrend, type TrendSummary } from "@/lib/client/indicators";
 import type { LlmProvider } from "@/lib/server/llm/types";
 import type { ServerTossClient } from "@/lib/server/toss/container";
 import { recordMarketAdvice } from "./history";
@@ -81,6 +82,11 @@ export async function runAdvisorJobsOnce(
         continue;
       }
       const lastPrice = candles.at(-1)?.closePrice;
+      const higherTimeframeTrend = await loadHigherTimeframeTrend(
+        deps.client,
+        item,
+        interval,
+      );
 
       const result = await runMarketAdvisor({
         provider: deps.provider,
@@ -92,6 +98,7 @@ export async function runAdvisorJobsOnce(
           lastPrice,
           candles,
           position: positions.get(item.symbol),
+          higherTimeframeTrend,
         },
         jsonSchema: marketAdvisorJsonSchema,
       });
@@ -126,6 +133,29 @@ export async function runAdvisorJobsOnce(
 
   const analyzed = results.filter((item) => item.ok && !item.skipped).length;
   return { processed: items.length, analyzed, results };
+}
+
+/**
+ * Best-effort higher-timeframe (daily) trend summary for a sub-daily item, so a
+ * minute-chart analysis is weighed against the larger trend. Daily+ items are
+ * already their own highest timeframe → returns undefined (no extra fetch). Run
+ * after the due/skip checks so skipped items incur no additional chart fetch.
+ */
+async function loadHigherTimeframeTrend(
+  client: ServerTossClient,
+  item: WatchlistItem,
+  interval: ChartInterval,
+): Promise<TrendSummary | undefined> {
+  if (sourceInterval(interval) !== "1m") {
+    return undefined;
+  }
+  try {
+    const page = await client.getCandles({ symbol: item.symbol, interval: "1d" });
+    return summarizeTrend(page.candles.slice(-120), "1d") ?? undefined;
+  } catch {
+    // Higher-timeframe fetch failed → fall back to lower-timeframe-only analysis.
+    return undefined;
+  }
 }
 
 /**

@@ -18,6 +18,26 @@ export const candleSchema = z.object({
   currency: z.string(),
 });
 
+// Compact higher-timeframe (e.g. daily) trend summary, mirroring `TrendSummary`
+// from lib/client/indicators. Only a summary is carried — never raw candles —
+// so a sub-daily analysis can be weighed against the larger trend.
+export const higherTimeframeTrendSchema = z.object({
+  interval: z.string().min(1),
+  direction: z.enum(["up", "down", "flat"]),
+  lastPrice: z.number(),
+  movingAverages: z
+    .array(
+      z.object({
+        period: z.number(),
+        value: z.number(),
+        position: z.enum(["above", "below"]),
+      }),
+    )
+    .max(3),
+  recentHigh: z.number(),
+  recentLow: z.number(),
+});
+
 export const marketAdvisorRequestSchema = z.object({
   symbol: z.string().regex(symbolPattern),
   name: z.string().min(1).optional(),
@@ -33,6 +53,8 @@ export const marketAdvisorRequestSchema = z.object({
       averagePrice: z.string(),
     })
     .optional(),
+  // Present for sub-daily charts so the advisor sees the higher-timeframe trend.
+  higherTimeframeTrend: higherTimeframeTrendSchema.optional(),
 });
 
 const annotationLevelSchema = z.object({

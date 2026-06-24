@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { LlmProvider } from "@/lib/server/llm/types";
+import type { ChatMessage, LlmProvider } from "@/lib/server/llm/types";
 import type { ServerTossClient } from "@/lib/server/toss/container";
 
 const { listEnabledWatchlist, touchWatchlistRun, recordMarketAdvice } = vi.hoisted(() => ({
@@ -39,6 +39,25 @@ function stubProvider(): LlmProvider {
       model: "stub",
     })),
   };
+}
+
+/** Provider that records each call's messages so prompt contents can be asserted. */
+function capturingProvider(): { provider: LlmProvider; calls: ChatMessage[][] } {
+  const calls: ChatMessage[][] = [];
+  return {
+    calls,
+    provider: {
+      name: "openai",
+      chat: vi.fn(async (request) => {
+        calls.push(request.messages);
+        return { content: validOutput, model: "stub" };
+      }),
+    },
+  };
+}
+
+function userContent(messages: ChatMessage[]): string {
+  return messages.find((message) => message.role === "user")?.content ?? "";
 }
 
 const item = (symbol: string, id: number) => ({
@@ -104,6 +123,49 @@ describe("runAdvisorJobsOnce", () => {
     expect(summary.analyzed).toBe(0);
     expect(summary.results[0]).toMatchObject({ symbol: "SOXL", skipped: true });
     expect(recordMarketAdvice).not.toHaveBeenCalled();
+  });
+
+  it("fetches daily candles and injects a higher-timeframe trend for a minute item", async () => {
+    recordMarketAdvice.mockClear();
+    listEnabledWatchlist.mockReturnValue([{ ...item("SOXL", 1), interval: "1m" }]);
+    const client = {
+      getCandles: vi.fn(async ({ interval }: { interval: string }) =>
+        interval === "1m"
+          ? { candles: [candle("2026-06-22T10:00:00+09:00")], nextBefore: null }
+          : {
+              candles: [
+                candle("2026-06-20T00:00:00+09:00"),
+                candle("2026-06-21T00:00:00+09:00"),
+              ],
+              nextBefore: null,
+            },
+      ),
+    } as unknown as ServerTossClient;
+    const { provider, calls } = capturingProvider();
+
+    await runAdvisorJobsOnce({ client, provider });
+
+    // The worker fetched the daily series in addition to the minute chart.
+    expect(client.getCandles).toHaveBeenCalledWith({ symbol: "SOXL", interval: "1d" });
+    expect(userContent(calls[0])).toContain("상위 추세(1d 기준):");
+  });
+
+  it("skips the higher-timeframe fetch for a daily item", async () => {
+    recordMarketAdvice.mockClear();
+    listEnabledWatchlist.mockReturnValue([item("SOXL", 1)]); // interval "1d"
+    const client = {
+      getCandles: vi.fn(async () => ({
+        candles: [candle("2026-06-22T00:00:00+09:00")],
+        nextBefore: null,
+      })),
+    } as unknown as ServerTossClient;
+    const { provider, calls } = capturingProvider();
+
+    await runAdvisorJobsOnce({ client, provider });
+
+    // Only the chart fetch — no extra daily request, no higher-timeframe block.
+    expect(client.getCandles).toHaveBeenCalledTimes(1);
+    expect(userContent(calls[0])).not.toContain("상위 추세");
   });
 
   it("isolates a per-item failure so others still run", async () => {

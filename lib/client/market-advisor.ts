@@ -1,5 +1,6 @@
 import { isErrorEnvelope, isSuccessEnvelope } from "./envelope";
 import { ApiClientError } from "./hooks";
+import type { TrendSummary } from "./indicators";
 import type { Candle, Currency } from "./types";
 
 export interface MarketAdvisorInput {
@@ -11,6 +12,8 @@ export interface MarketAdvisorInput {
   candles: Candle[];
   /** Present for held symbols so advice can weigh profit/loss vs. average price. */
   position?: { quantity: string; averagePrice: string };
+  /** Present for sub-daily charts so advice can weigh the higher-timeframe trend. */
+  higherTimeframeTrend?: TrendSummary;
 }
 
 export interface MarketAdvisorResult {

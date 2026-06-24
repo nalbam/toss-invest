@@ -16,6 +16,7 @@ import {
   sourceInterval,
   type ChartInterval,
 } from "@/lib/client/candles";
+import { summarizeTrend } from "@/lib/client/indicators";
 import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
 import { previousClose, priceChange } from "@/lib/client/quote";
 import {
@@ -150,6 +151,7 @@ export function MarketQuote({
     previousClose(dailyCandles.data?.candles ?? []),
   );
   const sourceCandles = candles.data?.candles;
+  const dailyCandleList = dailyCandles.data?.candles;
   const chartCandles = useMemo(
     () => aggregateCandles(sourceCandles ?? [], interval),
     [sourceCandles, interval],
@@ -169,11 +171,18 @@ export function MarketQuote({
         averagePurchasePrice && quantity
           ? { quantity, averagePrice: averagePurchasePrice }
           : undefined,
+      // Sub-daily charts get the daily trend as higher-timeframe context; daily+
+      // charts are already their own highest timeframe (matches the worker).
+      higherTimeframeTrend:
+        sourceInterval(interval) === "1m"
+          ? summarizeTrend(dailyCandleList ?? [], "1d") ?? undefined
+          : undefined,
     }),
     [
       averagePurchasePrice,
       chartCandles,
       currency,
+      dailyCandleList,
       interval,
       name,
       quantity,
