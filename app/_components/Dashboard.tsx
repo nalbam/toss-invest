@@ -43,15 +43,6 @@ function symbolSelectionStorageKey(accountSeq: number): string {
   return `${LAST_SYMBOL_SELECTION_KEY}:${accountSeq}`;
 }
 
-function maskAccountNo(accountNo: string): string {
-  if (accountNo.length <= 6) {
-    return accountNo;
-  }
-  return `${accountNo.slice(0, 3)}${"*".repeat(
-    accountNo.length - 6,
-  )}${accountNo.slice(-3)}`;
-}
-
 function readLastSymbol(): string | null {
   try {
     return window.localStorage.getItem(LAST_SYMBOL_KEY);
@@ -336,10 +327,11 @@ export function Dashboard() {
               className={page.select}
               value={selectedSeq ?? ""}
               onChange={(event) => selectAccount(Number(event.target.value))}
+              data-private-value="true"
             >
               {accounts.data.map((account) => (
                 <option key={account.accountSeq} value={account.accountSeq}>
-                  {maskAccountNo(account.accountNo)} ({account.accountType})
+                  {account.accountNo} ({account.accountType})
                 </option>
               ))}
             </select>

@@ -230,19 +230,19 @@ afterEach(() => {
 });
 
 describe("Dashboard", () => {
-  it("masks account numbers in the account selector", () => {
-    const { container } = render(<Dashboard />);
+  it("shows the full account number and marks the selector private for blur", () => {
+    render(<Dashboard />);
 
     expect(screen.getByRole("group", { name: "테마" })).toBeInTheDocument();
+    // The account number is shown in full (no masking) ...
     expect(
-      screen.getByRole("option", { name: "110*****791 (BROKERAGE)" }),
+      screen.getByRole("option", { name: "11001044791 (BROKERAGE)" }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText("11001044791 (BROKERAGE)"),
-    ).not.toBeInTheDocument();
-    expect(
-      container.querySelector("[data-private-value='true']"),
-    ).not.toBeNull();
+    // ... but the selector is marked private so the blur shortcut covers it.
+    expect(screen.getByLabelText("계좌")).toHaveAttribute(
+      "data-private-value",
+      "true",
+    );
   });
 
   it("toggles privacy blur with Ctrl or Command + Shift + B", () => {
