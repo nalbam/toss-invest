@@ -8,6 +8,7 @@ import {
   LineStyle,
   createChart,
   createSeriesMarkers,
+  TickMarkType,
   type CandlestickData,
   type HistogramData,
   type IChartApi,
@@ -89,6 +90,48 @@ export function formatChartPrice(price: number): string {
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 4,
   }).format(price);
+}
+
+const pad2 = (value: number): string => String(value).padStart(2, "0");
+
+/**
+ * Series timestamps are true Unix seconds (UTC epoch), but lightweight-charts
+ * renders them in UTC by default — showing KST candles 9h behind. These
+ * formatters render the crosshair label and axis ticks in the viewer's local
+ * time so the displayed wall-clock matches the market (and the advisor box's
+ * "조언 일시"). Only labels change; the series time base is untouched, so marker
+ * and advice-line positioning are unaffected.
+ */
+function formatCrosshairTime(time: Time): string {
+  if (typeof time !== "number") {
+    return "";
+  }
+  const date = new Date(time * 1000);
+  return (
+    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ` +
+    `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+  );
+}
+
+function formatTickMark(time: Time, tickMarkType: TickMarkType): string {
+  if (typeof time !== "number") {
+    return "";
+  }
+  const date = new Date(time * 1000);
+  switch (tickMarkType) {
+    case TickMarkType.Year:
+      return `${date.getFullYear()}`;
+    case TickMarkType.Month:
+      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+    case TickMarkType.DayOfMonth:
+      return `${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+    case TickMarkType.Time:
+      return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+    case TickMarkType.TimeWithSeconds:
+      return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+    default:
+      return "";
+  }
 }
 
 function formatMarkerText(label: string): string {
@@ -425,6 +468,7 @@ export function CandleChart({
       height: 420,
       autoSize: true,
       layout: { background: { color: "transparent" }, textColor: "#7b818c" },
+      localization: { timeFormatter: formatCrosshairTime },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.07)" },
         horzLines: { color: "rgba(255,255,255,0.07)" },
@@ -433,6 +477,7 @@ export function CandleChart({
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 8,
+        tickMarkFormatter: formatTickMark,
       },
       // Price axis (and its price-line labels: 평균단가/지지/저항) on the left
       // so the labels don't cover the most recent candles on the right.
