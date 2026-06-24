@@ -29,6 +29,13 @@ function storageKey(accountSeq?: number): string {
     : `${ADVISOR_RESULT_KEY}:${accountSeq}`;
 }
 
+/** Auto-rerun enable/interval is scoped per account, like the advice result. */
+function autoStorageKey(accountSeq?: number): string {
+  return accountSeq === undefined
+    ? ADVISOR_AUTO_KEY
+    : `${ADVISOR_AUTO_KEY}:${accountSeq}`;
+}
+
 function isValidatedProposal(item: unknown): item is ValidatedProposal {
   if (typeof item !== "object" || item === null) {
     return false;
@@ -124,7 +131,7 @@ export function AiAdvisor({
     autoRemainingRatio,
     setAutoEnabled,
     setAutoIntervalMs,
-  } = useAdvisorAutoRerun(run, ADVISOR_AUTO_KEY);
+  } = useAdvisorAutoRerun(run, autoStorageKey(accountSeq));
 
   return (
     <CollapsibleCard title="AI 어드바이저" storageId="ai-advisor">

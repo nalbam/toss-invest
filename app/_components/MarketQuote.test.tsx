@@ -72,6 +72,30 @@ vi.mock("lightweight-charts", () => ({
   LineStyle: { Dashed: 2 },
 }));
 
+type FavHook = {
+  items: Array<{
+    id: number;
+    symbol: string;
+    name: string | null;
+    currency: string | null;
+  }>;
+  mutate: () => void;
+  isLoading: boolean;
+};
+
+const { useFavorites, addFavoriteItem, removeFavoriteItem } = vi.hoisted(() => ({
+  useFavorites: vi.fn(
+    (): FavHook => ({ items: [], mutate: vi.fn(), isLoading: false }),
+  ),
+  addFavoriteItem: vi.fn(() => Promise.resolve({})),
+  removeFavoriteItem: vi.fn(() => Promise.resolve({})),
+}));
+vi.mock("@/lib/client/favorites", () => ({
+  useFavorites,
+  addFavoriteItem,
+  removeFavoriteItem,
+}));
+
 const { MarketQuote } = await import("./MarketQuote");
 
 /**
@@ -111,6 +135,7 @@ beforeEach(() => {
   useCandles.mockReturnValue(loaded({ candles: [], nextBefore: null }));
   useTrades.mockReturnValue(loaded([]));
   useMarketAdvisorHistory.mockReturnValue(loaded({ events: [] }));
+  useFavorites.mockReturnValue({ items: [], mutate: vi.fn(), isLoading: false });
 });
 
 afterEach(() => {
@@ -124,6 +149,29 @@ describe("MarketQuote", () => {
   it("renders the last price", () => {
     render(<MarketQuote symbol="005930" />);
     expect(screen.getByText(byMoney("₩72,000"))).toBeInTheDocument();
+  });
+
+  it("adds the current symbol to favorites via the star", async () => {
+    render(<MarketQuote symbol="005930" name="삼성전자" />);
+    fireEvent.click(screen.getByLabelText("즐겨찾기 추가"));
+    await waitFor(() =>
+      expect(addFavoriteItem).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: "005930", name: "삼성전자" }),
+      ),
+    );
+  });
+
+  it("removes the symbol when it is already a favorite", async () => {
+    useFavorites.mockReturnValue({
+      items: [{ id: 1, symbol: "005930", name: "삼성전자", currency: "KRW" }],
+      mutate: vi.fn(),
+      isLoading: false,
+    });
+    render(<MarketQuote symbol="005930" name="삼성전자" />);
+    fireEvent.click(screen.getByLabelText("즐겨찾기 해제"));
+    await waitFor(() =>
+      expect(removeFavoriteItem).toHaveBeenCalledWith("005930"),
+    );
   });
 
   it("shows the day change in the header vs the previous daily close", () => {

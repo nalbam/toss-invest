@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
 import { getServerTossClient } from "@/lib/server/toss/container";
+import { upsertStockDirectory } from "@/lib/server/stocks/directory";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,19 @@ export async function GET(request: Request): Promise<Response> {
     const data = await getServerTossClient().getStocks({
       symbols: parsed.data.symbols,
     });
+    // Seed the local name-search directory from this trusted Toss result.
+    try {
+      upsertStockDirectory(
+        data.map((stock) => ({
+          symbol: stock.symbol,
+          name: stock.name,
+          market: stock.market,
+          currency: stock.currency,
+        })),
+      );
+    } catch {
+      // Best-effort; directory seeding must never fail the lookup response.
+    }
     return ok(data);
   } catch (error) {
     return handleError(error);

@@ -29,12 +29,29 @@ export function invalidRequest(message: string): NextResponse {
 }
 
 /**
+ * Cross-bundle-safe `TossApiError` check. Next.js may evaluate `client.ts` in
+ * separate module registries (route vs instrumentation bundles), and the Toss
+ * client is a `globalThis` singleton, so an error it throws can be a
+ * `TossApiError` whose class identity differs from this module's import —
+ * `instanceof` then returns false. Fall back to the stable `name` marker so an
+ * upstream 4xx is forwarded with its status instead of masked as a 500.
+ */
+function isTossApiError(error: unknown): error is TossApiError {
+  return (
+    error instanceof TossApiError ||
+    (typeof error === "object" &&
+      error !== null &&
+      (error as { name?: unknown }).name === "TossApiError")
+  );
+}
+
+/**
  * Maps a thrown error to a safe HTTP response. `TossApiError` is forwarded with
  * its upstream status, `code`, `message`, and `requestId`. Anything else becomes
  * a generic 500 so internal details (stack traces, secrets) are never leaked.
  */
 export function handleError(error: unknown): NextResponse {
-  if (error instanceof TossApiError) {
+  if (isTossApiError(error)) {
     const body: ApiErrorBody = {
       error: {
         code: error.code,

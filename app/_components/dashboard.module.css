@@ -587,6 +587,103 @@
   pointer-events: auto;
 }
 
+.favoriteStar {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+  color: var(--muted);
+}
+
+.favoriteStar[aria-pressed="true"] {
+  color: #f5a623;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 16px;
+  z-index: 100;
+}
+
+.modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modalClose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.modalSearchRow {
+  display: flex;
+  gap: 8px;
+}
+
+.modalSearchRow input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.modalSearchButton {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--gray-alpha);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.modalResultRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modalResultSelect {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  background: var(--gray-alpha);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.modalFavorites {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .watchlistBody {
   display: flex;
   flex-direction: column;

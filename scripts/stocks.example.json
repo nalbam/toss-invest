@@ -1,0 +1,4 @@
+[
+  { "symbol": "AAPL", "name": "Apple", "market": "NASDAQ", "currency": "USD" },
+  { "symbol": "MSFT", "name": "Microsoft", "market": "NASDAQ", "currency": "USD" }
+]

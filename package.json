@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "advisor:run": "node scripts/advisor-run.mjs"
+    "advisor:run": "node scripts/advisor-run.mjs",
+    "seed:stocks": "node scripts/seed-stocks.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

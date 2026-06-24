@@ -75,6 +75,42 @@ function writeOrderFormPreferences(prefs: OrderFormPreferences): void {
   writeStoredJson(ORDER_FORM_PREFERENCES_KEY, prefs);
 }
 
+// Per-symbol last order quantity / amount, so reselecting a symbol restores what
+// the user last entered for it. Plain strings (not JSON) keyed by symbol.
+const ORDER_QUANTITY_KEY_PREFIX = "toss-invest:order-quantity:";
+const ORDER_AMOUNT_KEY_PREFIX = "toss-invest:order-amount:";
+
+function readStoredField(prefix: string, symbol: string): string {
+  if (symbol === "") {
+    return "";
+  }
+  try {
+    const value = window.localStorage.getItem(prefix + symbol);
+    return value !== null && /^\d+(\.\d+)?$/.test(value) && Number(value) > 0
+      ? value
+      : "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredField(prefix: string, symbol: string, value: string): void {
+  if (symbol === "") {
+    return;
+  }
+  const key = prefix + symbol;
+  const trimmed = value.trim();
+  try {
+    if (trimmed === "") {
+      window.localStorage.removeItem(key);
+    } else {
+      window.localStorage.setItem(key, trimmed);
+    }
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
 /** Formats a price/amount in the given trading currency. */
 function formatPrice(
   value: string | null | undefined,
@@ -189,6 +225,9 @@ export function OrderForm({
   useEffect(() => {
     if (selectedSymbol) {
       setSymbol(selectedSymbol);
+      // Restore the quantity/amount last entered for this symbol (empty if none).
+      setQuantity(readStoredField(ORDER_QUANTITY_KEY_PREFIX, selectedSymbol));
+      setOrderAmount(readStoredField(ORDER_AMOUNT_KEY_PREFIX, selectedSymbol));
       setArmed(null);
     }
   }, [selectedSymbol]);
@@ -246,10 +285,20 @@ export function OrderForm({
     updatePreferences({ orderType: next });
   }
 
-  /** Sets the quantity and disarms any pending quick-order confirmation. */
+  /**
+   * Sets the quantity, persists it per-symbol (so reselecting the symbol restores
+   * it), and disarms any pending quick-order confirmation.
+   */
   function changeQuantity(next: string) {
     setQuantity(next);
     setArmed(null);
+    writeStoredField(ORDER_QUANTITY_KEY_PREFIX, trimmedSymbol, next);
+  }
+
+  /** Sets the order amount and persists it per-symbol. */
+  function changeOrderAmount(next: string) {
+    setOrderAmount(next);
+    writeStoredField(ORDER_AMOUNT_KEY_PREFIX, trimmedSymbol, next);
   }
 
   function stepQuantity(delta: number) {
@@ -542,7 +591,7 @@ export function OrderForm({
                     id="order-amount"
                     className={page.select}
                     value={orderAmount}
-                    onChange={(event) => setOrderAmount(event.target.value)}
+                    onChange={(event) => changeOrderAmount(event.target.value)}
                     placeholder="예: 1000"
                     inputMode="decimal"
                   />
@@ -557,7 +606,7 @@ export function OrderForm({
                       id="order-quantity"
                       className={page.select}
                       value={quantity}
-                      onChange={(event) => setQuantity(event.target.value)}
+                      onChange={(event) => changeQuantity(event.target.value)}
                       placeholder="최대 수량 입력"
                       inputMode="numeric"
                     />

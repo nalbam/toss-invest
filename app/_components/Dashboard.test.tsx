@@ -99,6 +99,12 @@ vi.mock("@/lib/client/watchlist", () => ({
   setWatchlistItemEnabled: vi.fn(),
 }));
 
+vi.mock("@/lib/client/favorites", () => ({
+  useFavorites: () => ({ items: [], mutate: vi.fn(), isLoading: false }),
+  addFavoriteItem: vi.fn(),
+  removeFavoriteItem: vi.fn(),
+}));
+
 vi.mock("swr", () => ({
   useSWRConfig: () => ({ mutate: vi.fn() }),
 }));
@@ -260,7 +266,7 @@ describe("Dashboard", () => {
 
   it("prompts the user to pick a holding before a symbol is selected", () => {
     render(<Dashboard />);
-    expect(screen.getByText("보유 종목을 선택하세요.")).toBeInTheDocument();
+    expect(screen.getByText(/보유 종목을 선택하거나/)).toBeInTheDocument();
     expect(
       screen.getByText("보유 종목을 선택하면 주문할 수 있습니다."),
     ).toBeInTheDocument();
@@ -279,7 +285,7 @@ describe("Dashboard", () => {
     // Left market panel now shows the symbol header instead of the prompt.
     expect(screen.getByText("Apple (AAPL)")).toBeInTheDocument();
     expect(
-      screen.queryByText("보유 종목을 선택하세요."),
+      screen.queryByText(/보유 종목을 선택하거나/),
     ).not.toBeInTheDocument();
     // Center order form (defaults to 빠른주문) follows the selected symbol; the
     // 일반주문 tab exposes the prefilled 종목코드 field.
@@ -421,6 +427,6 @@ describe("Dashboard", () => {
     expect(window.localStorage.getItem("toss-invest:selected-account-seq")).toBe(
       "2",
     );
-    expect(screen.getByText("보유 종목을 선택하세요.")).toBeInTheDocument();
+    expect(screen.getByText(/보유 종목을 선택하거나/)).toBeInTheDocument();
   });
 });

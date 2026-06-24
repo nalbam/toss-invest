@@ -51,6 +51,23 @@ CREATE TABLE IF NOT EXISTS advisor_watchlist (
   created_at TEXT NOT NULL,
   UNIQUE(symbol, interval)
 );
+
+CREATE TABLE IF NOT EXISTS favorites (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol TEXT NOT NULL UNIQUE,
+  name TEXT,
+  currency TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS stock_directory (
+  symbol TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  market TEXT,
+  currency TEXT,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_stock_directory_name ON stock_directory (name);
 `;
 
 // Additive migrations for DBs created before a column existed. SQLite lacks

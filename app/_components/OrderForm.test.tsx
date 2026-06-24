@@ -170,6 +170,36 @@ describe("OrderForm — quick order (default)", () => {
     expect(screen.getByLabelText("몇 주 주문할까요?")).toHaveValue("14");
   });
 
+  it("remembers and restores the last quantity per symbol", () => {
+    fetchMock.mockImplementation(
+      quoteFetch(() => jsonResponse({ data: {} }), {
+        price: { lastPrice: "71000", currency: "KRW" },
+        sellable: "10",
+      }),
+    );
+    const ui = (sym: string) => (
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <OrderForm accountSeq={1} symbol={sym} cash={{ krw: "1000000" }} />
+      </SWRConfig>
+    );
+    const { rerender } = render(ui("005930"));
+
+    fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
+      target: { value: "7" },
+    });
+    expect(window.localStorage.getItem("toss-invest:order-quantity:005930")).toBe(
+      "7",
+    );
+
+    // Switching to another symbol shows its own (empty) quantity ...
+    rerender(ui("AAPL"));
+    expect(screen.getByLabelText("몇 주 주문할까요?")).toHaveValue("");
+
+    // ... and returning to the first restores the saved one.
+    rerender(ui("005930"));
+    expect(screen.getByLabelText("몇 주 주문할까요?")).toHaveValue("7");
+  });
+
   it("arms then confirms a current-price LIMIT BUY with confirm:true", async () => {
     fetchMock.mockImplementation(
       quoteFetch(

@@ -20,6 +20,7 @@ import { OrderForm } from "./OrderForm";
 import { OrdersTable } from "./OrdersTable";
 import { PortfolioComposition } from "./PortfolioComposition";
 import { PortfolioSummary } from "./PortfolioSummary";
+import { StockSearchModal } from "./StockSearchModal";
 import { ThemeSelector } from "./ThemeSelector";
 import { WatchlistControls } from "./WatchlistControls";
 import page from "@/app/page.module.css";
@@ -165,6 +166,7 @@ export function Dashboard() {
   const accounts = useAccounts();
   const [selectedSeq, setSelectedSeq] = useState<number | undefined>(undefined);
   const [privacyBlurred, setPrivacyBlurred] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   // Symbol chosen from the holdings table; drives the market panel and order
   // form. Undefined until the user picks a holding (left panel shows a prompt).
   const [selectedSymbol, setSelectedSymbol] = useState<string | undefined>(
@@ -317,6 +319,13 @@ export function Dashboard() {
       <header className={page.header}>
         <h1 className={page.title}>토스증권 대시보드</h1>
         <div className={page.headerControls}>
+          <button
+            type="button"
+            className={page.select}
+            onClick={() => setSearchOpen(true)}
+          >
+            종목 검색
+          </button>
           <ThemeSelector />
           <div className={page.controls}>
             <label htmlFor="account-select" className={page.controlLabel}>
@@ -339,6 +348,12 @@ export function Dashboard() {
         </div>
       </header>
 
+      <StockSearchModal
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSelectSymbol={selectSymbol}
+      />
+
       <div className={styles.layout}>
         {/* Left: market data for the selected symbol (or a prompt). */}
         <div className={`${styles.column} ${styles.marketColumn}`}>
@@ -352,7 +367,9 @@ export function Dashboard() {
             />
           ) : (
             <CollapsibleCard title="시세" storageId="market-quote">
-              <p className={styles.placeholder}>보유 종목을 선택하세요.</p>
+              <p className={styles.placeholder}>
+                보유 종목을 선택하거나 상단 “종목 검색”으로 종목을 찾으세요.
+              </p>
             </CollapsibleCard>
           )}
           <WatchlistControls />

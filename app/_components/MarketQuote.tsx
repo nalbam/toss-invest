@@ -18,6 +18,11 @@ import {
 } from "@/lib/client/candles";
 import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
 import { previousClose, priceChange } from "@/lib/client/quote";
+import {
+  addFavoriteItem,
+  removeFavoriteItem,
+  useFavorites,
+} from "@/lib/client/favorites";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import { CandleChart, toOrderMarkers } from "./CandleChart";
@@ -125,6 +130,21 @@ export function MarketQuote({
 
   const quote = prices.data?.[0];
   const currency = quote?.currency ?? "KRW";
+  const favorites = useFavorites();
+  const isFavorite = favorites.items.some((item) => item.symbol === symbol);
+
+  async function toggleFavorite() {
+    try {
+      if (isFavorite) {
+        await removeFavoriteItem(symbol);
+      } else {
+        await addFavoriteItem({ symbol, name, currency });
+      }
+      await favorites.mutate();
+    } catch {
+      // Best-effort star toggle; SWR revalidation keeps the state consistent.
+    }
+  }
   const change = priceChange(
     quote?.lastPrice,
     previousClose(dailyCandles.data?.candles ?? []),
@@ -200,6 +220,16 @@ export function MarketQuote({
         <span className={styles.metricLabel}>
           {name ? `${name} (${symbol})` : `현재가 (${symbol})`}
         </span>
+        <button
+          type="button"
+          className={styles.favoriteStar}
+          aria-pressed={isFavorite}
+          aria-label={isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+          title={isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+          onClick={() => void toggleFavorite()}
+        >
+          {isFavorite ? "★" : "☆"}
+        </button>
         {prices.isLoading ? (
           <span className={styles.metricSecondary}>불러오는 중…</span>
         ) : prices.error ? (
