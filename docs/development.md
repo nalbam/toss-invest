@@ -1,6 +1,6 @@
 # 개발 워크플로우
 
-이 프로젝트는 **자가 평가 루프(self-evaluating loop)** 로 개발되었다 — 매 반복마다 가장 작은 다음 증분을 TDD로 구현하고, 객관 게이트를 통과시킨 뒤, 루브릭으로 자기채점해 다음 개선 항목을 도출한다. Phase 1·2·3은 완료되었고([roadmap.md](roadmap.md)), 이 문서는 그 워크플로우와 가드레일을 기록한다.
+이 프로젝트는 **자가 평가 루프(self-evaluating loop)** 로 개발되었다 — 매 반복마다 가장 작은 다음 증분을 TDD로 구현하고, 객관 게이트를 통과시킨 뒤, 루브릭으로 자기채점해 다음 개선 항목을 도출한다. Phase 1·2·3·4가 완료되었고([roadmap.md](roadmap.md)), 이 문서는 그 워크플로우와 가드레일을 기록한다.
 
 ## 객관 게이트 (4종 + E2E)
 
@@ -77,6 +77,6 @@ elif all(current_phase_exit_criteria) and all(scores >= targets):
 3. 첫 증분으로 **OAuth 토큰 발급/캐싱 모듈 + 단위 테스트**(실패 테스트부터).
 4. 객관 게이트 통과 → 자기채점 → 다음 pick.
 
-## AI 어드바이저 루프 (계획 — 미구현)
+## AI 어드바이저 루프 (구현 완료)
 
-Phase 4(AI 어드바이저)는 위 dev-loop의 **형제 루프**로 설계되었으나 아직 구현되지 않았다. 동일한 게이트·루브릭(7축)·회로차단기·규율을 따르며, 거래 안전 §6과 어드바이저 고유 불변식 §6.A를 불변 상속한다. 비결정 LLM 호출은 단일 provider 경계로 격리하고 나머지는 결정적 단위 테스트로 덮는다. 로드맵(A1·A2·A3)은 [roadmap.md](roadmap.md), 안전 불변식은 [trading-safety.md](trading-safety.md) §6.A.
+Phase 4(AI 어드바이저)는 위 dev-loop의 **형제 루프**로 같은 게이트·루브릭(7축)·회로차단기·규율을 따라 구현되었고, 거래 안전 §6과 어드바이저 고유 불변식 §6.A를 불변 상속한다. 비결정 LLM 호출은 단일 provider 경계로 격리하고 나머지는 결정적 단위 테스트로 덮는다. 로드맵(A1·A2·A3)은 [roadmap.md](roadmap.md), 안전 불변식은 [trading-safety.md](trading-safety.md) §6.A.

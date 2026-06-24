@@ -19,7 +19,7 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 | 계좌 ACCOUNT | `GET /api/v1/accounts` | 계좌 목록 | 1/s |
 | 자산 ASSET | `GET /api/v1/holdings` | 보유종목·평가금액·손익·일간손익 | 5/s |
 | 시세 MARKET_DATA | `GET /api/v1/orderbook` `/prices` `/trades` `/price-limits` | 호가·현재가·체결·상하한가 | 10/s |
-| 시세(차트) MARKET_DATA_CHART | `GET /api/v1/candles` | 분봉·일봉 | 5/s |
+| 시세(차트) MARKET_DATA_CHART | `GET /api/v1/candles` | 분봉·일봉 (시간 역순 페이지네이션: `count`·`before` 커서 → 응답 `nextBefore`) | 5/s |
 | 종목 STOCK | `GET /api/v1/stocks` `/api/v1/stocks/{symbol}/warnings` | 종목 마스터·투자경고 | 5/s |
 | 시장정보 MARKET_INFO | `GET /api/v1/exchange-rate` `/market-calendar/KR` `/market-calendar/US` | 환율·장 운영 캘린더 | 3/s |
 | 주문 ORDER | `POST /api/v1/orders` `/orders/{id}/modify` `/orders/{id}/cancel` | 생성·정정·취소 (지정가/시장가, 금액/수량 기반) | 6/s (09:00–09:10 KST 3/s) |
@@ -34,15 +34,30 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 - **장 운영**: `order-hours-closed`(422), 미국 금액주문은 정규장만(`amount-order-outside-regular-hours`).
 - **⚠️ 모의투자(paper) 모드가 문서에 없음 → 모든 주문을 실거래로 간주**. 안전장치([trading-safety.md](trading-safety.md))는 타협 불가.
 
+## 로컬 라우트 (SQLite 기반, Toss 프록시 아님)
+
+브라우저가 호출하는 `/api/*` 중 일부는 Toss 프록시가 아니라 로컬 SQLite(`lib/server/db/sqlite.ts`)를 읽고 쓴다. 모두 `runtime = "nodejs"`, `{data}`/`{error}` 봉투.
+
+| 라우트 | 메서드 | 동작 |
+|---|---|---|
+| `/api/favorites` | GET·POST·DELETE(`?symbol=`) | 즐겨찾기 목록·추가(upsert)·삭제 |
+| `/api/stocks` | GET(`?symbols=`) | Toss 종목 마스터 조회(코드 다중) + 결과를 이름검색 디렉터리에 적재 |
+| `/api/stocks/search` | GET(`?q=&limit=`) | 이름/코드 부분검색(로컬 `stock_directory`) |
+| `/api/advisor-watchlist` | GET·POST·PATCH·DELETE(`?id=`) | 자동분석 watchlist CRUD(종목·인터벌·분석주기) |
+| `/api/advisor-jobs/run` | POST(Bearer `ADVISOR_JOBS_TOKEN`) | 백그라운드 어드바이저 잡 1회 실행(due 항목만) |
+| `/api/advisor` | POST | 포트폴리오 어드바이저(스냅샷→LLM→검증 제안) |
+| `/api/market-advisor` | POST | 차트 어드바이저(캔들→LLM→조언, SQLite 기록) |
+| `/api/market-advisor/history` | GET(`?symbol=&interval=`) | 조언 히스토리(차트 오버레이용) |
+
 ## 데이터 표현 규칙 (구현)
 
 - decimal 금액/수량은 **문자열**로 보존(정밀도). 표시 시에만 포맷, 차트 입력 시에만 숫자 변환.
 - enum은 **open**(미지 값 허용), nullable/optional은 스키마에 명시.
 - 폴링 주기는 `market-calendar`로 장 운영을 반영해 **폐장·휴장 시 완화/중단**.
 
-## LLM Provider API (계획 — 미구현)
+## LLM Provider API (구현)
 
-> Phase 4(AI 어드바이저) 설계용 캐시 요약. **아직 구현되지 않았다.** 공식 문서가 최종 진실 — `response_format`/JSON schema 사용법·인증·rate limit·에러 봉투·모델명은 Context7·각 provider 공식 문서로 확인한다.
+> 어댑터는 `lib/server/llm/`(openai · xai · chat-completions · container)에 구현돼 있다. 공식 문서가 최종 진실 — `response_format`/JSON schema 사용법·인증·rate limit·에러 봉투·모델명은 Context7·각 provider 공식 문서로 확인한다.
 
 두 provider 모두 **OpenAI 호환 chat completions**라 어댑터는 엔드포인트·키·모델명·structured output 형식만 다르고 본문 구조는 거의 같다.
 

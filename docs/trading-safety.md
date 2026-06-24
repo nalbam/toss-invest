@@ -24,9 +24,9 @@ notional 한도 검사는 통화를 추론한다 — KRX 심볼(`^\d{6}$`)=KRW, 
 
 `lib/server/trading/safety.ts` — `getTradingConfig`/`evaluateOrderGate`(순수 게이트, fail-safe 평가 순서: 차단 우선) + `placeOrder`(DI 실행기). `createOrderRaw`/`modifyOrderRaw`/`cancelOrderRaw`는 **ungated 저수준, 직접 노출 금지**. 라우트/실행기는 게이트를 호출만 하고 무수정한다.
 
-## §6.A 어드바이저 고유 불변식 (계획 — 미구현)
+## §6.A 어드바이저 고유 불변식 (구현)
 
-> Phase 4(AI 어드바이저) 설계용. 어드바이저는 아직 구현되지 않았으나, 구현 시 §6에 **더해** 아래를 지킨다.
+> 어드바이저(Phase 4)는 §6에 **더해** 아래를 지킨다.
 
 1. **LLM 출력은 제안일 뿐 명령이 아니다.** `lib/server/advisor/**`·`app/api/advisor/**`는 `placeOrder`/`createOrderRaw`를 import·호출하지 않는다(grep + 의존성 테스트로 증명). 제안 → 사람이 "폼에 담기" → dry-run → **사람 confirm** → 기존 §6 게이트. LLM은 §6보다 철저히 **상류**에 위치한다.
 2. **에이전트/LLM 자가 확인 금지.** LLM이 confirm 토큰·승인을 발급하거나 `AUTO_TRADE_ENABLED`·`DRY_RUN`을 건드릴 수 없다. prefill은 입력 필드만 채울 뿐 confirm 체크박스를 자동 체크하지 않는다.
@@ -36,11 +36,11 @@ notional 한도 검사는 통화를 추론한다 — KRX 심볼(`^\d{6}$`)=KRW, 
 
 ## 보안 & 프라이버시
 
-- 시크릿(`TOSS_CLIENT_ID`/`TOSS_CLIENT_SECRET`/token/`TOSS_ACCOUNT_SEQ`, 계획된 `OPENAI_API_KEY`/`XAI_API_KEY`)은 **환경변수/시크릿 매니저**. 코드·로그·커밋·테스트 픽스처에 하드코딩 금지.
+- 시크릿(`TOSS_CLIENT_ID`/`TOSS_CLIENT_SECRET`/token/`TOSS_ACCOUNT_SEQ`, `OPENAI_API_KEY`/`XAI_API_KEY`)은 **환경변수/시크릿 매니저**. 코드·로그·커밋·테스트 픽스처에 하드코딩 금지.
 - `.env`는 `.gitignore`, `.env.example`만 커밋. 누락 시 fast-fail(`lib/server/env.ts` zod).
 - 클라이언트 번들·콘솔·네트워크 응답에 시크릿/토큰 노출 금지 — `scripts/check-bundle-secrets.mjs`가 build에서 회귀 방지.
 - 외부 입력(주문 파라미터 등)은 서버 경계에서 zod 검증.
-- (어드바이저, 계획) LLM에 보내는 스냅샷은 **포함 필드 화이트리스트**(보유 심볼·수량·평단·현재가·손익·비중·현금·매수여력·환율 + 선택 시장 데이터). 계좌 시퀀스·계좌명 등 식별자/PII는 전송하지 않는다. provider 응답은 zod 검증 전 어떤 필드도 사용하지 않는다.
+- (어드바이저) LLM에 보내는 스냅샷은 **포함 필드 화이트리스트**(보유 심볼·수량·평단·현재가·손익·비중·현금·매수여력·환율 + 선택 시장 데이터). 계좌 시퀀스·계좌명 등 식별자/PII는 전송하지 않는다. provider 응답은 zod 검증 전 어떤 필드도 사용하지 않는다.
 - 노출 사고 시 즉시 **rotate**(코드 수정만으론 부족).
 
 ## 환경 변수 (안전 관련)

@@ -15,9 +15,11 @@
   `AUTO_TRADE_ENABLED` 기본 false.
 - **AI 어드바이저** (선택 — LLM 설정 시) — ① **포트폴리오 어드바이저**: 마스킹된 포트폴리오 스냅샷 → LLM →
   조언 + 주문 제안(보유·매도가능수량·심볼 실재 검증 후 "폼에 담기"로 주문 폼 prefill). ② **차트 어드바이저**:
-  선택 종목 캔들 → LLM → 조언 + 참고 판단(buy/sell/hold/wait) + 차트 지지/저항선·마커(조언 히스토리는 Redis 캐시).
-  둘 다 온디맨드 실행이며 자동 재실행 주기를 켤 수 있다. **LLM은 제안자이지 집행자가 아니다** — 제안은 자동 전송 없이
-  confirm·§6 게이트를 거친다.
+  선택 종목 캔들 → LLM → 조언 + 참고 판단(buy/sell/hold/wait) + 차트 지지/저항선·마커(조언 히스토리는 SQLite 영속).
+  둘 다 온디맨드 실행이며, 자동분석은 서버 백그라운드 워커(watchlist)가 주기적으로 실행한다.
+  **LLM은 제안자이지 집행자가 아니다** — 제안은 자동 전송 없이 confirm·§6 게이트를 거친다.
+- **종목 검색·즐겨찾기** — 종목명/코드로 검색(로컬 디렉터리, `pnpm seed:stocks`로 KRX·Nasdaq 상장목록 적재),
+  시세 헤더 별(★) 아이콘으로 즐겨찾기 저장/해제. 둘 다 SQLite에 영속.
 - **테마** — 시스템/라이트/다크 (localStorage).
 
 ## 기술 스택
@@ -47,13 +49,15 @@ pnpm run dev                 # http://localhost:4107
 | `pnpm run test` | Vitest (1회 실행) |
 | `pnpm run test:watch` | Vitest watch |
 | `pnpm run test:e2e` | Playwright E2E |
+| `pnpm run advisor:run` | 백그라운드 어드바이저 잡 1회 트리거(외부 스케줄러용, `ADVISOR_JOBS_TOKEN` 필요) |
+| `pnpm run seed:stocks` | 종목 검색 디렉터리 시드 (`--krx` / `--nasdaq` / `--all` / `<file.json>`) |
 
 게이트(4종): `lint` · `typecheck` · `test` · `build`. E2E 는 별도(`test:e2e`).
 
 ## 환경 변수
 
 `.env.example` 참고. TOSS·거래·LLM 변수는 `lib/server/env.ts` 의 zod 스키마로 fail-fast 검증되고,
-캐시 변수(`CACHE_*`)는 기본값 폴백으로 직접 읽힌다.
+DB·워커 변수(`ADVISOR_*`)는 기본값 폴백으로 `process.env`에서 직접 읽힌다.
 
 | 변수 | 기본값 | 설명 |
 | --- | --- | --- |
@@ -70,26 +74,32 @@ pnpm run dev                 # http://localhost:4107
 | `OPENAI_API_KEY` | (미설정) | `LLM_PROVIDER=openai` 용 키 (server-only) |
 | `XAI_API_KEY` | (미설정) | `LLM_PROVIDER=xai` 용 키 (server-only) |
 | `LLM_MODEL` | (미설정) | 사용할 LLM 모델명 |
-| `CACHE_REDIS_URL` | `redis://127.0.0.1:6379/0` | 시세·캔들·조언 히스토리 캐시(Valkey/Redis). best-effort |
-| `CACHE_KEY_PREFIX` | `toss-invest:v1` | 캐시 키 네임스페이스 |
+| `ADVISOR_DB_PATH` | `data/advisor.db` | SQLite 파일 경로(조언 로그·watchlist·즐겨찾기·종목 디렉터리). 디렉터리는 자동 생성 |
+| `ADVISOR_JOBS_TOKEN` | (미설정) | 설정 시 `POST /api/advisor-jobs/run` 활성화(Bearer). 미설정 시 비활성(fail-closed) |
+| `ADVISOR_WORKER_ENABLED` | (미설정) | `true`면 인-프로세스 백그라운드 어드바이저 워커 시작(`pnpm dev`가 자동 설정) |
+| `ADVISOR_WORKER_TICK_MS` | `60000` | 워커가 watchlist due 항목을 점검하는 주기(ms) |
 
 ## 아키텍처
 
 ```
 app/
-  api/**/route.ts      # GET 18 (Toss 프록시 17 + market-advisor/history 캐시) · POST 5 (orders create·modify·cancel + advisor + market-advisor)
-  _components/*         # 대시보드 UI 섹션 + 주문 폼 + AI 어드바이저 + 테마
+  api/**/route.ts      # GET 21 · POST 8 · PATCH 1 · DELETE 2 — Toss 프록시 + 로컬 SQLite 라우트(favorites · stocks/search · advisor-watchlist · advisor-jobs/run · market-advisor)
+  _components/*         # 대시보드 UI 섹션 + 주문 폼 + AI 어드바이저 + 종목 검색 모달 + 테마
   page.tsx             # 대시보드 페이지
+instrumentation.ts     # 부팅 시 인-프로세스 어드바이저 워커 시작(ADVISOR_WORKER_ENABLED)
 lib/
-  server/**            # server-only: 시크릿·토스 API·거래 게이트·LLM 격리
+  server/**            # server-only: 시크릿·토스 API·거래 게이트·LLM·DB 격리
     env.ts             # zod 환경 변수 검증
     toss/              # auth · client · rate-limiter · schemas · endpoints · container
     trading/           # safety(§6 게이트) · strategy · backtest · executor · auto-*
-    advisor/           # 스냅샷 마스킹 · 프롬프트 · zod 스키마 · 검증 · 오케스트레이션
+    advisor/           # 포트폴리오 어드바이저: 스냅샷 마스킹 · 프롬프트 · 검증 · 히스토리
+    market-advisor/    # 차트 어드바이저 + watchlist · jobs · worker(백그라운드)
     llm/               # provider 추상화 (openai · xai · chat-completions · container)
-    cache/             # Valkey/Redis best-effort 캐시 (redis · market-history)
+    db/                # SQLite(better-sqlite3) sqlite.ts: market_advice · portfolio_advice · advisor_watchlist · favorites · stock_directory
+    favorites/         # 즐겨찾기 스토어
+    stocks/            # 종목 이름검색 디렉터리
     api/               # respond 헬퍼 ({data}/sanitized error)
-  client/**            # types · format · hooks · quote · candles · polling · advisor · market-advisor (서버 import 금지)
+  client/**            # types · format · hooks · quote · candles · polling · advisor · market-advisor · favorites · watchlist (서버 import 금지)
 ```
 
 - **시크릿 격리**: 모든 서버 코드는 `lib/server/**` + `server-only`. `build` 시
