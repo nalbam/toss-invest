@@ -18,10 +18,14 @@ type HistoryHook = {
   isRefreshing: boolean;
 };
 
-const { fetchMarketAdvisor } = vi.hoisted(() => ({
+const { fetchMarketAdvisor, loadAdvisorCandles } = vi.hoisted(() => ({
   fetchMarketAdvisor: vi.fn(),
+  loadAdvisorCandles: vi.fn(),
 }));
-vi.mock("@/lib/client/market-advisor", () => ({ fetchMarketAdvisor }));
+vi.mock("@/lib/client/market-advisor", () => ({
+  fetchMarketAdvisor,
+  loadAdvisorCandles,
+}));
 
 const { useMarketAdvisorHistory, marketAdvisorHistoryKey, ApiClientError } = vi.hoisted(
   () => ({
@@ -130,12 +134,33 @@ describe("MarketAiAdvisor", () => {
   });
 
   it("runs a manual analysis and revalidates the history on button click", async () => {
+    // The run pulls an interval-appropriate candle window, then sends it.
+    const loadedCandles = [
+      {
+        timestamp: "2026-06-19T09:00:00Z",
+        openPrice: "100",
+        highPrice: "110",
+        lowPrice: "90",
+        closePrice: "105",
+        volume: "10",
+        currency: "KRW" as const,
+      },
+    ];
+    loadAdvisorCandles.mockResolvedValue(loadedCandles);
     fetchMarketAdvisor.mockResolvedValue(undefined);
     render(<MarketAiAdvisor input={input} />);
 
     fireEvent.click(screen.getByRole("button", { name: "조언 받기" }));
 
-    await waitFor(() => expect(fetchMarketAdvisor).toHaveBeenCalledWith(input));
+    await waitFor(() =>
+      expect(loadAdvisorCandles).toHaveBeenCalledWith("005930", "1d"),
+    );
+    await waitFor(() =>
+      expect(fetchMarketAdvisor).toHaveBeenCalledWith({
+        ...input,
+        candles: loadedCandles,
+      }),
+    );
     await waitFor(() =>
       expect(mutate).toHaveBeenCalledWith(
         "/api/market-advisor/history?symbol=005930&interval=1d",

@@ -278,23 +278,22 @@ describe("MarketQuote", () => {
     expect(screen.getByText("삼성전자 (005930)")).toBeInTheDocument();
   });
 
-  it("renders chart interval buttons and marks the selected interval", () => {
+  it("offers minute granularities via a select and day intervals as buttons", () => {
     render(<MarketQuote symbol="005930" />);
-    expect(screen.getByRole("button", { name: "분" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    // Day-and-longer intervals stay buttons.
+    expect(screen.getByRole("button", { name: "일" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "년" })).toBeInTheDocument();
+    // No "분" button anymore — minute granularity is a select with 1~240분.
+    expect(screen.queryByRole("button", { name: "분" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "분" }));
+    const minuteSelect = screen.getByLabelText("분봉 단위");
+    fireEvent.change(minuteSelect, { target: { value: "5m" } });
 
-    expect(screen.getByRole("button", { name: "분" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    // 5분 still sources Toss 1m candles (aggregated client-side) and is persisted.
     expect(useCandles).toHaveBeenCalledWith("005930", "1m");
+    expect((minuteSelect as HTMLSelectElement).value).toBe("5m");
     expect(window.localStorage.getItem("toss-invest:chart-interval")).toBe(
-      "1m",
+      "5m",
     );
   });
 
@@ -316,10 +315,9 @@ describe("MarketQuote", () => {
     render(<MarketQuote symbol="005930" />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "분" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
+      expect(
+        (screen.getByLabelText("분봉 단위") as HTMLSelectElement).value,
+      ).toBe("1m");
     });
     expect(useCandles).toHaveBeenCalledWith(undefined, "1d");
     expect(useCandles).toHaveBeenCalledWith("005930", "1m");

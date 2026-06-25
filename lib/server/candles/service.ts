@@ -1,7 +1,13 @@
 import "server-only";
 import type Database from "better-sqlite3";
+import {
+  advisorSourceCandleCount,
+  aggregateForAdvisor,
+  sourceInterval,
+  type ChartInterval,
+} from "@/lib/client/candles";
 import { getDb } from "@/lib/server/db/sqlite";
-import type { CandlePageResponse } from "@/lib/server/toss/schemas";
+import type { Candle, CandlePageResponse } from "@/lib/server/toss/schemas";
 import type { GetCandlesParams } from "@/lib/server/toss/endpoints";
 import {
   putConfirmedCandles,
@@ -75,4 +81,37 @@ export async function getCandlesCached(
   });
   putConfirmedCandles(params.symbol, params.interval, page.candles, nowMs, db);
   return page;
+}
+
+/**
+ * Collects an interval-appropriate candle window for the background chart advisor
+ * (worker): paginates the cache-backed source candles until it has
+ * `advisorSourceCandleCount(interval)` of them, then aggregates and keeps the most
+ * recent `ADVISOR_TARGET_BARS` bars. Mirrors the client `loadAdvisorCandles` so a
+ * 10m chart is analyzed on enough ten-minute bars rather than the single page.
+ */
+export async function collectAdvisorCandles(
+  symbol: string,
+  interval: ChartInterval,
+  deps: CandleServiceDeps,
+): Promise<Candle[]> {
+  const source = sourceInterval(interval);
+  const desired = advisorSourceCandleCount(interval);
+  const collected: Candle[] = [];
+  let before: string | undefined;
+  while (collected.length < desired) {
+    const page = await getCandlesCached(
+      { symbol, interval: source, before, count: 200 },
+      deps,
+    );
+    if (page.candles.length === 0) {
+      break;
+    }
+    collected.push(...page.candles);
+    if (page.nextBefore === null) {
+      break;
+    }
+    before = page.nextBefore;
+  }
+  return aggregateForAdvisor(collected, interval);
 }

@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADVISOR_TARGET_BARS,
+  advisorSourceCandleCount,
   aggregateCandles,
+  aggregateForAdvisor,
+  CHART_INTERVALS,
   combineCandlePages,
+  DAY_CHART_INTERVALS,
+  isMinuteInterval,
+  MINUTE_CHART_INTERVALS,
+  sourceBarsPerChartBar,
   sourceInterval,
   type ChartInterval,
 } from "@/lib/client/candles";
@@ -24,14 +32,44 @@ describe("sourceInterval", () => {
   it("uses only Toss-supported source intervals", () => {
     const minuteIntervals: ChartInterval[] = [
       "1m",
+      "3m",
+      "5m",
+      "10m",
+      "30m",
+      "60m",
+      "120m",
+      "240m",
     ];
     for (const interval of minuteIntervals) {
       expect(sourceInterval(interval)).toBe("1m");
+      expect(isMinuteInterval(interval)).toBe(true);
     }
-    expect(sourceInterval("1d")).toBe("1d");
-    expect(sourceInterval("1w")).toBe("1d");
-    expect(sourceInterval("1mo")).toBe("1d");
-    expect(sourceInterval("1y")).toBe("1d");
+    for (const interval of ["1d", "1w", "1mo", "1y"] as ChartInterval[]) {
+      expect(sourceInterval(interval)).toBe("1d");
+      expect(isMinuteInterval(interval)).toBe(false);
+    }
+  });
+
+  it("exposes minute granularities and day intervals separately, unioned in CHART_INTERVALS", () => {
+    expect(MINUTE_CHART_INTERVALS.map((i) => i.value)).toEqual([
+      "1m",
+      "3m",
+      "5m",
+      "10m",
+      "30m",
+      "60m",
+      "120m",
+      "240m",
+    ]);
+    expect(DAY_CHART_INTERVALS.map((i) => i.value)).toEqual([
+      "1d",
+      "1w",
+      "1mo",
+      "1y",
+    ]);
+    expect(CHART_INTERVALS).toHaveLength(
+      MINUTE_CHART_INTERVALS.length + DAY_CHART_INTERVALS.length,
+    );
   });
 });
 
@@ -68,6 +106,63 @@ describe("aggregateCandles", () => {
       lowPrice: "90",
       closePrice: "115",
     });
+  });
+
+  it("aggregates 1m candles into clock-aligned 5m buckets", () => {
+    // 09:00–09:04 → one 5m bucket; 09:05 → the next.
+    const result = aggregateCandles(
+      [
+        candle("2026-06-19T09:00:00Z", { openPrice: "100", highPrice: "104", lowPrice: "99", closePrice: "101", volume: "10" }),
+        candle("2026-06-19T09:01:00Z", { openPrice: "101", highPrice: "106", lowPrice: "100", closePrice: "105", volume: "20" }),
+        candle("2026-06-19T09:04:00Z", { openPrice: "105", highPrice: "108", lowPrice: "97", closePrice: "103", volume: "30" }),
+        candle("2026-06-19T09:05:00Z", { openPrice: "103", highPrice: "109", lowPrice: "102", closePrice: "107", volume: "40" }),
+      ],
+      "5m",
+    );
+
+    expect(result).toHaveLength(2);
+    // First bucket [09:00, 09:05): open of first, close of last, high/low/volume merged.
+    expect(result[0]).toMatchObject({
+      openPrice: "100",
+      highPrice: "108",
+      lowPrice: "97",
+      closePrice: "103",
+      volume: "60",
+    });
+    // Second bucket starts exactly on the 09:05 clock boundary.
+    expect(result[1].timestamp).toBe("2026-06-19T09:05:00.000Z");
+    expect(result[1]).toMatchObject({ openPrice: "103", closePrice: "107" });
+  });
+});
+
+describe("advisor candle window", () => {
+  it("scales source-bar counts to the interval, capped for large intervals", () => {
+    expect(sourceBarsPerChartBar("1m")).toBe(1);
+    expect(sourceBarsPerChartBar("10m")).toBe(10);
+    expect(sourceBarsPerChartBar("1w")).toBe(7);
+
+    // 1m: 200 bars × 1 source = 200; 10m: × 10 = 2000.
+    expect(advisorSourceCandleCount("1m")).toBe(ADVISOR_TARGET_BARS);
+    expect(advisorSourceCandleCount("10m")).toBe(ADVISOR_TARGET_BARS * 10);
+    // 240m would need 200×240 source candles → capped well below that.
+    expect(advisorSourceCandleCount("240m")).toBeLessThan(
+      ADVISOR_TARGET_BARS * 240,
+    );
+  });
+
+  it("aggregates a source window and keeps at most ADVISOR_TARGET_BARS bars", () => {
+    // 600 one-minute candles → 120 five-minute bars (under the cap, kept whole).
+    const source = Array.from({ length: 600 }, (_, i) =>
+      candle(new Date(Date.parse("2026-06-19T00:00:00Z") + i * 60_000).toISOString()),
+    );
+    const bars = aggregateForAdvisor(source, "5m");
+    expect(bars).toHaveLength(120);
+
+    // 1m: 1:1, sliced to the most recent ADVISOR_TARGET_BARS.
+    const minutes = Array.from({ length: ADVISOR_TARGET_BARS + 50 }, (_, i) =>
+      candle(new Date(Date.parse("2026-06-19T00:00:00Z") + i * 60_000).toISOString()),
+    );
+    expect(aggregateForAdvisor(minutes, "1m")).toHaveLength(ADVISOR_TARGET_BARS);
   });
 });
 

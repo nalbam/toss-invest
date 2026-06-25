@@ -363,24 +363,35 @@ export function useCandles(
 }
 
 /**
- * One-off fetch of an older candle page for "load earlier" pagination (not SWR,
- * since it accumulates on demand rather than polling). `before` is the
- * time-descending cursor — a candle timestamp; the response is the cache-backed
- * page `{ candles, nextBefore }`. Throws `ApiClientError` on failure.
+ * One-off fetch of a cache-backed candle page (not SWR — used for on-demand
+ * pagination/backfill rather than polling). `before` is the time-descending
+ * cursor (a candle timestamp); omit it for the latest page. Throws
+ * `ApiClientError` on failure.
  */
+export function fetchCandlePage(
+  symbol: string,
+  interval: TossCandleInterval,
+  options: { before?: string; count?: number } = {},
+): Promise<CandlePageResponse> {
+  const params = new URLSearchParams({
+    symbol,
+    interval,
+    count: String(options.count ?? 200),
+  });
+  if (options.before !== undefined) {
+    params.set("before", options.before);
+  }
+  return fetcher<CandlePageResponse>(`/api/candles?${params.toString()}`);
+}
+
+/** Older-page fetch for the chart's "load earlier" scroll pagination. */
 export function fetchOlderCandles(
   symbol: string,
   interval: TossCandleInterval,
   before: string,
   count = 200,
 ): Promise<CandlePageResponse> {
-  const params = new URLSearchParams({
-    symbol,
-    interval,
-    before,
-    count: String(count),
-  });
-  return fetcher<CandlePageResponse>(`/api/candles?${params.toString()}`);
+  return fetchCandlePage(symbol, interval, { before, count });
 }
 
 /** SWR key for a symbol/interval advice history; exported so callers can revalidate it. */

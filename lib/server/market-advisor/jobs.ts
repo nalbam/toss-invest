@@ -1,7 +1,10 @@
 import "server-only";
-import { aggregateCandles, sourceInterval, type ChartInterval } from "@/lib/client/candles";
+import { sourceInterval, type ChartInterval } from "@/lib/client/candles";
 import { summarizeTrend, type TrendSummary } from "@/lib/client/indicators";
-import { getCandlesCached } from "@/lib/server/candles/service";
+import {
+  collectAdvisorCandles,
+  getCandlesCached,
+} from "@/lib/server/candles/service";
 import type { LlmProvider } from "@/lib/server/llm/types";
 import type { ServerTossClient } from "@/lib/server/toss/container";
 import { recordMarketAdvice } from "./history";
@@ -64,11 +67,10 @@ export async function runAdvisorJobsOnce(
   for (const item of due) {
     try {
       const interval = item.interval as ChartInterval;
-      const page = await getCandlesCached(
-        { symbol: item.symbol, interval: sourceInterval(interval) },
-        { client: deps.client, now: () => now },
-      );
-      const candles = aggregateCandles(page.candles, interval).slice(-300);
+      const candles = await collectAdvisorCandles(item.symbol, interval, {
+        client: deps.client,
+        now: () => now,
+      });
       const latest = latestCandleTimestamp({ candles });
       if (latest === item.lastChartTimestamp) {
         // No new candle since the last analysis (e.g. market closed) — skip the

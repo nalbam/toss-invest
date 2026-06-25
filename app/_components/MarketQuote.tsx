@@ -15,6 +15,9 @@ import {
   aggregateCandles,
   CHART_INTERVALS,
   combineCandlePages,
+  DAY_CHART_INTERVALS,
+  isMinuteInterval,
+  MINUTE_CHART_INTERVALS,
   sourceInterval,
   type ChartInterval,
 } from "@/lib/client/candles";
@@ -313,7 +316,22 @@ export function MarketQuote({
 
       <div className={`${page.controls} ${styles.chartControls}`}>
         <span className={page.controlLabel}>차트</span>
-        {CHART_INTERVALS.map((item) => (
+        <select
+          className={`${page.select} ${isMinuteInterval(interval) ? styles.activeControl : ""}`}
+          aria-label="분봉 단위"
+          value={isMinuteInterval(interval) ? interval : ""}
+          onChange={(event) => setInterval(event.target.value as ChartInterval)}
+        >
+          <option value="" disabled>
+            분
+          </option>
+          {MINUTE_CHART_INTERVALS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+        {DAY_CHART_INTERVALS.map((item) => (
           <button
             key={item.value}
             type="button"

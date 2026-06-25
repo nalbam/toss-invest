@@ -4,7 +4,11 @@ import { initSchema } from "@/lib/server/db/sqlite";
 import type { CandlePageResponse } from "@/lib/server/toss/schemas";
 import type { GetCandlesParams } from "@/lib/server/toss/endpoints";
 import { putConfirmedCandles, readCachedCandles } from "./cache";
-import { getCandlesCached, type CandleFetcher } from "./service";
+import {
+  collectAdvisorCandles,
+  getCandlesCached,
+  type CandleFetcher,
+} from "./service";
 
 function makeDb() {
   const db = new Database(":memory:");
@@ -136,5 +140,36 @@ describe("getCandlesCached", () => {
     );
 
     expect(client.calls).toHaveLength(1); // 1 cached < count 2 → fetch
+  });
+});
+
+describe("collectAdvisorCandles", () => {
+  it("paginates source candles across pages and aggregates for the interval", async () => {
+    const db = makeDb();
+    const base = Date.parse("2026-06-19T00:00:00Z");
+    const after = () => base + 700 * 60_000; // all candles confirmed
+    // 600 one-minute candles, served newest-first in 3 pages of 200 (like Toss).
+    const minutes = Array.from({ length: 600 }, (_, i) =>
+      candle(new Date(base + i * 60_000).toISOString()),
+    );
+    const desc = [...minutes].reverse();
+    const client = stubClient([
+      { candles: desc.slice(0, 200), nextBefore: desc[199].timestamp },
+      { candles: desc.slice(200, 400), nextBefore: desc[399].timestamp },
+      { candles: desc.slice(400, 600), nextBefore: null },
+    ]);
+
+    const bars = await collectAdvisorCandles("005930", "5m", {
+      client,
+      db,
+      now: after,
+    });
+
+    // Three fetches gathered 600 source candles → 120 five-minute bars, ascending.
+    expect(client.calls).toHaveLength(3);
+    expect(bars).toHaveLength(120);
+    expect(Date.parse(bars[0].timestamp)).toBeLessThan(
+      Date.parse(bars[bars.length - 1].timestamp),
+    );
   });
 });

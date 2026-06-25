@@ -5,28 +5,112 @@ export type TossCandleInterval = "1m" | "1d";
 
 export type ChartInterval =
   | "1m"
+  | "3m"
+  | "5m"
+  | "10m"
+  | "30m"
+  | "60m"
+  | "120m"
+  | "240m"
   | "1d"
   | "1w"
   | "1mo"
   | "1y";
 
-export const CHART_INTERVALS: ReadonlyArray<{
+/** Minute granularities, shown as a select box (분봉 단위). */
+export const MINUTE_CHART_INTERVALS: ReadonlyArray<{
   value: ChartInterval;
   label: string;
 }> = [
-  { value: "1m", label: "분" },
+  { value: "1m", label: "1분" },
+  { value: "3m", label: "3분" },
+  { value: "5m", label: "5분" },
+  { value: "10m", label: "10분" },
+  { value: "30m", label: "30분" },
+  { value: "60m", label: "60분" },
+  { value: "120m", label: "120분" },
+  { value: "240m", label: "240분" },
+];
+
+/** Day-and-longer intervals, shown as buttons beside the minute select. */
+export const DAY_CHART_INTERVALS: ReadonlyArray<{
+  value: ChartInterval;
+  label: string;
+}> = [
   { value: "1d", label: "일" },
   { value: "1w", label: "주" },
   { value: "1mo", label: "월" },
   { value: "1y", label: "년" },
 ];
 
+/** Every selectable interval — canonical list for validation and label lookup. */
+export const CHART_INTERVALS: ReadonlyArray<{
+  value: ChartInterval;
+  label: string;
+}> = [...MINUTE_CHART_INTERVALS, ...DAY_CHART_INTERVALS];
+
+/** Minute-bucket size per minute interval; all source from Toss 1m candles. */
 const MINUTE_INTERVALS: Partial<Record<ChartInterval, number>> = {
   "1m": 1,
+  "3m": 3,
+  "5m": 5,
+  "10m": 10,
+  "30m": 30,
+  "60m": 60,
+  "120m": 120,
+  "240m": 240,
 };
+
+/** Whether an interval is a minute granularity (vs day/week/month/year). */
+export function isMinuteInterval(interval: ChartInterval): boolean {
+  return interval in MINUTE_INTERVALS;
+}
 
 export function sourceInterval(interval: ChartInterval): TossCandleInterval {
   return interval in MINUTE_INTERVALS ? "1m" : "1d";
+}
+
+/** Toss source bars (1m for minutes, 1d for day+) that make up one bar of `interval`. */
+const DAY_SOURCE_BARS: Partial<Record<ChartInterval, number>> = {
+  "1d": 1,
+  "1w": 7,
+  "1mo": 31,
+  "1y": 366,
+};
+export function sourceBarsPerChartBar(interval: ChartInterval): number {
+  return MINUTE_INTERVALS[interval] ?? DAY_SOURCE_BARS[interval] ?? 1;
+}
+
+/** Aggregated bars the chart AI advisor analyzes (and the cap it slices to). */
+export const ADVISOR_TARGET_BARS = 200;
+// Cap source backfill so large minute intervals (60m+) and yearly charts don't
+// trigger an unbounded fetch — at most this many Toss pages (200 each).
+const ADVISOR_MAX_SOURCE_CANDLES = 12 * 200;
+
+/**
+ * How many Toss source candles to collect so aggregation yields about
+ * `ADVISOR_TARGET_BARS` bars for `interval` — e.g. ~2000 one-minute candles for a
+ * 10m chart, vs the single visible page. Bounded by `ADVISOR_MAX_SOURCE_CANDLES`.
+ */
+export function advisorSourceCandleCount(interval: ChartInterval): number {
+  return Math.min(
+    ADVISOR_TARGET_BARS * sourceBarsPerChartBar(interval),
+    ADVISOR_MAX_SOURCE_CANDLES,
+  );
+}
+
+/**
+ * Aggregates collected source candles for `interval` and keeps the most recent
+ * `ADVISOR_TARGET_BARS` bars — the candle window sent to the chart AI advisor.
+ * Shared by the on-demand (client) and background-worker (server) advisor paths.
+ */
+export function aggregateForAdvisor(
+  sourceCandles: Candle[],
+  interval: ChartInterval,
+): Candle[] {
+  return aggregateCandles(combineCandlePages(sourceCandles), interval).slice(
+    -ADVISOR_TARGET_BARS,
+  );
 }
 
 /**
@@ -78,19 +162,17 @@ export function aggregateCandles(
 }
 
 function aggregateMinuteCandles(candles: Candle[], minuteSize: number): Candle[] {
-  const sorted = [...candles]
-    .map((candle) => ({ candle, ms: Date.parse(candle.timestamp) }))
-    .filter((item) => !Number.isNaN(item.ms))
-    .sort((a, b) => a.ms - b.ms);
-  const first = sorted[0];
-  if (first === undefined) {
-    return [];
-  }
-
   const bucketMs = minuteSize * 60_000;
   const bucketed = new Map<number, Candle[]>();
-  for (const { candle, ms } of sorted) {
-    const bucket = first.ms + Math.floor((ms - first.ms) / bucketMs) * bucketMs;
+  for (const candle of candles) {
+    const ms = Date.parse(candle.timestamp);
+    if (Number.isNaN(ms)) {
+      continue;
+    }
+    // Clock-aligned buckets (UTC epoch), so e.g. 5m candles fall on :00/:05/:10
+    // rather than drifting from the first sample. Whole-hour market offsets (KST
+    // +9, US -5/-4) keep these aligned to local minute marks too.
+    const bucket = Math.floor(ms / bucketMs) * bucketMs;
     const group = bucketed.get(bucket) ?? [];
     group.push(candle);
     bucketed.set(bucket, group);

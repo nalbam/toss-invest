@@ -2,7 +2,12 @@
 
 import { useCallback, useState, type ComponentProps } from "react";
 import { useSWRConfig } from "swr";
-import { fetchMarketAdvisor, type MarketAdvisorInput } from "@/lib/client/market-advisor";
+import {
+  fetchMarketAdvisor,
+  loadAdvisorCandles,
+  type MarketAdvisorInput,
+} from "@/lib/client/market-advisor";
+import type { ChartInterval } from "@/lib/client/candles";
 import {
   ApiClientError,
   marketAdvisorHistoryKey,
@@ -60,7 +65,13 @@ export function MarketAiAdvisor({
   const run = useCallback(async () => {
     setRunState({ status: "loading" });
     try {
-      await fetchMarketAdvisor(input); // persists to the advice history
+      // Pull an interval-appropriate candle window (not just the visible page) so
+      // e.g. a 10m chart is analyzed on enough ten-minute bars, then persist.
+      const candles = await loadAdvisorCandles(
+        input.symbol,
+        input.interval as ChartInterval,
+      );
+      await fetchMarketAdvisor({ ...input, candles });
       await mutate(marketAdvisorHistoryKey(input.symbol, input.interval));
       setRunState({ status: "idle" });
     } catch (error) {

@@ -1,5 +1,11 @@
+import {
+  advisorSourceCandleCount,
+  aggregateForAdvisor,
+  sourceInterval,
+  type ChartInterval,
+} from "./candles";
 import { isErrorEnvelope, isSuccessEnvelope } from "./envelope";
-import { ApiClientError } from "./hooks";
+import { ApiClientError, fetchCandlePage } from "./hooks";
 import type { TrendSummary } from "./indicators";
 import type { Candle, Currency } from "./types";
 
@@ -103,4 +109,34 @@ export async function fetchMarketAdvisor(
     });
   }
   return body.data;
+}
+
+/**
+ * Loads an interval-appropriate candle window for the chart advisor, independent
+ * of how far the chart is scrolled: a 10m chart needs ~10× more 1m source candles
+ * than its visible page to yield enough ten-minute bars for analysis. Paginates
+ * the cache-backed `/api/candles` (latest + older via `before`) until it has
+ * `advisorSourceCandleCount(interval)` source candles (or runs out), then
+ * aggregates and keeps the most recent `ADVISOR_TARGET_BARS` bars.
+ */
+export async function loadAdvisorCandles(
+  symbol: string,
+  interval: ChartInterval,
+): Promise<Candle[]> {
+  const source = sourceInterval(interval);
+  const desired = advisorSourceCandleCount(interval);
+  const collected: Candle[] = [];
+  let before: string | undefined;
+  while (collected.length < desired) {
+    const page = await fetchCandlePage(symbol, source, { before, count: 200 });
+    if (page.candles.length === 0) {
+      break;
+    }
+    collected.push(...page.candles);
+    if (page.nextBefore === null) {
+      break;
+    }
+    before = page.nextBefore;
+  }
+  return aggregateForAdvisor(collected, interval);
 }
