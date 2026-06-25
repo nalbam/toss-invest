@@ -786,7 +786,7 @@ export function OrderForm({
               </span>
               <span>
                 <span className={styles.metricLabel}>예상 체결금액</span>
-                <strong data-private-value="true">
+                <strong>
                   <Money
                     value={estimated !== null ? formatPrice(estimated, currency) : "-"}
                   />
@@ -815,10 +815,7 @@ export function OrderForm({
                   >
                     현재가 판매
                     {estimated !== null ? (
-                      <span
-                        className={styles.quickBtnAmount}
-                        data-private-value="true"
-                      >
+                      <span className={styles.quickBtnAmount}>
                         <Money value={formatPrice(estimated, currency)} />
                       </span>
                     ) : null}
@@ -835,10 +832,7 @@ export function OrderForm({
                   >
                     현재가 구매
                     {estimated !== null ? (
-                      <span
-                        className={styles.quickBtnAmount}
-                        data-private-value="true"
-                      >
+                      <span className={styles.quickBtnAmount}>
                         <Money value={formatPrice(estimated, currency)} />
                       </span>
                     ) : null}
