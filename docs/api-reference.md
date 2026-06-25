@@ -23,7 +23,7 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 | 종목 STOCK | `GET /api/v1/stocks` `/api/v1/stocks/{symbol}/warnings` | 종목 마스터·투자경고 | 5/s |
 | 시장정보 MARKET_INFO | `GET /api/v1/exchange-rate` `/market-calendar/KR` `/market-calendar/US` | 환율·장 운영 캘린더 | 3/s |
 | 주문 ORDER | `POST /api/v1/orders` `/orders/{id}/modify` `/orders/{id}/cancel` | 생성·정정·취소 (지정가/시장가, 금액/수량 기반) | 6/s (09:00–09:10 KST 3/s) |
-| 주문조회 ORDER_HISTORY | `GET /api/v1/orders` `/orders/{orderId}` | 주문 목록·상세·체결 | 5/s |
+| 주문조회 ORDER_HISTORY | `GET /api/v1/orders`(필수 `status` OPEN/CLOSED) `/orders/{orderId}` | 주문 목록(대기/종료)·상세·체결 | 5/s |
 | 주문정보 ORDER_INFO | `GET /api/v1/buying-power` `/sellable-quantity` `/commissions` | 매수가능금액·매도가능수량·수수료 | 6/s (피크 3/s) |
 
 ## 필수 동작 규칙

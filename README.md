@@ -9,7 +9,7 @@
 ## 기능
 
 - **읽기 대시보드** — 포트폴리오 요약·구성(도넛)·종목별 손익, 보유종목, 환율(FX), 주문내역,
-  시세(현재가·상하한가·호가·호가 뎁스·체결 추이·캔들 차트[분/일/주/월/년 인터벌·거래량·이동평균·상하한가 기준선·주문 체결 마커]).
+  시세(현재가·상하한가·호가·호가 뎁스·체결 추이·캔들 차트[분/일/주/월/년 인터벌·과거 데이터 이어보기·거래량·이동평균·상하한가 기준선·주문 체결 마커]).
 - **수동 거래** — 주문 생성/정정/취소. 기본은 dry-run 미리보기, 주문 단위 사용자 확인(confirm) 시에만 전송.
 - **제한적 자동거래** — SELL-only 전략 intent 순수 계층 + 결정적 백테스트 + 게이트된 auto-executor.
   `AUTO_TRADE_ENABLED` 기본 false.
@@ -95,7 +95,8 @@ lib/
     advisor/           # 포트폴리오 어드바이저: 스냅샷 마스킹 · 프롬프트 · 검증 · 히스토리
     market-advisor/    # 차트 어드바이저 + watchlist · jobs · worker(백그라운드)
     llm/               # provider 추상화 (openai · xai · chat-completions · container)
-    db/                # SQLite(better-sqlite3) sqlite.ts: market_advice · portfolio_advice · advisor_watchlist · favorites · stock_directory
+    db/                # SQLite(better-sqlite3) sqlite.ts: market_advice · portfolio_advice · advisor_watchlist · favorites · stock_directory · candle_cache
+    candles/           # 캔들 캐시: 확정 캔들 SQLite 저장/조회 + 캐시 백드 페치(미확정은 Toss)
     favorites/         # 즐겨찾기 스토어
     stocks/            # 종목 이름검색 디렉터리
     api/               # respond 헬퍼 ({data}/sanitized error)

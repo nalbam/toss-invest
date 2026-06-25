@@ -3,7 +3,7 @@
 ## 현재 상태
 
 - **Phase 1·2·3 전체 완료** → 자가 개선 루프 종료([development.md](development.md)).
-- 루프(#18) 이후 사람 주도 UI 개선(시세 그래프 확장·포트폴리오 구성 도넛·종목별 손익 막대·즐겨찾기·종목 검색 등)과 Phase 4 AI 어드바이저 통합. 현 시점 **59 파일 603 tests**, lint·typecheck·test·build green.
+- 루프(#18) 이후 사람 주도 UI 개선(시세 그래프 확장·포트폴리오 구성 도넛·종목별 손익 막대·즐겨찾기·종목 검색 등)과 Phase 4 AI 어드바이저 통합. 현 시점 **61 파일 628 tests**, lint·typecheck·test·build green.
 - **Phase 4(AI 어드바이저) 완료** — Provider 추상화·오케스트레이션·UI 카드·시장 어드바이저·prefill→§6 게이트.
 
 ## Phase 로드맵 + 종료 조건
