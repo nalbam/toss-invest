@@ -3,12 +3,37 @@ import Database from "better-sqlite3";
 import { initSchema } from "@/lib/server/db/sqlite";
 import type { CandlePageResponse } from "@/lib/server/toss/schemas";
 import type { GetCandlesParams } from "@/lib/server/toss/endpoints";
-import { putConfirmedCandles, readCachedCandles } from "./cache";
+import {
+  parseTimestampMs,
+  putConfirmedCandles,
+  readCachedCandles,
+} from "./cache";
 import {
   collectAdvisorCandles,
   getCandlesCached,
   type CandleFetcher,
 } from "./service";
+
+/** A Toss stub that pages back through `all` (ascending) honoring `before`, like
+ *  the real endpoint (newest-first, max 200/page). Counts every upstream call. */
+function pagedClient(
+  all: ReturnType<typeof candle>[],
+): CandleFetcher & { count: number } {
+  const state = {
+    count: 0,
+    async getCandles(params: GetCandlesParams): Promise<CandlePageResponse> {
+      state.count += 1;
+      const size = params.count ?? 200;
+      const cutoff =
+        params.before === undefined ? Infinity : parseTimestampMs(params.before);
+      const older = all.filter((c) => parseTimestampMs(c.timestamp) < cutoff);
+      const page = older.slice(-size).reverse();
+      const nextBefore = older.length > size ? page[page.length - 1].timestamp : null;
+      return { candles: page, nextBefore };
+    },
+  };
+  return state;
+}
 
 function makeDb() {
   const db = new Database(":memory:");
@@ -171,5 +196,25 @@ describe("collectAdvisorCandles", () => {
     expect(Date.parse(bars[0].timestamp)).toBeLessThan(
       Date.parse(bars[bars.length - 1].timestamp),
     );
+  });
+
+  it("reuses the DB cache: a warm re-run hits Toss only for the latest page", async () => {
+    const db = makeDb();
+    const base = Date.parse("2026-06-19T00:00:00Z");
+    const all = Array.from({ length: 2000 }, (_, i) =>
+      candle(new Date(base + i * 60_000).toISOString()),
+    );
+    const nowAfter = () => base + 5000 * 60_000; // every candle confirmed
+    const client = pagedClient(all);
+
+    // Cold run backfills the cache: 2000 source / 200 per page = 10 Toss calls.
+    await collectAdvisorCandles("005930", "10m", { client, db, now: nowAfter });
+    expect(client.count).toBe(10);
+
+    // Warm re-run: only the latest (forming) page comes from Toss; the other
+    // ~1800 confirmed candles (9 pages) are served from the local DB.
+    client.count = 0;
+    await collectAdvisorCandles("005930", "10m", { client, db, now: nowAfter });
+    expect(client.count).toBe(1);
   });
 });
