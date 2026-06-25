@@ -18,6 +18,7 @@ const setMarkers = vi.fn();
 const detachMarkers = vi.fn();
 const createSeriesMarkers = vi.fn(() => ({ setMarkers, detach: detachMarkers }));
 const fitContent = vi.fn();
+const setVisibleLogicalRange = vi.fn();
 const priceScale = vi.fn(() => ({ applyOptions }));
 const timeToCoordinate = vi.fn<(_time: unknown) => number>(() => 120);
 // The chart registers multiple visible-range subscribers (advice-line repaint +
@@ -52,6 +53,7 @@ const createChart = vi.fn(() => ({
   priceScale: () => ({ width: () => 0 }),
   timeScale: () => ({
     fitContent,
+    setVisibleLogicalRange,
     timeToCoordinate,
     options: () => ({ barSpacing: 6 }),
     subscribeVisibleLogicalRangeChange,
@@ -662,5 +664,33 @@ describe("CandleChart", () => {
       />,
     );
     expect(fitContent).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves the chosen visible bar count (zoom) across a dataset switch", () => {
+    const { rerender } = render(
+      <CandleChart
+        candles={[candle({ timestamp: "2026-03-25T09:00:00+09:00" })]}
+        fitKey="005930:1d"
+      />,
+    );
+    expect(fitContent).toHaveBeenCalledTimes(1); // first mount fits
+
+    // User zooms/scrolls so 50 bars are visible.
+    fireVisibleLogicalRange({ from: 150, to: 200 });
+
+    // Switch interval: restore the same 50-bar span anchored to the latest bar
+    // (to = total) instead of re-fitting to the new dataset's bar count.
+    rerender(
+      <CandleChart
+        candles={[
+          candle({ timestamp: "2026-03-24T09:00:00+09:00" }),
+          candle({ timestamp: "2026-03-25T09:00:00+09:00" }),
+          candle({ timestamp: "2026-03-26T09:00:00+09:00" }),
+        ]}
+        fitKey="005930:1w"
+      />,
+    );
+    expect(fitContent).toHaveBeenCalledTimes(1); // not re-fit
+    expect(setVisibleLogicalRange).toHaveBeenCalledWith({ from: 3 - 50, to: 3 });
   });
 });

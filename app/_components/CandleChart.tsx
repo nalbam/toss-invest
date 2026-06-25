@@ -431,6 +431,11 @@ export function CandleChart({
   onReachStartRef.current = onReachStart;
   // Dataset identity the chart last fit to; fitContent runs only when it changes.
   const fitKeyRef = useRef<string | undefined>(undefined);
+  // Visible bar count (logical-range span) the user last viewed. Restored on a
+  // dataset switch so the horizontal zoom — how many bars are shown — stays
+  // constant across symbol/interval changes instead of re-fitting to a different
+  // bar count per dataset.
+  const visibleBarSpanRef = useRef<number | null>(null);
 
   const renderAdviceLines = useCallback(() => {
     const chart = chartRef.current;
@@ -614,12 +619,22 @@ export function CandleChart({
     maRefs.current.forEach((ma, index) => {
       ma.setData(movingAverage(chartSeries, maPeriods[index] ?? 0));
     });
-    // Fit all content only on a new dataset (symbol/interval change). On
-    // same-key updates — older pages prepended or live ticks — keep the current
-    // view so the scroll position holds and older-loading doesn't loop. With no
-    // fitKey, always fit (legacy behaviour for other CandleChart callers).
+    // On a new dataset (symbol/interval change) keep the horizontal zoom the
+    // user chose: restore the same visible bar count, anchored to the latest
+    // bar, instead of fitContent — which would show a different number of bars
+    // per dataset. Fall back to fitContent before any view is recorded (first
+    // mount) or with no fitKey (legacy callers). On same-key updates — older
+    // pages prepended or live ticks — keep the current view so the scroll
+    // position holds and older-loading doesn't loop.
     if (fitKey === undefined || fitKeyRef.current !== fitKey) {
-      chartRef.current?.timeScale().fitContent();
+      const timeScale = chartRef.current?.timeScale();
+      const span = visibleBarSpanRef.current;
+      const total = chartSeries.length;
+      if (timeScale != null && span != null && span > 0 && total > 0) {
+        timeScale.setVisibleLogicalRange({ from: total - span, to: total });
+      } else {
+        timeScale?.fitContent();
+      }
       fitKeyRef.current = fitKey;
     }
     renderAdviceLines();
@@ -694,7 +709,12 @@ export function CandleChart({
     }
     const timeScale = chart.timeScale();
     const handler = (range: { from: number; to: number } | null) => {
-      if (range != null && range.from < LOAD_OLDER_THRESHOLD_BARS) {
+      if (range == null) {
+        return;
+      }
+      // Remember how many bars are shown so a dataset switch can restore it.
+      visibleBarSpanRef.current = range.to - range.from;
+      if (range.from < LOAD_OLDER_THRESHOLD_BARS) {
         onReachStartRef.current?.();
       }
     };
