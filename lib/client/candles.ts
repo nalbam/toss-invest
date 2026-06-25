@@ -83,20 +83,18 @@ export function sourceBarsPerChartBar(interval: ChartInterval): number {
 
 /** Aggregated bars the chart AI advisor analyzes (and the cap it slices to). */
 export const ADVISOR_TARGET_BARS = 200;
-// Cap source backfill so large minute intervals (60m+) and yearly charts don't
-// trigger an unbounded fetch — at most this many Toss pages (200 each).
-const ADVISOR_MAX_SOURCE_CANDLES = 12 * 200;
 
 /**
- * How many Toss source candles to collect so aggregation yields about
- * `ADVISOR_TARGET_BARS` bars for `interval` — e.g. ~2000 one-minute candles for a
- * 10m chart, vs the single visible page. Bounded by `ADVISOR_MAX_SOURCE_CANDLES`.
+ * How many Toss source candles to collect so aggregation yields up to
+ * `ADVISOR_TARGET_BARS` bars for `interval` — scaling with the interval so each
+ * selectable granularity reaches the full window: ~2000 one-minute candles for a
+ * 10m chart, ~12000 for a 60m chart, ~48000 for a 240m chart. The actual fetch is
+ * bounded by how far Toss history goes — the paginating loop stops when
+ * `nextBefore` runs out, so larger intervals simply yield fewer bars when the
+ * source history is shallow.
  */
 export function advisorSourceCandleCount(interval: ChartInterval): number {
-  return Math.min(
-    ADVISOR_TARGET_BARS * sourceBarsPerChartBar(interval),
-    ADVISOR_MAX_SOURCE_CANDLES,
-  );
+  return ADVISOR_TARGET_BARS * sourceBarsPerChartBar(interval);
 }
 
 /**

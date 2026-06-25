@@ -189,6 +189,9 @@ export function MarketAiAdvisor({
             <p className={styles.advisorAdvice}>{latest.advice}</p>
             <p className={styles.advisorTimestamp}>
               조언 일시: {formatAdviceTime(latest.generatedAt)}
+              {latest.candleCount != null
+                ? ` · 분석 ${latest.candleCount}봉`
+                : ""}
             </p>
           </div>
         ) : null}

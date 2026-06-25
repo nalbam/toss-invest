@@ -406,6 +406,36 @@ describe("CandleChart", () => {
     expect(line).toHaveStyle({ left: "120px" });
   });
 
+  it("draws an analysis-range band for the latest advice over its analyzed span", () => {
+    // Distinct coordinate per time so the band has positive width.
+    timeToCoordinate.mockImplementation((t: unknown) => Number(t) / 1_000_000);
+    const { container } = render(
+      <CandleChart
+        candles={[
+          candle({ timestamp: "2026-03-25T09:00:00+09:00" }),
+          candle({ timestamp: "2026-03-25T09:10:00+09:00" }),
+        ]}
+        advisorEvents={[
+          {
+            symbol: "005930",
+            interval: "10m",
+            generatedAt: "2026-03-25T09:10:00+09:00",
+            chartTimestamp: "2026-03-25T09:10:00+09:00",
+            chartFrom: "2026-03-25T09:00:00+09:00",
+            candleCount: 200,
+            decision: { action: "wait", label: "관망", reason: "추세" },
+            advice: "관망",
+            cachedAt: "2026-03-25T09:10:00+09:00",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      container.querySelector("[title='분석 구간 (200봉)']"),
+    ).not.toBeNull();
+  });
+
   it("repositions advisor lines when the chart visible range changes", () => {
     const { container } = render(
       <CandleChart

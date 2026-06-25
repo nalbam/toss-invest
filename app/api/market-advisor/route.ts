@@ -47,6 +47,8 @@ export async function POST(request: Request): Promise<Response> {
       interval: parsed.data.interval,
       generatedAt,
       chartTimestamp: latestCandleTimestamp(parsed.data),
+      chartFrom: parsed.data.candles[0]?.timestamp ?? null,
+      candleCount: parsed.data.candles.length,
       lastPrice: parsed.data.lastPrice,
       decision: result.decision,
       advice: result.advice,

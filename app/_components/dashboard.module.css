@@ -728,6 +728,17 @@
   pointer-events: auto;
 }
 
+/* Thin bar marking the candle span the latest advice analyzed. */
+.chartAnalysisRange {
+  position: absolute;
+  top: 1px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--advice-line-color);
+  opacity: 0.35;
+  pointer-events: auto;
+}
+
 .favoriteStar {
   background: none;
   border: none;

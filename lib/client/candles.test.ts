@@ -136,7 +136,7 @@ describe("aggregateCandles", () => {
 });
 
 describe("advisor candle window", () => {
-  it("scales source-bar counts to the interval, capped for large intervals", () => {
+  it("scales source-bar counts fully to the interval so each reaches the target", () => {
     expect(sourceBarsPerChartBar("1m")).toBe(1);
     expect(sourceBarsPerChartBar("10m")).toBe(10);
     expect(sourceBarsPerChartBar("1w")).toBe(7);
@@ -144,10 +144,9 @@ describe("advisor candle window", () => {
     // 1m: 200 bars × 1 source = 200; 10m: × 10 = 2000.
     expect(advisorSourceCandleCount("1m")).toBe(ADVISOR_TARGET_BARS);
     expect(advisorSourceCandleCount("10m")).toBe(ADVISOR_TARGET_BARS * 10);
-    // 240m would need 200×240 source candles → capped well below that.
-    expect(advisorSourceCandleCount("240m")).toBeLessThan(
-      ADVISOR_TARGET_BARS * 240,
-    );
+    // 60m doubles to 120m to 240m: each scales to a full 200-bar source window.
+    expect(advisorSourceCandleCount("60m")).toBe(ADVISOR_TARGET_BARS * 60);
+    expect(advisorSourceCandleCount("240m")).toBe(ADVISOR_TARGET_BARS * 240);
   });
 
   it("aggregates a source window and keeps at most ADVISOR_TARGET_BARS bars", () => {

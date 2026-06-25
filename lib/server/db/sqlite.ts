@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS market_advice (
   interval TEXT NOT NULL,
   generated_at TEXT NOT NULL,
   chart_timestamp TEXT,
+  chart_from TEXT,
+  candle_count INTEGER,
   last_price TEXT,
   decision_action TEXT NOT NULL,
   decision_label TEXT NOT NULL,
@@ -118,6 +120,17 @@ function migrate(db: Database.Database): void {
     db.exec(
       "ALTER TABLE candle_cache ADD COLUMN currency TEXT NOT NULL DEFAULT 'KRW'",
     );
+  }
+
+  // market_advice gained the analyzed-window columns after first ship.
+  const adviceColumns = (
+    db.prepare("PRAGMA table_info(market_advice)").all() as { name: string }[]
+  ).map((column) => column.name);
+  if (!adviceColumns.includes("chart_from")) {
+    db.exec("ALTER TABLE market_advice ADD COLUMN chart_from TEXT");
+  }
+  if (!adviceColumns.includes("candle_count")) {
+    db.exec("ALTER TABLE market_advice ADD COLUMN candle_count INTEGER");
   }
 }
 

@@ -59,6 +59,25 @@ describe("market advice history", () => {
     expect(rows[0].lastPrice).toBeUndefined();
   });
 
+  it("round-trips the analyzed-window fields (candleCount, chartFrom)", () => {
+    const db = makeDb();
+    recordMarketAdvice(
+      { ...base, candleCount: 200, chartFrom: "2026-06-01T00:00:00+09:00" },
+      db,
+    );
+    const rows = readMarketAdviceHistory({ symbol: "005930", limit: 10 }, db);
+    expect(rows[0].candleCount).toBe(200);
+    expect(rows[0].chartFrom).toBe("2026-06-01T00:00:00+09:00");
+  });
+
+  it("stores null analyzed-window fields when absent", () => {
+    const db = makeDb();
+    recordMarketAdvice({ ...base }, db);
+    const rows = readMarketAdviceHistory({ symbol: "005930", limit: 10 }, db);
+    expect(rows[0].candleCount).toBeNull();
+    expect(rows[0].chartFrom).toBeNull();
+  });
+
   it("round-trips annotations and returns undefined when absent", () => {
     const db = makeDb();
     const annotations = {

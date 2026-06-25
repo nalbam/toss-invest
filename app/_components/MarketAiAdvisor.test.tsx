@@ -82,6 +82,8 @@ const event: MarketAdvisorHistoryEvent = {
   interval: "1d",
   generatedAt: "2026-06-19T12:00:00Z",
   chartTimestamp: "2026-06-19T12:00:00Z",
+  chartFrom: "2026-03-19T00:00:00Z",
+  candleCount: 200,
   lastPrice: "72000",
   decision: {
     action: "buy",
@@ -121,6 +123,8 @@ describe("MarketAiAdvisor", () => {
     expect(screen.getByText("매수 검토")).toBeInTheDocument();
     expect(screen.getByText(/완만히 개선/)).toBeInTheDocument();
     expect(screen.getByText(/조언 일시: 2026-06-19/)).toBeInTheDocument();
+    // The analyzed candle count is shown so the analysis window is verifiable.
+    expect(screen.getByText(/분석 200봉/)).toBeInTheDocument();
   });
 
   it("does not read advice from localStorage", () => {

@@ -35,6 +35,10 @@ export interface MarketAdvisorHistoryEvent {
   interval: string;
   generatedAt: string;
   chartTimestamp: string | null;
+  /** Oldest analyzed candle timestamp (analysis-range start). */
+  chartFrom?: string | null;
+  /** Number of candles the advisor analyzed. */
+  candleCount?: number | null;
   lastPrice?: string;
   decision: MarketAdvisorDecision;
   advice: string;

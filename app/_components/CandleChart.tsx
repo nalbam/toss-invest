@@ -454,6 +454,39 @@ export function CandleChart({
     // width (bar spacing), so it marks the time without crossing the candles.
     const barSpacing = chart.timeScale().options().barSpacing;
     const dotSize = Math.max(4, Math.min(barSpacing, 24));
+
+    // Analysis-range band for the latest advice: a thin bar at the top spanning
+    // the candles it actually analyzed (oldest → latest), so the run-time dot's
+    // recency isn't mistaken for the analyzed window. Drawn first (behind dots).
+    const latest = advisorEvents[0];
+    if (latest?.chartFrom != null && latest.chartTimestamp !== null) {
+      const fromSeconds = parseTimestampSeconds(latest.chartFrom);
+      const toSeconds = parseTimestampSeconds(latest.chartTimestamp);
+      if (fromSeconds !== null && toSeconds !== null) {
+        const x1 = chart
+          .timeScale()
+          .timeToCoordinate(Math.max(fromSeconds, range.min) as Time);
+        const x2 = chart
+          .timeScale()
+          .timeToCoordinate(Math.min(toSeconds, range.max) as Time);
+        if (x1 !== null && x2 !== null && x2 > x1) {
+          const band = document.createElement("span");
+          band.className = styles.chartAnalysisRange;
+          band.style.left = `${leftPad + x1}px`;
+          band.style.width = `${x2 - x1}px`;
+          band.style.setProperty(
+            "--advice-line-color",
+            decisionColor(latest.decision.action),
+          );
+          band.title =
+            latest.candleCount != null
+              ? `분석 구간 (${latest.candleCount}봉)`
+              : "분석 구간";
+          overlay.append(band);
+        }
+      }
+    }
+
     for (const event of advisorEvents) {
       const generatedSeconds = parseTimestampSeconds(event.generatedAt);
       const chartSeconds =

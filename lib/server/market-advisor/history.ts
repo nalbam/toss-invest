@@ -16,6 +16,10 @@ export interface MarketAdviceRecord {
   interval: string;
   generatedAt: string;
   chartTimestamp: string | null;
+  /** Oldest analyzed candle timestamp (analysis-range start). */
+  chartFrom?: string | null;
+  /** Number of candles the advisor analyzed. */
+  candleCount?: number;
   lastPrice?: string;
   decision: Decision;
   advice: string;
@@ -27,6 +31,8 @@ export interface MarketAdviceHistoryRecord {
   interval: string;
   generatedAt: string;
   chartTimestamp: string | null;
+  chartFrom: string | null;
+  candleCount: number | null;
   lastPrice?: string;
   decision: Decision;
   advice: string;
@@ -39,6 +45,8 @@ interface MarketAdviceRow {
   interval: string;
   generated_at: string;
   chart_timestamp: string | null;
+  chart_from: string | null;
+  candle_count: number | null;
   last_price: string | null;
   decision_action: string;
   decision_label: string;
@@ -66,6 +74,8 @@ function rowToHistory(row: MarketAdviceRow): MarketAdviceHistoryRecord {
     interval: row.interval,
     generatedAt: row.generated_at,
     chartTimestamp: row.chart_timestamp,
+    chartFrom: row.chart_from,
+    candleCount: row.candle_count,
     lastPrice: row.last_price ?? undefined,
     decision: {
       action: row.decision_action as Decision["action"],
@@ -85,14 +95,17 @@ export function recordMarketAdvice(
   try {
     db.prepare(
       `INSERT INTO market_advice
-        (symbol, interval, generated_at, chart_timestamp, last_price,
-         decision_action, decision_label, decision_reason, advice, annotations, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (symbol, interval, generated_at, chart_timestamp, chart_from, candle_count,
+         last_price, decision_action, decision_label, decision_reason, advice,
+         annotations, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       record.symbol,
       record.interval,
       record.generatedAt,
       record.chartTimestamp,
+      record.chartFrom ?? null,
+      record.candleCount ?? null,
       record.lastPrice ?? null,
       record.decision.action,
       record.decision.label,

@@ -112,6 +112,8 @@ export async function runAdvisorJobsOnce(
         interval: item.interval,
         generatedAt: new Date().toISOString(),
         chartTimestamp: latest,
+        chartFrom: candles[0]?.timestamp ?? null,
+        candleCount: candles.length,
         lastPrice,
         decision: result.decision,
         advice: result.advice,
