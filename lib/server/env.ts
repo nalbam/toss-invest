@@ -65,6 +65,9 @@ const envSchema = z.object({
   OPENAI_API_KEY: optionalConfigString,
   XAI_API_KEY: optionalConfigString,
   LLM_MODEL: optionalConfigString,
+  // Tavily news search (optional). Unset/blank => the market advisor runs
+  // chart-only (fail-open), never erroring. Server-only (lib/server/news/**).
+  TAVILY_API_KEY: optionalConfigString,
 });
 
 export type Env = z.infer<typeof envSchema>;

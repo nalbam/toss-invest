@@ -131,4 +131,12 @@ describe("parseEnv", () => {
   it("rejects an unknown LLM_PROVIDER", () => {
     expect(() => parseEnv({ ...validRaw, LLM_PROVIDER: "anthropic" })).toThrow();
   });
+
+  it("parses TAVILY_API_KEY when set and treats blank as unset", () => {
+    expect(parseEnv({ ...validRaw, TAVILY_API_KEY: "tvly-123" }).TAVILY_API_KEY).toBe(
+      "tvly-123",
+    );
+    expect(parseEnv(validRaw).TAVILY_API_KEY).toBeUndefined();
+    expect(parseEnv({ ...validRaw, TAVILY_API_KEY: "   " }).TAVILY_API_KEY).toBeUndefined();
+  });
 });

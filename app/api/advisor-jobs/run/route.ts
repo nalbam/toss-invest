@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleError, ok } from "@/lib/server/api/respond";
 import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
+import { getServerNewsSearch } from "@/lib/server/news/container";
 import { runAdvisorJobsOnce } from "@/lib/server/market-advisor/jobs";
 import { getServerTossClient } from "@/lib/server/toss/container";
 
@@ -33,6 +34,7 @@ export async function POST(request: Request): Promise<Response> {
     const summary = await runAdvisorJobsOnce({
       client: getServerTossClient(),
       provider: getServerLlmProvider(),
+      newsSearch: getServerNewsSearch() ?? undefined,
     });
     return ok(summary);
   } catch (error) {

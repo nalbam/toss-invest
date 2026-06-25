@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ChatRequest, LlmProvider } from "@/lib/server/llm/types";
+import type { NewsItem } from "@/lib/server/news/types";
 import { MarketAdvisorResponseError, runMarketAdvisor } from "./market-advisor";
 import type { MarketAdvisorRequest } from "./schema";
 
 const request: MarketAdvisorRequest = {
   symbol: "005930",
+  name: "삼성전자",
   interval: "1m",
   currency: "KRW",
   candles: [],
@@ -60,5 +62,29 @@ describe("runMarketAdvisor", () => {
     await expect(runMarketAdvisor({ provider, request })).rejects.toBeInstanceOf(
       MarketAdvisorResponseError,
     );
+  });
+
+  it("searches news by the symbol name and folds it into the prompt", async () => {
+    const { provider, calls } = stubProvider(validOutput);
+    const news: NewsItem[] = [
+      { title: "HBM 공급 계약", url: "https://news.example.com/1", content: "계약 체결" },
+    ];
+    const newsSearch = vi.fn(async () => news);
+    await runMarketAdvisor({ provider, request, newsSearch });
+
+    expect(newsSearch).toHaveBeenCalledWith({ query: "삼성전자" });
+    expect(calls[0].messages[1].content).toContain("최근 뉴스:");
+    expect(calls[0].messages[1].content).toContain("HBM 공급 계약");
+  });
+
+  it("falls back to chart-only analysis when the news search throws (best-effort)", async () => {
+    const { provider, calls } = stubProvider(validOutput);
+    const newsSearch = vi.fn(async () => {
+      throw new Error("tavily down");
+    });
+    const result = await runMarketAdvisor({ provider, request, newsSearch });
+
+    expect(result.decision.action).toBe("buy");
+    expect(calls[0].messages[1].content).not.toContain("최근 뉴스:");
   });
 });

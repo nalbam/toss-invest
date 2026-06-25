@@ -6,6 +6,7 @@ import {
   getCandlesCached,
 } from "@/lib/server/candles/service";
 import type { LlmProvider } from "@/lib/server/llm/types";
+import type { NewsSearch } from "@/lib/server/news/types";
 import type { ServerTossClient } from "@/lib/server/toss/container";
 import { recordMarketAdvice } from "./history";
 import { runMarketAdvisor } from "./market-advisor";
@@ -50,6 +51,8 @@ function isDue(item: WatchlistItem, now: number): boolean {
 export interface RunAdvisorJobsDeps {
   client: ServerTossClient;
   provider: LlmProvider;
+  /** Optional symbol-news search, folded into each analysis (best-effort). */
+  newsSearch?: NewsSearch;
 }
 
 export async function runAdvisorJobsOnce(
@@ -105,6 +108,7 @@ export async function runAdvisorJobsOnce(
           higherTimeframeTrend,
         },
         jsonSchema: marketAdvisorJsonSchema,
+        newsSearch: deps.newsSearch,
       });
 
       recordMarketAdvice({

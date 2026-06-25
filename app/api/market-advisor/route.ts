@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
 import { recordMarketAdvice } from "@/lib/server/market-advisor/history";
 import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
+import { getServerNewsSearch } from "@/lib/server/news/container";
 import {
   marketAdvisorJsonSchema,
   marketAdvisorRequestSchema,
@@ -40,6 +41,7 @@ export async function POST(request: Request): Promise<Response> {
       provider,
       request: parsed.data,
       jsonSchema: marketAdvisorJsonSchema,
+      newsSearch: getServerNewsSearch() ?? undefined,
     });
     const generatedAt = new Date().toISOString();
     void recordMarketAdvice({

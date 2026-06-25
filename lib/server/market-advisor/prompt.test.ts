@@ -142,4 +142,29 @@ describe("buildMarketAdvisorPrompt", () => {
     const user = buildMarketAdvisorPrompt(request)[1].content;
     expect(user).not.toContain("상위 추세");
   });
+
+  it("instructs the model to weigh news as auxiliary context in the system message", () => {
+    const system = buildMarketAdvisorPrompt(request)[0].content;
+    expect(system).toContain("최근 뉴스");
+  });
+
+  it("embeds a recent-news block when news is provided", () => {
+    const user = buildMarketAdvisorPrompt(request, [
+      {
+        title: "삼성전자 HBM 공급 계약",
+        url: "https://news.example.com/1",
+        content: "대형 고객사와 계약 체결",
+        publishedDate: "2026-06-20",
+      },
+    ])[1].content;
+    expect(user).toContain("최근 뉴스:");
+    expect(user).toContain("삼성전자 HBM 공급 계약");
+    expect(user).toContain("2026-06-20");
+    expect(user).toContain("대형 고객사와 계약 체결");
+  });
+
+  it("omits the news block when no news is provided or it is empty", () => {
+    expect(buildMarketAdvisorPrompt(request)[1].content).not.toContain("최근 뉴스:");
+    expect(buildMarketAdvisorPrompt(request, [])[1].content).not.toContain("최근 뉴스:");
+  });
 });

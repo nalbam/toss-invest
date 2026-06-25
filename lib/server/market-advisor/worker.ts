@@ -1,6 +1,7 @@
 import "server-only";
 import { checkpointWal } from "@/lib/server/db/sqlite";
 import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
+import { getServerNewsSearch } from "@/lib/server/news/container";
 import { getServerTossClient } from "@/lib/server/toss/container";
 import { runAdvisorJobsOnce } from "./jobs";
 
@@ -25,6 +26,7 @@ async function tick(): Promise<void> {
     const summary = await runAdvisorJobsOnce({
       client: getServerTossClient(),
       provider,
+      newsSearch: getServerNewsSearch() ?? undefined,
     });
     if (summary.analyzed > 0) {
       console.log(`[advisor-worker] analyzed ${summary.analyzed} item(s)`);

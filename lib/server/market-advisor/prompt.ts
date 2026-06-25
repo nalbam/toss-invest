@@ -5,6 +5,7 @@ import {
   type TrendSummary,
 } from "@/lib/client/indicators";
 import type { ChatMessage } from "@/lib/server/llm/types";
+import type { NewsItem } from "@/lib/server/news/types";
 import type { MarketAdvisorRequest } from "./schema";
 
 // Pure prompt builder: validated request -> system+user chat messages. Kept
@@ -29,6 +30,7 @@ const SYSTEM_PROMPT = [
   "상위 시간대(예: 일봉) 추세가 함께 주어지면 다중 시간대로 판단하세요: 분봉이 눌림목·과매도여도 상위 추세가 상승이면 매수(buy) 후보로 보고, 상위 추세가 하락이면 분봉 반등은 차익실현·반등 매도(sell)를 우선 고려하세요. 상위 추세가 횡보(flat)면 분봉 신호를 그대로 따르세요.",
   "보유 정보(수량·평단가)가 주어지면 현재가와 평단가를 비교하되, 평가손익을 양방향으로 대칭 처리하세요.",
   "평가손실이어도 강한 지지와 반등 신호가 있으면 보유 유지 또는 추가 매수(buy) 후보로, 평가수익이어도 과열·저항 신호가 있으면 차익실현(sell)으로 판단하세요. '손실=무조건 손절, 수익=무조건 보유'처럼 평가손익만으로 방향을 정하지 마세요.",
+  "제공된 최근 뉴스가 있으면 시장 심리·이벤트(실적·정책·산업 이슈 등) 맥락으로 참고하되, 판단의 핵심 근거는 차트 기술적 분석에 두세요.",
   "차트에 그릴 지지선, 저항선, 캔들 마커도 함께 제시하세요.",
   "지지선/저항선 가격과 마커 timestamp는 반드시 제공된 캔들 데이터 범위 안에서 근거가 있어야 합니다.",
   "근거가 약한 annotation은 빈 배열로 두세요.",
@@ -96,11 +98,32 @@ function higherTimeframeLines(trend: TrendSummary): string[] {
 }
 
 /**
- * Builds the system+user messages for one market advisor call. The user message
- * carries the symbol context, computed technical indicators, and candle data as
- * JSON so the model sees structured, unambiguous input.
+ * Renders recent symbol news as a compact labelled block so the model reads the
+ * sentiment/event context alongside the chart. Returns an empty array when no
+ * news is available.
  */
-export function buildMarketAdvisorPrompt(request: MarketAdvisorRequest): ChatMessage[] {
+function newsLines(news: NewsItem[]): string[] {
+  if (news.length === 0) {
+    return [];
+  }
+  const lines = news.map((item) => {
+    const date = item.publishedDate ? `${item.publishedDate} · ` : "";
+    const summary = item.content ? ` — ${item.content}` : "";
+    return `- ${date}${item.title}${summary}`;
+  });
+  return ["최근 뉴스:", ...lines];
+}
+
+/**
+ * Builds the system+user messages for one market advisor call. The user message
+ * carries the symbol context, computed technical indicators, recent news (when
+ * provided), and candle data as JSON so the model sees structured, unambiguous
+ * input.
+ */
+export function buildMarketAdvisorPrompt(
+  request: MarketAdvisorRequest,
+  news?: NewsItem[],
+): ChatMessage[] {
   const title = request.name ? `${request.name} (${request.symbol})` : request.symbol;
   const userLines = [
     `종목: ${title}`,
@@ -116,6 +139,9 @@ export function buildMarketAdvisorPrompt(request: MarketAdvisorRequest): ChatMes
   userLines.push(...indicatorLines(computeIndicators(request.candles)));
   if (request.higherTimeframeTrend) {
     userLines.push(...higherTimeframeLines(request.higherTimeframeTrend));
+  }
+  if (news && news.length > 0) {
+    userLines.push(...newsLines(news));
   }
   userLines.push("캔들 데이터(JSON):", JSON.stringify(request.candles, null, 2));
   return [

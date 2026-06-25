@@ -1,0 +1,26 @@
+import "server-only";
+
+/**
+ * Provider-agnostic news search contract for the market (chart) advisor. One
+ * search returns recent articles for a symbol, folded into the LLM prompt as
+ * auxiliary market-sentiment context. Mirrors the LLM layer's DI shape so the
+ * implementation is swappable and tests stay deterministic.
+ */
+
+export interface NewsItem {
+  title: string;
+  url: string;
+  /** Short snippet/summary of the article (may be empty). */
+  content: string;
+  /** Publish date when the source provides one. */
+  publishedDate?: string;
+}
+
+export interface NewsSearchInput {
+  query: string;
+}
+
+export type NewsSearch = (input: NewsSearchInput) => Promise<NewsItem[]>;
+
+/** Injected fetch (DI), mirroring the LLM/toss layers so tests stay deterministic. */
+export type NewsFetchFn = (url: string, init: RequestInit) => Promise<Response>;

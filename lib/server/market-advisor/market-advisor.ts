@@ -1,5 +1,6 @@
 import "server-only";
 import type { JsonSchemaSpec, LlmProvider } from "@/lib/server/llm/types";
+import type { NewsItem, NewsSearch } from "@/lib/server/news/types";
 import { buildMarketAdvisorPrompt } from "./prompt";
 import {
   marketAdvisorResultSchema,
@@ -26,6 +27,13 @@ export interface RunMarketAdvisorDeps {
   request: MarketAdvisorRequest;
   /** Optional provider-native structured-output schema (response_format). */
   jsonSchema?: JsonSchemaSpec;
+  /**
+   * Optional symbol-news search. When provided, recent news for the symbol is
+   * folded into the prompt as market-sentiment context. Best-effort: any failure
+   * (or no configured key) falls back to chart-only analysis — news never blocks
+   * or fails an advisor run.
+   */
+  newsSearch?: NewsSearch;
 }
 
 export interface MarketAdvisorRunResult {
@@ -38,7 +46,17 @@ export interface MarketAdvisorRunResult {
 export async function runMarketAdvisor(
   deps: RunMarketAdvisorDeps,
 ): Promise<MarketAdvisorRunResult> {
-  const messages = buildMarketAdvisorPrompt(deps.request);
+  let news: NewsItem[] | undefined;
+  if (deps.newsSearch) {
+    try {
+      news = await deps.newsSearch({
+        query: deps.request.name ?? deps.request.symbol,
+      });
+    } catch {
+      // Best-effort: news search failed → fall back to chart-only analysis.
+    }
+  }
+  const messages = buildMarketAdvisorPrompt(deps.request, news);
   const response = await deps.provider.chat({ messages, jsonSchema: deps.jsonSchema });
 
   let raw: unknown;

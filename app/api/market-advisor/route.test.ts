@@ -15,6 +15,10 @@ vi.mock("@/lib/server/market-advisor/history", () => ({
   recordMarketAdvice,
 }));
 
+vi.mock("@/lib/server/news/container", () => ({
+  getServerNewsSearch: () => null,
+}));
+
 import { POST } from "./route";
 
 function postReq(body: unknown): Request {
