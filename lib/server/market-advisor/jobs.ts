@@ -1,6 +1,7 @@
 import "server-only";
 import { aggregateCandles, sourceInterval, type ChartInterval } from "@/lib/client/candles";
 import { summarizeTrend, type TrendSummary } from "@/lib/client/indicators";
+import { getCandlesCached } from "@/lib/server/candles/service";
 import type { LlmProvider } from "@/lib/server/llm/types";
 import type { ServerTossClient } from "@/lib/server/toss/container";
 import { recordMarketAdvice } from "./history";
@@ -63,10 +64,10 @@ export async function runAdvisorJobsOnce(
   for (const item of due) {
     try {
       const interval = item.interval as ChartInterval;
-      const page = await deps.client.getCandles({
-        symbol: item.symbol,
-        interval: sourceInterval(interval),
-      });
+      const page = await getCandlesCached(
+        { symbol: item.symbol, interval: sourceInterval(interval) },
+        { client: deps.client, now: () => now },
+      );
       const candles = aggregateCandles(page.candles, interval).slice(-300);
       const latest = latestCandleTimestamp({ candles });
       if (latest === item.lastChartTimestamp) {
@@ -86,6 +87,7 @@ export async function runAdvisorJobsOnce(
         deps.client,
         item,
         interval,
+        now,
       );
 
       const result = await runMarketAdvisor({
@@ -145,12 +147,16 @@ async function loadHigherTimeframeTrend(
   client: ServerTossClient,
   item: WatchlistItem,
   interval: ChartInterval,
+  now: number,
 ): Promise<TrendSummary | undefined> {
   if (sourceInterval(interval) !== "1m") {
     return undefined;
   }
   try {
-    const page = await client.getCandles({ symbol: item.symbol, interval: "1d" });
+    const page = await getCandlesCached(
+      { symbol: item.symbol, interval: "1d" },
+      { client, now: () => now },
+    );
     return summarizeTrend(page.candles.slice(-120), "1d") ?? undefined;
   } catch {
     // Higher-timeframe fetch failed → fall back to lower-timeframe-only analysis.

@@ -29,6 +29,25 @@ export function sourceInterval(interval: ChartInterval): TossCandleInterval {
   return interval in MINUTE_INTERVALS ? "1m" : "1d";
 }
 
+/**
+ * Combines candle lists (e.g. accumulated older pages plus the latest live page)
+ * into one ascending series de-duplicated by timestamp. Later lists win on a
+ * timestamp conflict, so passing `(older, latest)` keeps the freshest copy of
+ * any overlapping candle. Use before `aggregateCandles` so the chart sees a
+ * single clean source series.
+ */
+export function combineCandlePages(...lists: Candle[][]): Candle[] {
+  const byTimestamp = new Map<string, Candle>();
+  for (const list of lists) {
+    for (const candle of list) {
+      byTimestamp.set(candle.timestamp, candle);
+    }
+  }
+  return [...byTimestamp.values()].sort(
+    (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
+  );
+}
+
 export function aggregateCandles(
   candles: Candle[],
   interval: ChartInterval,

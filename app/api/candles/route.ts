@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
 import { getServerTossClient } from "@/lib/server/toss/container";
+import { getCandlesCached } from "@/lib/server/candles/service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,13 +38,19 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const data = await getServerTossClient().getCandles({
-      symbol: parsed.data.symbol,
-      interval: parsed.data.interval,
-      count: parsed.data.count,
-      before: parsed.data.before,
-      adjusted: parsed.data.adjusted,
-    });
+    // Cache-backed: confirmed history is served from the local cache; the
+    // forming candle and any gaps come live from Toss (which also fills the
+    // cache). See lib/server/candles/service.
+    const data = await getCandlesCached(
+      {
+        symbol: parsed.data.symbol,
+        interval: parsed.data.interval,
+        count: parsed.data.count,
+        before: parsed.data.before,
+        adjusted: parsed.data.adjusted,
+      },
+      { client: getServerTossClient() },
+    );
     return ok(data);
   } catch (error) {
     return handleError(error);

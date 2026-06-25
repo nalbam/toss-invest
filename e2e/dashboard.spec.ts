@@ -246,15 +246,19 @@ test("renders portfolio summary, holdings, orders, and market quote", async ({
   await expect(ordersSection.getByText("005930")).toBeVisible();
   await expect(ordersSection.getByLabel("매수")).toBeVisible();
 
-  // Market quote: last price for the default (first holding's) symbol. The
-  // "현재가" label and its price live in the same `.metric` block; scope to that
-  // block (the label span's parent) so the orderbook's matching ₩72,000 bid
-  // below doesn't collide.
-  const quote = page.getByRole("region", { name: "시세" });
+  // Market quote: the panel is empty until a symbol is selected, so click the
+  // 삼성전자 holding to drive it. The header then reads "{name} ({symbol})"
+  // ("삼성전자 (005930)") with the last price in the same `.quoteHeadline` block;
+  // scope to that block (the label span's parent) so the orderbook's matching
+  // ₩72,000 bid below doesn't collide.
+  await holdingsSection.getByRole("button", { name: /삼성전자/ }).click();
+  // `exact` so "시세" doesn't also match the "시세 AI 어드바이저" card that
+  // appears once a symbol is selected.
+  const quote = page.getByRole("region", { name: "시세", exact: true });
   await expect(quote).toBeVisible();
-  const currentPrice = quote.getByText("현재가 (005930)").locator("..");
-  await expect(currentPrice.getByText("현재가 (005930)")).toBeVisible();
-  await expect(currentPrice.getByText("₩72,000")).toBeVisible();
+  const headline = quote.getByText("삼성전자 (005930)").locator("..");
+  await expect(headline.getByText("삼성전자 (005930)")).toBeVisible();
+  await expect(headline.getByText("₩72,000")).toBeVisible();
 });
 
 test("renders the AI advisor card and shows proposals on demand", async ({

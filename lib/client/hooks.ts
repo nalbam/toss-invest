@@ -362,6 +362,27 @@ export function useCandles(
   };
 }
 
+/**
+ * One-off fetch of an older candle page for "load earlier" pagination (not SWR,
+ * since it accumulates on demand rather than polling). `before` is the
+ * time-descending cursor — a candle timestamp; the response is the cache-backed
+ * page `{ candles, nextBefore }`. Throws `ApiClientError` on failure.
+ */
+export function fetchOlderCandles(
+  symbol: string,
+  interval: TossCandleInterval,
+  before: string,
+  count = 200,
+): Promise<CandlePageResponse> {
+  const params = new URLSearchParams({
+    symbol,
+    interval,
+    before,
+    count: String(count),
+  });
+  return fetcher<CandlePageResponse>(`/api/candles?${params.toString()}`);
+}
+
 /** SWR key for a symbol/interval advice history; exported so callers can revalidate it. */
 export function marketAdvisorHistoryKey(symbol: string, interval: string): string {
   return `/api/market-advisor/history?symbol=${encodeURIComponent(

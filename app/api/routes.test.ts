@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TossApiError } from "@/lib/server/toss/client";
 
+// The candles route uses the SQLite-backed candle cache; point it at an
+// in-memory DB so these route tests never touch the real data/advisor.db.
+process.env.ADVISOR_DB_PATH = ":memory:";
+
 // Mock the server container so route handlers exercise only their own
 // validation/mapping logic against a fake endpoint facade.
 const facade = {

@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { ChatMessage, LlmProvider } from "@/lib/server/llm/types";
 import type { ServerTossClient } from "@/lib/server/toss/container";
 
+// The job now reads candles through the SQLite-backed cache; use an in-memory DB
+// so the test never touches the real data/advisor.db.
+process.env.ADVISOR_DB_PATH = ":memory:";
+
 const { listEnabledWatchlist, touchWatchlistRun, recordMarketAdvice } = vi.hoisted(() => ({
   listEnabledWatchlist: vi.fn(),
   touchWatchlistRun: vi.fn(),

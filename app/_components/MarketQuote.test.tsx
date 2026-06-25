@@ -32,6 +32,15 @@ const useCandles =
 const useTrades = vi.fn<(symbol?: string) => QueryResult<Trade[]>>();
 const useMarketAdvisorHistory =
   vi.fn<(symbol: string | undefined, interval: string) => QueryResult<{ events: [] }>>();
+const fetchOlderCandles =
+  vi.fn<
+    (
+      symbol: string,
+      interval: TossCandleInterval,
+      before: string,
+      count?: number,
+    ) => Promise<CandlePageResponse>
+  >();
 
 vi.mock("@/lib/client/hooks", () => ({
   usePrices: (symbols: string[]) => usePrices(symbols),
@@ -42,6 +51,12 @@ vi.mock("@/lib/client/hooks", () => ({
   useTrades: (symbol?: string) => useTrades(symbol),
   useMarketAdvisorHistory: (symbol: string | undefined, interval: string) =>
     useMarketAdvisorHistory(symbol, interval),
+  fetchOlderCandles: (
+    symbol: string,
+    interval: TossCandleInterval,
+    before: string,
+    count?: number,
+  ) => fetchOlderCandles(symbol, interval, before, count),
 }));
 
 vi.mock("lightweight-charts", () => ({
@@ -133,6 +148,7 @@ beforeEach(() => {
     loaded({ timestamp: null, currency: "KRW", asks: [], bids: [] }),
   );
   useCandles.mockReturnValue(loaded({ candles: [], nextBefore: null }));
+  fetchOlderCandles.mockResolvedValue({ candles: [], nextBefore: null });
   useTrades.mockReturnValue(loaded([]));
   useMarketAdvisorHistory.mockReturnValue(loaded({ events: [] }));
   useFavorites.mockReturnValue({ items: [], mutate: vi.fn(), isLoading: false });
@@ -316,6 +332,44 @@ describe("MarketQuote", () => {
     render(<MarketQuote symbol="005930" />);
     expect(
       screen.getByText("시세를 불러오지 못했습니다"),
+    ).toBeInTheDocument();
+  });
+
+  it("loads older candles on demand via the 이전 데이터 button", async () => {
+    const c = {
+      timestamp: "2026-06-18T05:00:00Z",
+      openPrice: "100",
+      highPrice: "110",
+      lowPrice: "90",
+      closePrice: "105",
+      volume: "10",
+      currency: "KRW" as const,
+    };
+    useCandles.mockReturnValue(
+      loaded({ candles: [c], nextBefore: "2026-06-18T05:00:00Z" }),
+    );
+    // One older page, then no more (nextBefore === null).
+    fetchOlderCandles.mockResolvedValue({
+      candles: [{ ...c, timestamp: "2026-06-18T04:00:00Z" }],
+      nextBefore: null,
+    });
+
+    render(<MarketQuote symbol="005930" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "← 이전 데이터" }));
+
+    // Fetches older candles before the oldest shown timestamp, at the source interval.
+    await waitFor(() => {
+      expect(fetchOlderCandles).toHaveBeenCalledWith(
+        "005930",
+        "1d",
+        "2026-06-18T05:00:00Z",
+        undefined,
+      );
+    });
+    // nextBefore === null → the control reflects the end of history.
+    expect(
+      await screen.findByRole("button", { name: "과거 데이터 끝" }),
     ).toBeInTheDocument();
   });
 });

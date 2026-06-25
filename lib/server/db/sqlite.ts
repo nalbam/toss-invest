@@ -3,10 +3,12 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
 
-// Single SQLite connection for the app's persistent advice log. The file path is
+// Single SQLite connection for the app's persistent store. The file path is
 // configurable via ADVISOR_DB_PATH (default ./data/advisor.db); ":memory:" is
-// used by unit tests. Schema is created idempotently on first open. All advice
-// is kept indefinitely (no row cap) — this is the durable record, not a cache.
+// used by unit tests. Schema is created idempotently on first open. Advice is
+// kept indefinitely (no row cap) as the durable record; candle_cache additionally
+// stores confirmed (closed) candles so historical chart/advisor reads avoid
+// re-fetching from Toss (the still-forming candle is never cached).
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS market_advice (
@@ -68,6 +70,23 @@ CREATE TABLE IF NOT EXISTS stock_directory (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_stock_directory_name ON stock_directory (name);
+
+CREATE TABLE IF NOT EXISTS candle_cache (
+  symbol TEXT NOT NULL,
+  interval TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  epoch_ms INTEGER NOT NULL,
+  open_price TEXT NOT NULL,
+  high_price TEXT NOT NULL,
+  low_price TEXT NOT NULL,
+  close_price TEXT NOT NULL,
+  volume TEXT NOT NULL,
+  currency TEXT NOT NULL,
+  cached_at TEXT NOT NULL,
+  PRIMARY KEY (symbol, interval, timestamp)
+);
+CREATE INDEX IF NOT EXISTS idx_candle_cache_range
+  ON candle_cache (symbol, interval, epoch_ms DESC);
 `;
 
 // Additive migrations for DBs created before a column existed. SQLite lacks
@@ -86,6 +105,19 @@ function migrate(db: Database.Database): void {
   }
   if (!columns.includes("last_chart_timestamp")) {
     db.exec("ALTER TABLE advisor_watchlist ADD COLUMN last_chart_timestamp TEXT");
+  }
+
+  // candle_cache.currency was added after the table first shipped. A NOT NULL
+  // added column needs a default; 'KRW' is harmless since candle_cache is a
+  // cache — any pre-existing row self-heals to its real currency on the next
+  // confirmed fetch (upsert).
+  const candleColumns = (
+    db.prepare("PRAGMA table_info(candle_cache)").all() as { name: string }[]
+  ).map((column) => column.name);
+  if (!candleColumns.includes("currency")) {
+    db.exec(
+      "ALTER TABLE candle_cache ADD COLUMN currency TEXT NOT NULL DEFAULT 'KRW'",
+    );
   }
 }
 

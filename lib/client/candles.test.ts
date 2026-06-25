@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateCandles,
+  combineCandlePages,
   sourceInterval,
   type ChartInterval,
 } from "@/lib/client/candles";
@@ -67,5 +68,40 @@ describe("aggregateCandles", () => {
       lowPrice: "90",
       closePrice: "115",
     });
+  });
+});
+
+describe("combineCandlePages", () => {
+  it("merges into one ascending series de-duplicated by timestamp", () => {
+    const older = [
+      candle("2026-06-18T09:00:00Z"),
+      candle("2026-06-18T09:01:00Z"),
+    ];
+    const latest = [
+      candle("2026-06-18T09:01:00Z"), // overlaps older
+      candle("2026-06-18T09:02:00Z"),
+    ];
+    const result = combineCandlePages(older, latest);
+    expect(result.map((c) => c.timestamp)).toEqual([
+      "2026-06-18T09:00:00Z",
+      "2026-06-18T09:01:00Z",
+      "2026-06-18T09:02:00Z",
+    ]);
+  });
+
+  it("keeps the later list's copy on a timestamp conflict (freshest wins)", () => {
+    const older = [candle("2026-06-18T09:01:00Z", { closePrice: "100" })];
+    const latest = [candle("2026-06-18T09:01:00Z", { closePrice: "105" })];
+    const result = combineCandlePages(older, latest);
+    expect(result).toHaveLength(1);
+    expect(result[0].closePrice).toBe("105");
+  });
+
+  it("orders by parsed instant across mixed timestamp formats", () => {
+    const result = combineCandlePages([
+      candle("2026-06-18T10:00:00Z"),
+      candle("2026-06-18T18:00:00+09:00"), // == 09:00Z, earlier
+    ]);
+    expect(result[0].timestamp).toBe("2026-06-18T18:00:00+09:00");
   });
 });

@@ -34,7 +34,7 @@
 ## 미해결 / 후속 (사람 요청 시)
 
 - `DAILY_LOSS_LIMIT` 강제, ORDER 피크 3/s 선제 스로틀, 자동 트리거 배선(라우트/cron, 사람 결정).
-- modify/cancel·시세 E2E, 차트 페이지네이션, market-calendar 폴링 완화.
+- modify/cancel E2E, market-calendar 폴링 완화.
 - dev `allowedDevOrigins` 경고(무해), build 매번 `rm -rf .next` 클린.
 
 ## Phase 4 — AI 어드바이저 ✅
