@@ -60,7 +60,7 @@ lib/
 
 `Dashboard` 루트의 3-컬럼 레이아웃:
 
-- **시세(좌)**: `MarketQuote`(현재가·상하한가, 헤더 별★ 즐겨찾기 토글, 캔들 인터벌: 분봉 단위 select(1~240분) + 일/주/월/년 버튼, 차트 좌측 스크롤 시 과거 캔들 자동 로드) → `CandleChart`(캔들·거래량·이동평균·상하한가 기준선·주문 체결 마커·어드바이저 결정 점) · `ChartOverlayControls`(지지/저항 라벨·선·AI 조언 세로선 토글) · `MarketAiAdvisor`(차트 어드바이저 + `AdvisorAutoControls` 자동분석 주기) · `Orderbook` · `OrderbookDepth` · `TradesChart`.
+- **시세(좌)**: `MarketQuote`(현재가·상하한가, 헤더 별★ 즐겨찾기 토글, 캔들 인터벌: 분봉 단위 select(1~240분) + 일/주/월/년 버튼, 차트 좌측 스크롤 시 과거 캔들 자동 로드, 종목·인터벌을 바꿔도 보이는 봉 수(줌) 유지) → `CandleChart`(캔들·거래량·이동평균·상하한가 기준선·주문 체결 마커·어드바이저 결정 점) · `ChartOverlayControls`(지지/저항 라벨·선·AI 조언 세로선 토글) · `MarketAiAdvisor`(차트 어드바이저 + `AdvisorAutoControls` 자동분석 주기) · `Orderbook` · `OrderbookDepth` · `TradesChart`.
 - **주문(중앙)**: `OrderForm`(빠른주문/일반주문, dry-run 미리보기·confirm, 종목별 최근 수량·금액 복원).
 - **사이드바(우)**: `AccountCash` · `PortfolioSummary` · `HoldingsTable` · `PortfolioComposition` · `HoldingsPnL` · `OrdersTable` + `ModifyOrderForm` · `AiAdvisor`(포트폴리오) · `WatchlistControls`(자동분석 종목).
 - **헤더/검색**: `StockSearchModal`(종목명·코드 검색 + 즐겨찾기 목록, `Dashboard` 헤더 "종목 검색"으로 열림) · `ThemeSelector`(시스템/라이트/다크 테마).
