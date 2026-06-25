@@ -693,4 +693,21 @@ describe("CandleChart", () => {
     expect(fitContent).toHaveBeenCalledTimes(1); // not re-fit
     expect(setVisibleLogicalRange).toHaveBeenCalledWith({ from: 3 - 50, to: 3 });
   });
+
+  it("defers fitting an empty series so the fitKey is consumed by the real data", () => {
+    // Interval switch can briefly render an empty series (new source page still
+    // loading). Fitting then — and marking the key consumed — would leave the
+    // real dataset unfit (view stuck, bars piled to the left).
+    const { rerender } = render(<CandleChart candles={[]} fitKey="005930:1d" />);
+    expect(fitContent).not.toHaveBeenCalled();
+
+    // Real data arrives under the same fitKey → now fit the actual dataset.
+    rerender(
+      <CandleChart
+        candles={[candle({ timestamp: "2026-03-25T09:00:00+09:00" })]}
+        fitKey="005930:1d"
+      />,
+    );
+    expect(fitContent).toHaveBeenCalledTimes(1);
+  });
 });

@@ -626,11 +626,18 @@ export function CandleChart({
     // mount) or with no fitKey (legacy callers). On same-key updates — older
     // pages prepended or live ticks — keep the current view so the scroll
     // position holds and older-loading doesn't loop.
-    if (fitKey === undefined || fitKeyRef.current !== fitKey) {
+    //
+    // Only consume the fitKey change once real data has arrived (length > 0):
+    // an interval switch can briefly render an empty or transitional series
+    // (the new source page is still loading / older pages haven't reset yet).
+    // Fitting then — and marking the key consumed — would leave the correct
+    // dataset unfit (view stuck, bars piled to the left). Deferring until the
+    // series is non-empty fits the actual data.
+    const total = chartSeries.length;
+    if (total > 0 && (fitKey === undefined || fitKeyRef.current !== fitKey)) {
       const timeScale = chartRef.current?.timeScale();
       const span = visibleBarSpanRef.current;
-      const total = chartSeries.length;
-      if (timeScale != null && span != null && span > 0 && total > 0) {
+      if (timeScale != null && span != null && span > 0) {
         timeScale.setVisibleLogicalRange({ from: total - span, to: total });
       } else {
         timeScale?.fitContent();

@@ -126,6 +126,20 @@ export function MarketQuote({
   const [olderExhausted, setOlderExhausted] = useState(false);
   const loadingOlderRef = useRef(false);
 
+  // Older pages are keyed to (symbol, source). Reset them during render — not in
+  // an effect — when the key changes, so a stale page from the previous interval
+  // never mixes into the new source series for a render (which would distort the
+  // aggregated chart and misplace the view on an interval switch). React re-runs
+  // the render with the cleared state before committing.
+  const olderKey = `${symbol}:${source}`;
+  const [olderKeyState, setOlderKeyState] = useState(olderKey);
+  if (olderKeyState !== olderKey) {
+    setOlderKeyState(olderKey);
+    setOlderCandles([]);
+    setOlderExhausted(false);
+    loadingOlderRef.current = false;
+  }
+
   const prices = usePrices([symbol]);
   const limits = usePriceLimits(symbol);
   const orderbook = useOrderbook(symbol);
@@ -170,13 +184,6 @@ export function MarketQuote({
     () => aggregateCandles(mergedSourceCandles, interval),
     [mergedSourceCandles, interval],
   );
-
-  // Older pages are keyed to (symbol, source); clear them when either changes.
-  useEffect(() => {
-    setOlderCandles([]);
-    setOlderExhausted(false);
-    loadingOlderRef.current = false;
-  }, [symbol, source]);
 
   // Auto-load (no button): the chart calls this when scrolled near the oldest
   // bar. A ref guards against the rapid-fire scroll events triggering concurrent
