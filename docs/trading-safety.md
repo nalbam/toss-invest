@@ -36,7 +36,7 @@ notional 한도 검사는 통화를 추론한다 — KRX 심볼(`^\d{6}$`)=KRW, 
 
 ## 보안 & 프라이버시
 
-- 시크릿(`TOSS_CLIENT_ID`/`TOSS_CLIENT_SECRET`/token/`TOSS_ACCOUNT_SEQ`, `OPENAI_API_KEY`/`XAI_API_KEY`)은 **환경변수/시크릿 매니저**. 코드·로그·커밋·테스트 픽스처에 하드코딩 금지.
+- 시크릿(`TOSS_CLIENT_ID`/`TOSS_CLIENT_SECRET`/token/`TOSS_ACCOUNT_SEQ`, `OPENAI_API_KEY`/`XAI_API_KEY`/`TAVILY_API_KEY`)은 **환경변수/시크릿 매니저**. 코드·로그·커밋·테스트 픽스처에 하드코딩 금지.
 - `.env`는 `.gitignore`, `.env.example`만 커밋. 누락 시 fast-fail(`lib/server/env.ts` zod).
 - 클라이언트 번들·콘솔·네트워크 응답에 시크릿/토큰 노출 금지 — `scripts/check-bundle-secrets.mjs`가 build에서 회귀 방지.
 - 외부 입력(주문 파라미터 등)은 서버 경계에서 zod 검증.

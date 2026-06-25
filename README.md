@@ -74,6 +74,7 @@ DB·워커 변수(`ADVISOR_*`)는 기본값 폴백으로 `process.env`에서 직
 | `OPENAI_API_KEY` | (미설정) | `LLM_PROVIDER=openai` 용 키 (server-only) |
 | `XAI_API_KEY` | (미설정) | `LLM_PROVIDER=xai` 용 키 (server-only) |
 | `LLM_MODEL` | (미설정) | 사용할 LLM 모델명 |
+| `TAVILY_API_KEY` | (미설정) | 설정 시 차트 어드바이저가 종목 최신 뉴스를 검색해 프롬프트에 주입(종목당 10분 캐시). 미설정 시 차트만으로 분석(fail-open) |
 | `ADVISOR_DB_PATH` | `data/advisor.db` | SQLite 파일 경로(조언 로그·watchlist·즐겨찾기·종목 디렉터리). 디렉터리는 자동 생성 |
 | `ADVISOR_JOBS_TOKEN` | (미설정) | 설정 시 `POST /api/advisor-jobs/run` 활성화(Bearer). 미설정 시 비활성(fail-closed) |
 | `ADVISOR_WORKER_ENABLED` | (미설정) | `true`면 인-프로세스 백그라운드 어드바이저 워커 시작(`pnpm dev`가 자동 설정) |

@@ -68,3 +68,4 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 
 - 공통 요청: `{ model, messages:[{role, content}], response_format?, temperature?, max_tokens? }`.
 - 제안은 JSON schema 기반 structured output 우선. 모델명은 하드코딩하지 않고 `LLM_MODEL`(또는 provider별 기본)로 주입.
+- (차트 어드바이저, 선택) `TAVILY_API_KEY` 설정 시 분석 직전 종목 뉴스를 **Tavily Search**(`POST https://api.tavily.com/search`, `Authorization: Bearer $TAVILY_API_KEY`, `topic:"news"`)로 검색해 프롬프트에 싣는다. 종목당 10분 캐시, 미설정·실패 시 차트만으로 분석(fail-open). 어댑터는 `lib/server/news/`.
