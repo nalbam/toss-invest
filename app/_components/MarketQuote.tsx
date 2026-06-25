@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchOlderCandles,
   useCandles,
@@ -116,12 +116,12 @@ export function MarketQuote({
     lines: true,
     advice: true,
   });
-  // Accumulated older candles (loaded on demand via "이전 데이터"), keyed to the
+  // Older candles auto-loaded as the user scrolls the chart back, keyed to the
   // current symbol + source interval. The latest page still comes from SWR below.
   const source = sourceInterval(interval);
   const [olderCandles, setOlderCandles] = useState<Candle[]>([]);
-  const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderExhausted, setOlderExhausted] = useState(false);
+  const loadingOlderRef = useRef(false);
 
   const prices = usePrices([symbol]);
   const limits = usePriceLimits(symbol);
@@ -158,7 +158,7 @@ export function MarketQuote({
   const sourceCandles = candles.data?.candles;
   const dailyCandleList = dailyCandles.data?.candles;
   // Older pages + the latest live page, deduped into one ascending source series
-  // before aggregation, so "이전 데이터" extends the chart back through history.
+  // before aggregation, so scrolling back extends the chart through history.
   const mergedSourceCandles = useMemo(
     () => combineCandlePages(olderCandles, sourceCandles ?? []),
     [olderCandles, sourceCandles],
@@ -172,14 +172,21 @@ export function MarketQuote({
   useEffect(() => {
     setOlderCandles([]);
     setOlderExhausted(false);
+    loadingOlderRef.current = false;
   }, [symbol, source]);
 
+  // Auto-load (no button): the chart calls this when scrolled near the oldest
+  // bar. A ref guards against the rapid-fire scroll events triggering concurrent
+  // fetches; `olderExhausted` stops once Toss has no more history.
   const loadOlder = useCallback(async () => {
+    if (loadingOlderRef.current || olderExhausted) {
+      return;
+    }
     const oldest = mergedSourceCandles[0];
     if (oldest === undefined) {
       return;
     }
-    setLoadingOlder(true);
+    loadingOlderRef.current = true;
     try {
       const older = await fetchOlderCandles(symbol, source, oldest.timestamp);
       if (older.candles.length === 0) {
@@ -191,11 +198,11 @@ export function MarketQuote({
         setOlderExhausted(true);
       }
     } catch {
-      // Best-effort: leave state unchanged so the user can retry.
+      // Best-effort: leave state unchanged so the next scroll retries.
     } finally {
-      setLoadingOlder(false);
+      loadingOlderRef.current = false;
     }
-  }, [mergedSourceCandles, symbol, source]);
+  }, [mergedSourceCandles, symbol, source, olderExhausted]);
   const titleName = name ?? symbol;
   const titlePrice = quote ? formatPrice(quote.lastPrice, currency) : "시세";
   const titleRate = quote ? (change ? formatPercent(change.rate) : "-") : "-";
@@ -317,20 +324,6 @@ export function MarketQuote({
             {item.label}
           </button>
         ))}
-        {candles.data ? (
-          <button
-            type="button"
-            className={`${page.select} ${styles.loadOlderButton}`}
-            onClick={() => void loadOlder()}
-            disabled={loadingOlder || olderExhausted}
-          >
-            {olderExhausted
-              ? "과거 데이터 끝"
-              : loadingOlder
-                ? "불러오는 중…"
-                : "← 이전 데이터"}
-          </button>
-        ) : null}
       </div>
 
       {candles.isLoading ? (
@@ -343,6 +336,8 @@ export function MarketQuote({
         <>
           <CandleChart
             candles={chartCandles}
+            fitKey={`${symbol}:${interval}`}
+            onReachStart={loadOlder}
             priceLimits={limits.data}
             markers={orderMarkers}
             averagePurchasePrice={averagePurchasePrice}

@@ -42,6 +42,10 @@ const VOLUME_DOWN_COLOR = "rgba(59,130,246,0.5)";
 const MA_COLORS = ["#f5a623", "#a855f7", "#22d3ee"];
 const DEFAULT_MA_PERIODS = [5, 20];
 
+/** Trigger older-data loading once the leftmost visible bar is within N bars of
+ *  the oldest loaded candle, so history streams in before the user hits the edge. */
+const LOAD_OLDER_THRESHOLD_BARS = 10;
+
 /**
  * Converts API candles (string OHLCV, ISO/epoch timestamp) into the numeric
  * series shape lightweight-charts expects. Pure and side-effect free so it can
@@ -377,6 +381,8 @@ export function CandleChart({
   showAnnotationLabels = true,
   showAnnotationLines = true,
   showAdviceLines = true,
+  onReachStart,
+  fitKey,
 }: {
   candles: Candle[];
   priceLimits?: PriceLimitResponse | null;
@@ -389,6 +395,18 @@ export function CandleChart({
   showAnnotationLabels?: boolean;
   showAnnotationLines?: boolean;
   showAdviceLines?: boolean;
+  /**
+   * Called when the user scrolls near the left (oldest) edge, so the parent can
+   * append older candles. The chart preserves its view on those updates (see
+   * `fitKey`) instead of re-fitting, which would reset the scroll and re-trigger.
+   */
+  onReachStart?: () => void;
+  /**
+   * Identity of the current dataset (e.g. `symbol:interval`). The chart fits all
+   * content only when this changes; on same-key updates (older pages prepended,
+   * live ticks) it keeps the current view. Omit to always fit (legacy behaviour).
+   */
+  fitKey?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const adviceOverlayRef = useRef<HTMLDivElement | null>(null);
@@ -407,6 +425,12 @@ export function CandleChart({
     step: number;
     dateTimes: Map<string, { time: number; offsetMinutes: number }>;
   } | null>(null);
+  // Latest onReachStart, read by the once-registered range subscription so it
+  // always calls the current callback without re-subscribing.
+  const onReachStartRef = useRef(onReachStart);
+  onReachStartRef.current = onReachStart;
+  // Dataset identity the chart last fit to; fitContent runs only when it changes.
+  const fitKeyRef = useRef<string | undefined>(undefined);
 
   const renderAdviceLines = useCallback(() => {
     const chart = chartRef.current;
@@ -557,9 +581,16 @@ export function CandleChart({
     maRefs.current.forEach((ma, index) => {
       ma.setData(movingAverage(chartSeries, maPeriods[index] ?? 0));
     });
-    chartRef.current?.timeScale().fitContent();
+    // Fit all content only on a new dataset (symbol/interval change). On
+    // same-key updates — older pages prepended or live ticks — keep the current
+    // view so the scroll position holds and older-loading doesn't loop. With no
+    // fitKey, always fit (legacy behaviour for other CandleChart callers).
+    if (fitKey === undefined || fitKeyRef.current !== fitKey) {
+      chartRef.current?.timeScale().fitContent();
+      fitKeyRef.current = fitKey;
+    }
     renderAdviceLines();
-  }, [candles, maPeriods, renderAdviceLines]);
+  }, [candles, maPeriods, renderAdviceLines, fitKey]);
 
   // Redraw the dashed upper/lower price-limit lines when the limits change.
   useEffect(() => {
@@ -619,6 +650,26 @@ export function CandleChart({
       timeScale.unsubscribeVisibleLogicalRangeChange(renderAdviceLines);
     };
   }, [renderAdviceLines]);
+
+  // Auto-load older candles: when the leftmost visible bar nears the oldest
+  // loaded candle, ask the parent for an earlier page. Registered once per chart
+  // (deps mirror the chart-creation effect) and reads the latest callback via a ref.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (chart === null) {
+      return;
+    }
+    const timeScale = chart.timeScale();
+    const handler = (range: { from: number; to: number } | null) => {
+      if (range != null && range.from < LOAD_OLDER_THRESHOLD_BARS) {
+        onReachStartRef.current?.();
+      }
+    };
+    timeScale.subscribeVisibleLogicalRangeChange(handler);
+    return () => {
+      timeScale.unsubscribeVisibleLogicalRangeChange(handler);
+    };
+  }, [showVolume, maPeriods]);
 
   useEffect(() => {
     const series = seriesRef.current;

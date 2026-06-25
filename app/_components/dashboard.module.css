@@ -886,17 +886,6 @@
   font-weight: 700;
 }
 
-/* "이전 데이터" load-older control sits at the right end of the chart toolbar. */
-.loadOlderButton {
-  margin-left: auto;
-  font-size: 12px;
-}
-
-.loadOlderButton:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
 .orderForm {
   display: flex;
   flex-direction: column;

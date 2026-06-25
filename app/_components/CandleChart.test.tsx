@@ -20,15 +20,26 @@ const createSeriesMarkers = vi.fn(() => ({ setMarkers, detach: detachMarkers }))
 const fitContent = vi.fn();
 const priceScale = vi.fn(() => ({ applyOptions }));
 const timeToCoordinate = vi.fn<(_time: unknown) => number>(() => 120);
-let visibleLogicalRangeHandler: (() => void) | null = null;
-const subscribeVisibleLogicalRangeChange = vi.fn((handler: () => void) => {
-  visibleLogicalRangeHandler = handler;
-});
-const unsubscribeVisibleLogicalRangeChange = vi.fn((handler: () => void) => {
-  if (visibleLogicalRangeHandler === handler) {
-    visibleLogicalRangeHandler = null;
+// The chart registers multiple visible-range subscribers (advice-line repaint +
+// older-data auto-load), so the stub keeps them all and fires them together.
+let visibleLogicalRangeHandlers: Array<(range?: unknown) => void> = [];
+const subscribeVisibleLogicalRangeChange = vi.fn(
+  (handler: (range?: unknown) => void) => {
+    visibleLogicalRangeHandlers.push(handler);
+  },
+);
+const unsubscribeVisibleLogicalRangeChange = vi.fn(
+  (handler: (range?: unknown) => void) => {
+    visibleLogicalRangeHandlers = visibleLogicalRangeHandlers.filter(
+      (registered) => registered !== handler,
+    );
+  },
+);
+function fireVisibleLogicalRange(range?: unknown) {
+  for (const handler of visibleLogicalRangeHandlers) {
+    handler(range);
   }
-});
+}
 const addSeries = vi.fn(() => ({
   setData,
   priceScale,
@@ -230,7 +241,7 @@ describe("formatChartPrice", () => {
 describe("CandleChart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    visibleLogicalRangeHandler = null;
+    visibleLogicalRangeHandlers = [];
     timeToCoordinate.mockReturnValue(120);
   });
   afterEach(cleanup);
@@ -421,7 +432,7 @@ describe("CandleChart", () => {
     expect(line).toHaveStyle({ left: "120px" });
 
     timeToCoordinate.mockReturnValue(80);
-    visibleLogicalRangeHandler?.();
+    fireVisibleLogicalRange();
 
     expect(container.querySelector("[title='관망: 추세 확인']")).toHaveStyle({
       left: "80px",
@@ -568,5 +579,58 @@ describe("CandleChart", () => {
     unmount();
     expect(detachMarkers).toHaveBeenCalledTimes(1);
     expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onReachStart only when scrolled near the oldest (left) edge", () => {
+    const onReachStart = vi.fn();
+    render(
+      <CandleChart
+        candles={[
+          candle({ timestamp: "2026-03-25T09:00:00+09:00" }),
+          candle({ timestamp: "2026-03-25T09:01:00+09:00" }),
+        ]}
+        fitKey="005930:1d"
+        onReachStart={onReachStart}
+      />,
+    );
+
+    // Far from the left edge → no older-data request.
+    fireVisibleLogicalRange({ from: 50, to: 100 });
+    expect(onReachStart).not.toHaveBeenCalled();
+
+    // Within a few bars of the oldest candle → request older data.
+    fireVisibleLogicalRange({ from: 2, to: 40 });
+    expect(onReachStart).toHaveBeenCalled();
+  });
+
+  it("fits content only when fitKey changes, preserving the view on same-key updates", () => {
+    const { rerender } = render(
+      <CandleChart
+        candles={[candle({ timestamp: "2026-03-25T09:00:00+09:00" })]}
+        fitKey="005930:1d"
+      />,
+    );
+    expect(fitContent).toHaveBeenCalledTimes(1); // initial fit
+
+    // Same key, older candle prepended → keep the current view (no re-fit).
+    rerender(
+      <CandleChart
+        candles={[
+          candle({ timestamp: "2026-03-25T08:00:00+09:00" }),
+          candle({ timestamp: "2026-03-25T09:00:00+09:00" }),
+        ]}
+        fitKey="005930:1d"
+      />,
+    );
+    expect(fitContent).toHaveBeenCalledTimes(1);
+
+    // Key change (e.g. interval switch) → fit the new dataset.
+    rerender(
+      <CandleChart
+        candles={[candle({ timestamp: "2026-03-25T09:00:00+09:00" })]}
+        fitKey="005930:1w"
+      />,
+    );
+    expect(fitContent).toHaveBeenCalledTimes(2);
   });
 });

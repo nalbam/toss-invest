@@ -59,6 +59,17 @@ vi.mock("@/lib/client/hooks", () => ({
   ) => fetchOlderCandles(symbol, interval, before, count),
 }));
 
+// Capture the chart's visible-range subscribers so a test can simulate the user
+// scrolling to the oldest edge (which drives auto-loading of older candles).
+const { chartRangeHandlers } = vi.hoisted(() => ({
+  chartRangeHandlers: [] as Array<(range?: unknown) => void>,
+}));
+function fireChartVisibleRange(range?: unknown) {
+  for (const handler of [...chartRangeHandlers]) {
+    handler(range);
+  }
+}
+
 vi.mock("lightweight-charts", () => ({
   createChart: () => ({
     addSeries: () => ({
@@ -72,8 +83,15 @@ vi.mock("lightweight-charts", () => ({
       fitContent: () => {},
       timeToCoordinate: () => 120,
       options: () => ({ barSpacing: 6 }),
-      subscribeVisibleLogicalRangeChange: () => {},
-      unsubscribeVisibleLogicalRangeChange: () => {},
+      subscribeVisibleLogicalRangeChange: (handler: (range?: unknown) => void) => {
+        chartRangeHandlers.push(handler);
+      },
+      unsubscribeVisibleLogicalRangeChange: (handler: (range?: unknown) => void) => {
+        const index = chartRangeHandlers.indexOf(handler);
+        if (index >= 0) {
+          chartRangeHandlers.splice(index, 1);
+        }
+      },
     }),
     remove: () => {},
   }),
@@ -152,6 +170,7 @@ beforeEach(() => {
   useTrades.mockReturnValue(loaded([]));
   useMarketAdvisorHistory.mockReturnValue(loaded({ events: [] }));
   useFavorites.mockReturnValue({ items: [], mutate: vi.fn(), isLoading: false });
+  chartRangeHandlers.length = 0;
 });
 
 afterEach(() => {
@@ -335,7 +354,7 @@ describe("MarketQuote", () => {
     ).toBeInTheDocument();
   });
 
-  it("loads older candles on demand via the 이전 데이터 button", async () => {
+  it("auto-loads older candles when the chart scrolls to the oldest edge", async () => {
     const c = {
       timestamp: "2026-06-18T05:00:00Z",
       openPrice: "100",
@@ -348,7 +367,6 @@ describe("MarketQuote", () => {
     useCandles.mockReturnValue(
       loaded({ candles: [c], nextBefore: "2026-06-18T05:00:00Z" }),
     );
-    // One older page, then no more (nextBefore === null).
     fetchOlderCandles.mockResolvedValue({
       candles: [{ ...c, timestamp: "2026-06-18T04:00:00Z" }],
       nextBefore: null,
@@ -356,9 +374,13 @@ describe("MarketQuote", () => {
 
     render(<MarketQuote symbol="005930" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "← 이전 데이터" }));
+    // Far from the oldest edge → no fetch.
+    fireChartVisibleRange({ from: 50, to: 100 });
+    expect(fetchOlderCandles).not.toHaveBeenCalled();
 
-    // Fetches older candles before the oldest shown timestamp, at the source interval.
+    // Scrolled near the oldest bar → auto-fetch older candles before the oldest
+    // shown timestamp, at the source interval (no button involved).
+    fireChartVisibleRange({ from: 1, to: 40 });
     await waitFor(() => {
       expect(fetchOlderCandles).toHaveBeenCalledWith(
         "005930",
@@ -367,9 +389,5 @@ describe("MarketQuote", () => {
         undefined,
       );
     });
-    // nextBefore === null → the control reflects the end of history.
-    expect(
-      await screen.findByRole("button", { name: "과거 데이터 끝" }),
-    ).toBeInTheDocument();
   });
 });
