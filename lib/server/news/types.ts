@@ -17,7 +17,22 @@ export interface NewsItem {
 }
 
 export interface NewsSearchInput {
+  /** Free-text search query (a symbol's name, a constituent name, etc.). */
   query: string;
+  /**
+   * The originating symbol, when known. Used by the ETF-aware decorator to look
+   * up the security type and, for ETFs, search the constituents instead. The
+   * base (Tavily) search ignores it and uses only `query`.
+   */
+  symbol?: string;
+  /** The symbol's display name, when known (passed to constituent extraction). */
+  name?: string;
+  /**
+   * Tavily search topic. "news" surfaces real articles and is best for
+   * individual stocks (incl. ETF constituents); "general" matches an instrument
+   * by its full name and is used as the ETF-name fallback. Defaults to "news".
+   */
+  topic?: "news" | "general";
 }
 
 export type NewsSearch = (input: NewsSearchInput) => Promise<NewsItem[]>;

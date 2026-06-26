@@ -51,6 +51,8 @@ export async function runMarketAdvisor(
     try {
       news = await deps.newsSearch({
         query: deps.request.name ?? deps.request.symbol,
+        symbol: deps.request.symbol,
+        name: deps.request.name,
       });
     } catch {
       // Best-effort: news search failed → fall back to chart-only analysis.

@@ -3,12 +3,13 @@ import { z } from "zod";
 import type { NewsFetchFn, NewsItem, NewsSearch } from "./types";
 
 // Tavily Search API adapter (https://api.tavily.com/search). One POST per query.
-// The "general" topic is used over "news": a symbol's full name or ticker (e.g.
-// "SOL AI반도체TOP2플러스", "SOXL") matches the actual instrument under general
-// search, whereas the news topic token-matches the name and returns unrelated
-// articles. The response is an untrusted boundary, so it is zod-parsed and
-// malformed results are dropped rather than trusted. Mirrors the LLM adapter's
-// fetch DI + AbortController timeout pattern (lib/server/llm).
+// The topic comes from the caller (default "news"): "news" surfaces real
+// articles and suits individual stocks (incl. ETF constituents), while
+// "general" matches an instrument by its full name and is the ETF-name
+// fallback — an ETF's formal name token-matches poorly under "news". The
+// response is an untrusted boundary, so it is zod-parsed and malformed results
+// are dropped rather than trusted. Mirrors the LLM adapter's fetch DI +
+// AbortController timeout pattern (lib/server/llm).
 
 const TAVILY_SEARCH_URL = "https://api.tavily.com/search";
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -38,7 +39,7 @@ const tavilyResponseSchema = z.object({
 export function createTavilyNewsSearch(config: TavilyNewsConfig): NewsSearch {
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  return async ({ query }) => {
+  return async ({ query, topic }) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
@@ -51,7 +52,7 @@ export function createTavilyNewsSearch(config: TavilyNewsConfig): NewsSearch {
         },
         body: JSON.stringify({
           query,
-          topic: "general",
+          topic: topic ?? "news",
           search_depth: "basic",
           max_results: MAX_RESULTS,
           days: RECENT_DAYS,

@@ -45,7 +45,7 @@ function lastBody(fetchFn: FetchMock): Record<string, unknown> {
 }
 
 describe("createTavilyNewsSearch", () => {
-  it("POSTs to the tavily search endpoint with bearer auth and a general query", async () => {
+  it("POSTs to the tavily search endpoint with bearer auth, defaulting to the news topic", async () => {
     const { fetchFn, search } = setup(jsonResponse(okPayload));
     await search({ query: "삼성전자" });
 
@@ -60,7 +60,13 @@ describe("createTavilyNewsSearch", () => {
 
     const body = lastBody(fetchFn);
     expect(body.query).toBe("삼성전자");
-    expect(body.topic).toBe("general");
+    expect(body.topic).toBe("news");
+  });
+
+  it("uses the caller-supplied topic when given", async () => {
+    const { fetchFn, search } = setup(jsonResponse(okPayload));
+    await search({ query: "SOL AI반도체TOP2플러스", topic: "general" });
+    expect(lastBody(fetchFn).topic).toBe("general");
   });
 
   it("maps results into NewsItem[] keeping title/url/content/publishedDate", async () => {

@@ -34,9 +34,14 @@ export async function GET(request: Request): Promise<Response> {
     return ok([]);
   }
 
-  const query = parsed.data.name ?? parsed.data.symbol;
   try {
-    return ok(await search({ query }));
+    return ok(
+      await search({
+        query: parsed.data.name ?? parsed.data.symbol,
+        symbol: parsed.data.symbol,
+        name: parsed.data.name,
+      }),
+    );
   } catch {
     // Best-effort: an upstream search failure must not break the card.
     return ok([]);

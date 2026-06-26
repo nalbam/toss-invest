@@ -72,7 +72,11 @@ describe("runMarketAdvisor", () => {
     const newsSearch = vi.fn(async () => news);
     await runMarketAdvisor({ provider, request, newsSearch });
 
-    expect(newsSearch).toHaveBeenCalledWith({ query: "삼성전자" });
+    expect(newsSearch).toHaveBeenCalledWith({
+      query: "삼성전자",
+      symbol: "005930",
+      name: "삼성전자",
+    });
     expect(calls[0].messages[1].content).toContain("최근 뉴스:");
     expect(calls[0].messages[1].content).toContain("HBM 공급 계약");
   });
