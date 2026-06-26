@@ -318,6 +318,43 @@
   color: var(--foreground);
 }
 
+/* Buy/sell totals + net cash flow above a selected symbol's completed orders. */
+.tradeSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--gray-alpha);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tradeSummaryRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tradeSummaryLabel {
+  color: var(--muted);
+}
+
+.tradeSummaryValue {
+  color: var(--foreground);
+}
+
+.tradeSummaryNet {
+  font-weight: 700;
+}
+
+.tradeSummaryRate {
+  font-weight: 400;
+  font-size: 12px;
+}
+
 .tableScroll {
   overflow-x: auto;
 }
@@ -411,6 +448,21 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+/* One-line variant: used when a symbol is selected and the code is redundant. */
+.orderCardCompact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.orderActionsGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .orderMeta {
@@ -720,7 +772,7 @@
 
 .chartAdviceMarker {
   position: absolute;
-  top: 2px;
+  /* top is set inline per-marker (buy nudged up, sell down). */
   transform: translateX(-50%);
   border-radius: 50%;
   background: var(--advice-line-color);

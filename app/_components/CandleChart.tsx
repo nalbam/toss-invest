@@ -518,6 +518,18 @@ export function CandleChart({
       marker.style.left = `${leftPad + coordinate}px`;
       marker.style.width = `${dotSize}px`;
       marker.style.height = `${dotSize}px`;
+      // Drop the signal row one marker-height below the top edge, then nudge
+      // 사자(buy) up and 팔자(sell) down so same-time signals don't overlap.
+      const rowTop = 2 + dotSize;
+      const nudge = dotSize * 0.55;
+      const { action } = event.decision;
+      marker.style.top = `${
+        action === "buy"
+          ? rowTop - nudge
+          : action === "sell"
+            ? rowTop + nudge
+            : rowTop
+      }px`;
       marker.style.setProperty("--advice-line-color", decisionColor(event.decision.action));
       marker.title = `${event.decision.label}: ${event.decision.reason}`;
       overlay.append(marker);

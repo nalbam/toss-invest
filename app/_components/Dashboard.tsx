@@ -411,6 +411,7 @@ export function Dashboard() {
               completedOrders={completedOrders.data?.orders ?? []}
               accountSeq={selectedSeq}
               selectedSymbol={selectedSymbol}
+              averagePurchasePrice={selectedHolding?.averagePurchasePrice}
               onChanged={refreshOrders}
               refreshing={Boolean(
                 orders.isRefreshing || completedOrders.isRefreshing,

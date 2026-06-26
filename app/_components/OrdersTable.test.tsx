@@ -8,7 +8,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { OrdersTable } from "./OrdersTable";
+import { OrdersTable, summarizeCompletedTrades } from "./OrdersTable";
 import type { Order } from "@/lib/client/types";
 
 // Cancel/modify post to `/api/orders/{id}/...` via the real hooks; mock `fetch`
@@ -117,6 +117,34 @@ const marketUnfilled: Order = {
   },
 };
 
+/** Builds a terminal FILLED order with the given execution figures. */
+function makeFill(over: {
+  side: "BUY" | "SELL";
+  filledQuantity: string;
+  filledAmount?: string | null;
+  averageFilledPrice?: string | null;
+  commission?: string | null;
+  tax?: string | null;
+  currency?: "KRW" | "USD";
+}): Order {
+  return {
+    ...buyLimit,
+    orderId: `fill-${over.side}-${over.filledQuantity}`,
+    side: over.side,
+    status: "FILLED",
+    currency: over.currency ?? "KRW",
+    execution: {
+      filledQuantity: over.filledQuantity,
+      averageFilledPrice: over.averageFilledPrice ?? null,
+      filledAmount: over.filledAmount ?? null,
+      commission: over.commission ?? null,
+      tax: over.tax ?? null,
+      filledAt: "2026-03-25T10:00:00+09:00",
+      settlementDate: null,
+    },
+  };
+}
+
 describe("OrdersTable", () => {
   it("renders a card per order with symbol, side, status, and filled/ordered quantity", () => {
     render(<OrdersTable orders={[buyLimit, sellUsPartial]} />);
@@ -161,7 +189,11 @@ describe("OrdersTable", () => {
     expect(screen.getByRole("heading", { name: "005930 대기 주문" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "전체 대기 주문" })).toBeInTheDocument();
     const selectedSection = screen.getByLabelText("005930 대기 주문");
-    expect(within(selectedSection).getByText("005930")).toBeInTheDocument();
+    // The symbol lives in the section heading, so cards drop the redundant code.
+    expect(within(selectedSection).queryByText("005930")).not.toBeInTheDocument();
+    // Only the selected symbol's order is in this section (the matching card,
+    // shown as a 매수 ▲ glyph); the other symbol (AAPL) is not.
+    expect(within(selectedSection).getByLabelText("매수")).toBeInTheDocument();
     expect(within(selectedSection).queryByText("AAPL")).not.toBeInTheDocument();
   });
 
@@ -383,5 +415,120 @@ describe("OrdersTable", () => {
     fireEvent.click(firstCardCancel);
     // Only one inline confirm prompt is shown.
     expect(screen.getAllByText("정말 취소?")).toHaveLength(1);
+  });
+
+  it("shows buy/sell totals and realized P&L above the completed orders", () => {
+    const buyFill = makeFill({
+      side: "BUY",
+      filledQuantity: "10",
+      filledAmount: "710000",
+    });
+    const sellFill = makeFill({
+      side: "SELL",
+      filledQuantity: "4",
+      filledAmount: "300000",
+    });
+    render(
+      <OrdersTable
+        orders={[]}
+        completedOrders={[buyFill, sellFill]}
+        selectedSymbol="005930"
+        averagePurchasePrice="50000"
+        accountSeq={1}
+      />,
+    );
+
+    const completedSection = screen.getByLabelText("005930 체결·완료 내역");
+    // Summary rows: 매수 / 매도 / 실현손익 (labels are real text, not glyphs).
+    expect(within(completedSection).getByText("매수")).toBeInTheDocument();
+    expect(within(completedSection).getByText("매도")).toBeInTheDocument();
+    expect(within(completedSection).getByText("실현손익")).toBeInTheDocument();
+    // cost = 50000 × 4 = 200000; proceeds 300000 → +100000 (+50.00%)
+    expect(
+      within(completedSection).getByText(byMoney("+₩100,000")),
+    ).toBeInTheDocument();
+    expect(within(completedSection).getByText("(+50.00%)")).toBeInTheDocument();
+    // The compact cards drop the redundant symbol code (it's in the heading).
+    expect(
+      within(completedSection).queryByText("005930"),
+    ).not.toBeInTheDocument();
+    // The summary amounts are flagged for privacy blur.
+    expect(
+      completedSection.querySelectorAll('[data-private-value="true"]').length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("flags order price and quantity as private for blur", () => {
+    render(<OrdersTable orders={[buyLimit]} />);
+    const card = screen.getByRole("listitem");
+    // Price (₩71,000) and quantity (0/10) are both blur targets.
+    expect(card.querySelectorAll('[data-private-value="true"]')).toHaveLength(2);
+  });
+});
+
+describe("summarizeCompletedTrades", () => {
+  it("computes realized P&L on the sold shares using the buy-average cost basis", () => {
+    const buy = makeFill({
+      side: "BUY",
+      filledQuantity: "10",
+      filledAmount: "710000",
+    });
+    const sell = makeFill({
+      side: "SELL",
+      filledQuantity: "6",
+      filledAmount: "480000",
+      commission: "100",
+      tax: "1000",
+    });
+    const summary = summarizeCompletedTrades([buy, sell]);
+    expect(summary).not.toBeNull();
+    expect(summary?.buyQty).toBe("10");
+    expect(summary?.sellQty).toBe("6");
+    expect(summary?.buyAmount).toBe("710000");
+    expect(summary?.sellAmount).toBe("480000");
+    // cost = (710000 / 10) × 6 = 426000; proceeds = 480000 − 1100 fee = 478900
+    // realized = 478900 − 426000 = 52900
+    expect(summary?.realizedPnl).toBe("52900");
+    expect(summary?.currency).toBe("KRW");
+  });
+
+  it("uses the passed average purchase price as the sold cost basis", () => {
+    const sell = makeFill({
+      side: "SELL",
+      filledQuantity: "4",
+      filledAmount: "300000",
+    });
+    // cost = 50000 × 4 = 200000; proceeds = 300000 → realized = 100000 (+50%)
+    const summary = summarizeCompletedTrades([sell], "50000");
+    expect(summary?.realizedPnl).toBe("100000");
+    expect(summary?.realizedPnlRate).toBe("0.5");
+  });
+
+  it("returns null P&L when nothing was sold (no cost basis to realize)", () => {
+    const buy = makeFill({
+      side: "BUY",
+      filledQuantity: "10",
+      filledAmount: "710000",
+    });
+    expect(summarizeCompletedTrades([buy])?.realizedPnl).toBeNull();
+  });
+
+  it("ignores orders with no fill, returning null when none are filled", () => {
+    expect(summarizeCompletedTrades([buyLimit, marketUnfilled])).toBeNull();
+  });
+
+  it("falls back to averageFilledPrice × filledQuantity when filledAmount is absent", () => {
+    const sell = makeFill({
+      side: "SELL",
+      filledQuantity: "2",
+      filledAmount: null,
+      averageFilledPrice: "190.5",
+      currency: "USD",
+    });
+    const summary = summarizeCompletedTrades([sell]);
+    expect(summary?.sellAmount).toBe("381");
+    // No buys loaded and no average price passed → no cost basis → null P&L.
+    expect(summary?.realizedPnl).toBeNull();
+    expect(summary?.currency).toBe("USD");
   });
 });
