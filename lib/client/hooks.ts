@@ -12,6 +12,7 @@ import type {
   ExchangeRateResponse,
   HoldingsOverview,
   ModifyOrderResult,
+  NewsArticle,
   OrderbookResponse,
   OrderCreateBody,
   OrderModifyBody,
@@ -239,6 +240,37 @@ export function useOrders(
     PaginatedOrderResponse,
     ApiClientError
   >(key, fetcher, ordersConfig);
+  return {
+    data,
+    error,
+    isLoading: isLoading && key !== null,
+    isRefreshing: isValidating && !isLoading && key !== null,
+  };
+}
+
+/**
+ * Loads recent news for a symbol. The query uses the same key the market advisor
+ * uses (`name ?? symbol`), so the server-side 10-minute cache is shared — viewing
+ * a symbol and running the advisor on it cost one upstream search total. The
+ * request is paused (key is `null`) until a symbol is known; the list is empty
+ * when news is unconfigured or a search fails (the route fails open).
+ */
+export function useNews(
+  symbol: string | undefined,
+  name: string | undefined,
+): QueryResult<NewsArticle[]> {
+  let key: string | null = null;
+  if (symbol !== undefined) {
+    const params = new URLSearchParams({ symbol });
+    if (name !== undefined) {
+      params.set("name", name);
+    }
+    key = `/api/news?${params.toString()}`;
+  }
+  const { data, error, isLoading, isValidating } = useSWR<
+    NewsArticle[],
+    ApiClientError
+  >(key, fetcher, sharedConfig);
   return {
     data,
     error,

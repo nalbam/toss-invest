@@ -318,3 +318,14 @@ export interface CandlePageResponse {
   candles: Candle[];
   nextBefore: string | null;
 }
+
+/**
+ * Client mirror of the server `NewsItem` (`lib/server/news/types.ts`). A recent
+ * article for the selected symbol, shown on the dashboard news card.
+ */
+export interface NewsArticle {
+  title: string;
+  url: string;
+  content: string;
+  publishedDate?: string;
+}

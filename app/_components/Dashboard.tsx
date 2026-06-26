@@ -7,6 +7,7 @@ import {
   useCashBalances,
   useExchangeRate,
   useHoldings,
+  useNews,
   useOrders,
 } from "@/lib/client/hooks";
 import type { AdvisorProposal } from "@/lib/client/advisor";
@@ -16,6 +17,7 @@ import { CollapsibleCard } from "./CollapsibleCard";
 import { HoldingsPnL } from "./HoldingsPnL";
 import { HoldingsTable } from "./HoldingsTable";
 import { MarketQuote } from "./MarketQuote";
+import { NewsCard } from "./NewsCard";
 import { OrderForm } from "./OrderForm";
 import { OrdersTable } from "./OrdersTable";
 import { PortfolioComposition } from "./PortfolioComposition";
@@ -220,6 +222,19 @@ export function Dashboard() {
     selectedSymbol === undefined ? undefined : selectedSeq,
     { status: "CLOSED", symbol: selectedSymbol },
   );
+  const selectedHolding = holdings.data?.items.find(
+    (item) => item.symbol === selectedSymbol,
+  );
+  // Prefer the holding's name; fall back to a proposed symbol's resolved name so
+  // a non-held proposed symbol is labelled the same way a holding is.
+  const selectedName =
+    selectedHolding?.name ??
+    (selectedSymbolName && selectedSymbolName.symbol === selectedSymbol
+      ? selectedSymbolName.name
+      : undefined);
+  // Recent symbol news (paused until a symbol is picked); shares the advisor's
+  // 10-minute server cache via the same name-or-symbol query key as the advisor.
+  const news = useNews(selectedSymbol, selectedName);
   const fx = useExchangeRate("USD", "KRW");
   const cashBalances = useCashBalances(selectedSeq);
   const cash = { krw: cashBalances.krw, usd: cashBalances.usd };
@@ -304,17 +319,6 @@ export function Dashboard() {
   if (!accounts.data || accounts.data.length === 0) {
     return <p className={page.status}>사용 가능한 계좌가 없습니다.</p>;
   }
-
-  const selectedHolding = holdings.data?.items.find(
-    (item) => item.symbol === selectedSymbol,
-  );
-  // Prefer the holding's name; fall back to a proposed symbol's resolved name so
-  // a non-held proposed symbol is labelled the same way a holding is.
-  const selectedName =
-    selectedHolding?.name ??
-    (selectedSymbolName && selectedSymbolName.symbol === selectedSymbol
-      ? selectedSymbolName.name
-      : undefined);
 
   return (
     <div
@@ -416,6 +420,13 @@ export function Dashboard() {
               refreshing={Boolean(
                 orders.isRefreshing || completedOrders.isRefreshing,
               )}
+            />
+          ) : null}
+
+          {selectedSymbol ? (
+            <NewsCard
+              articles={news.data ?? []}
+              refreshing={news.isRefreshing}
             />
           ) : null}
         </div>

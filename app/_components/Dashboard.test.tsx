@@ -13,6 +13,7 @@ import type {
   CandlePageResponse,
   ExchangeRateResponse,
   HoldingsOverview,
+  NewsArticle,
   OrderbookResponse,
   PaginatedOrderResponse,
   PriceLimitResponse,
@@ -47,6 +48,11 @@ vi.mock("@/lib/client/hooks", () => ({
   useExchangeRate: () => useExchangeRate(),
   useCashBalances: () => useCashBalances(),
   // Market panel hooks (used once a symbol is selected).
+  useNews: (): QueryResult<NewsArticle[]> => ({
+    data: [],
+    error: undefined,
+    isLoading: false,
+  }),
   usePrices: (): QueryResult<PriceResponse[]> => ({
     data: [{ symbol: "AAPL", lastPrice: "190.50", currency: "USD" }],
     error: undefined,
