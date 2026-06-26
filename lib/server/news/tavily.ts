@@ -2,10 +2,13 @@ import "server-only";
 import { z } from "zod";
 import type { NewsFetchFn, NewsItem, NewsSearch } from "./types";
 
-// Tavily Search API adapter (https://api.tavily.com/search). One POST per query
-// asks for recent news; the response is an untrusted boundary, so it is
-// zod-parsed and malformed results are dropped rather than trusted. Mirrors the
-// LLM adapter's fetch DI + AbortController timeout pattern (lib/server/llm).
+// Tavily Search API adapter (https://api.tavily.com/search). One POST per query.
+// The "general" topic is used over "news": a symbol's full name or ticker (e.g.
+// "SOL AI반도체TOP2플러스", "SOXL") matches the actual instrument under general
+// search, whereas the news topic token-matches the name and returns unrelated
+// articles. The response is an untrusted boundary, so it is zod-parsed and
+// malformed results are dropped rather than trusted. Mirrors the LLM adapter's
+// fetch DI + AbortController timeout pattern (lib/server/llm).
 
 const TAVILY_SEARCH_URL = "https://api.tavily.com/search";
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -48,7 +51,7 @@ export function createTavilyNewsSearch(config: TavilyNewsConfig): NewsSearch {
         },
         body: JSON.stringify({
           query,
-          topic: "news",
+          topic: "general",
           search_depth: "basic",
           max_results: MAX_RESULTS,
           days: RECENT_DAYS,
