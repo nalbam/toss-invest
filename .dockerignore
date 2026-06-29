@@ -1,0 +1,30 @@
+# VCS / CI
+.git
+.github
+
+# Dependencies & build output (rebuilt inside the image)
+node_modules
+.next
+out
+*.tsbuildinfo
+
+# Secrets — never copy real env into the image (only SSM/--env-file at runtime)
+.env
+.env.*
+
+# Local SQLite databases
+data
+*.db
+*.db-shm
+*.db-wal
+
+# Test / tooling artifacts
+test-results
+playwright-report
+coverage
+*.log
+
+# Editor / agent
+.claude
+.vscode
+.idea
