@@ -72,8 +72,11 @@ export function createTokenProvider(config: TokenProviderConfig): TokenProvider 
     });
 
     if (!response.ok) {
+      const detail = (await response.text().catch(() => "")).slice(0, 500);
       throw new Error(
-        `Toss token request failed with status ${response.status}`,
+        `Toss token request failed with status ${response.status}${
+          detail ? `: ${detail}` : ""
+        }`,
       );
     }
 
