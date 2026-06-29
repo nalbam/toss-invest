@@ -88,25 +88,25 @@ DB·워커 변수(`ADVISOR_*`)는 기본값 폴백으로 `process.env`에서 직
    멀티아치(amd64·arm64) 이미지를 빌드해 `ghcr.io/nalbam/toss-invest` 에 push 한다(`Dockerfile`은
    Next.js standalone 출력 + better-sqlite3 네이티브 빌드).
 
-   ```bash
-   git tag v0.1.0 && git push origin v0.1.0
-   ```
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
 
 2. **런타임 env 등록** — 컨테이너는 SSM `/env/prod/toss-invest`(SecureString)를 `--env-file` 로 읽는다.
    [환경 변수](#환경-변수)에 더해 배포 전용 값을 채운다(`PORT=3000` 고정, 백그라운드 분석은 `ADVISOR_WORKER_ENABLED=true`).
 
-   ```bash
-   aws ssm put-parameter --name /env/prod/toss-invest --type SecureString --value "PORT=3000
-   BETTER_AUTH_SECRET=...
-   BETTER_AUTH_URL=https://<도메인>
-   GOOGLE_CLIENT_ID=...
-   GOOGLE_CLIENT_SECRET=...
-   AUTH_ALLOWED_DOMAINS=nalbam.com
-   TOSS_CLIENT_ID=...
-   TOSS_CLIENT_SECRET=...
-   TOSS_ACCOUNT_SEQ=1
-   ADVISOR_WORKER_ENABLED=true"
-   ```
+```bash
+aws ssm put-parameter --name /env/prod/toss-invest --type SecureString --value "PORT=3000
+BETTER_AUTH_SECRET=...
+BETTER_AUTH_URL=https://<도메인>
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+AUTH_ALLOWED_DOMAINS=nalbam.com
+TOSS_CLIENT_ID=...
+TOSS_CLIENT_SECRET=...
+TOSS_ACCOUNT_SEQ=1
+ADVISOR_WORKER_ENABLED=true"
+```
 
 3. **EC2 기동·배포·도메인** — `../GameServer/gameserver.py` 를 실행한다. 형제 repo(`Dockerfile`+`EXPOSE`)에서
    `toss-invest`(이미지 `ghcr.io/nalbam/toss-invest`, 포트 3000)를 자동 발견 → EC2+EIP 생성 → 버전 선택 배포
