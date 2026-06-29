@@ -8,13 +8,15 @@ export async function register(): Promise<void> {
   // folds the condition to `false` and drops the import — keeping the native
   // (better-sqlite3 / node:fs) worker chain out of the Edge bundle. An early
   // `return` guard does NOT achieve this: webpack still registers the import.
-  if (
-    process.env.NEXT_RUNTIME === "nodejs" &&
-    process.env.ADVISOR_WORKER_ENABLED === "true"
-  ) {
-    const { startAdvisorWorker } = await import(
-      "@/lib/server/market-advisor/worker"
-    );
-    startAdvisorWorker();
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { runAuthMigrations } = await import("@/lib/auth-migrate");
+    await runAuthMigrations();
+
+    if (process.env.ADVISOR_WORKER_ENABLED === "true") {
+      const { startAdvisorWorker } = await import(
+        "@/lib/server/market-advisor/worker"
+      );
+      startAdvisorWorker();
+    }
   }
 }
