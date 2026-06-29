@@ -16,6 +16,7 @@ import { AiAdvisor } from "./AiAdvisor";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { HoldingsPnL } from "./HoldingsPnL";
 import { HoldingsTable } from "./HoldingsTable";
+import { LogoutButton } from "./LogoutButton";
 import { MarketQuote } from "./MarketQuote";
 import { NewsCard } from "./NewsCard";
 import { OrderForm } from "./OrderForm";
@@ -354,6 +355,7 @@ export function Dashboard() {
               ))}
             </select>
           </div>
+          <LogoutButton />
         </div>
       </header>
 

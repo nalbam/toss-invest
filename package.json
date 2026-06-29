@@ -15,6 +15,7 @@
     "seed:stocks": "node scripts/seed-stocks.mjs"
   },
   "dependencies": {
+    "better-auth": "^1.6.21",
     "better-sqlite3": "^12.11.1",
     "lightweight-charts": "^5.2.0",
     "next": "15.5.19",
