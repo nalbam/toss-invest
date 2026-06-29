@@ -1,9 +1,16 @@
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import Database from "better-sqlite3";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { isEmailAllowed, parseAllowedDomains } from "@/lib/auth/allowlist";
 
 const allowedDomains = parseAllowedDomains(process.env.AUTH_ALLOWED_DOMAINS);
+
+const authDbPath = process.env.AUTH_DB_PATH ?? "data/auth.db";
+if (authDbPath !== ":memory:") {
+  mkdirSync(dirname(authDbPath), { recursive: true });
+}
 
 /**
  * better-auth server instance. Backed by its own SQLite file (separate from the
@@ -16,7 +23,7 @@ const allowedDomains = parseAllowedDomains(process.env.AUTH_ALLOWED_DOMAINS);
  * any non-`nalbam.com` account before its user record is ever written.
  */
 export const auth = betterAuth({
-  database: new Database(process.env.AUTH_DB_PATH ?? "data/auth.db"),
+  database: new Database(authDbPath),
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
