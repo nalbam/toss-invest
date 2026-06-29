@@ -1,27 +1,22 @@
 import type { CSSProperties } from "react";
+import { MINUTE_CHART_INTERVALS } from "@/lib/client/candles";
 import styles from "./dashboard.module.css";
 
-export const ADVISOR_AUTO_INTERVALS = [
-  { label: "1분", value: 60_000 },
-  { label: "2분", value: 120_000 },
-  { label: "3분", value: 180_000 },
-  { label: "5분", value: 300_000 },
-  { label: "10분", value: 600_000 },
-  { label: "30분", value: 1_800_000 },
-  { label: "1시간", value: 3_600_000 },
-] as const;
+// 차트 분봉과 동일한 분 단위 옵션(ms). 분봉 목록을 단일 출처로 파생해, 차트
+// 분봉이 바뀌면 조언 인터벌도 같은 시간대를 따라간다.
+const MINUTE_INTERVALS = MINUTE_CHART_INTERVALS.map(({ value, label }) => ({
+  label,
+  value: parseInt(value, 10) * 60_000,
+}));
 
-// Background analysis periods (ms) for the market advisor: minute → day, so a
-// daily chart can be analyzed e.g. once a day instead of every minute.
+// 개별 종목 조언 자동 재실행 주기 — 차트 분봉과 동일.
+export const ADVISOR_AUTO_INTERVALS = MINUTE_INTERVALS;
+
+// 시장 advisor 배경 분석 주기 — 차트 분봉 + 일봉(하루 한 번).
 export const ANALYSIS_INTERVALS = [
-  { label: "1분", value: 60_000 },
-  { label: "5분", value: 300_000 },
-  { label: "15분", value: 900_000 },
-  { label: "30분", value: 1_800_000 },
-  { label: "1시간", value: 3_600_000 },
-  { label: "4시간", value: 14_400_000 },
+  ...MINUTE_INTERVALS,
   { label: "1일", value: 86_400_000 },
-] as const;
+];
 
 export type AdvisorAutoInterval = number;
 

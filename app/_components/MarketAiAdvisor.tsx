@@ -24,7 +24,7 @@ import { ChartOverlayControls } from "./ChartOverlayControls";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
 
-const DEFAULT_RUN_EVERY_MS = 900_000; // 15분
+const DEFAULT_RUN_EVERY_MS = 600_000; // 10분 (차트 분봉 옵션에 존재)
 const NOT_CONFIGURED_MESSAGE = "AI 어드바이저가 설정되지 않았습니다.";
 const RUN_ERROR_MESSAGE = "시세 조언을 불러오지 못했습니다.";
 const AUTO_ERROR_MESSAGE = "자동분석 설정을 저장하지 못했습니다. 다시 시도해 주세요.";
