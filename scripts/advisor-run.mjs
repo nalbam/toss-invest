@@ -3,9 +3,9 @@
 // Usage:   ADVISOR_JOBS_TOKEN=xxx node scripts/advisor-run.mjs [baseUrl]
 // Cron:    */5 * * * * ADVISOR_JOBS_TOKEN=xxx node /path/to/scripts/advisor-run.mjs
 //
-// baseUrl defaults to ADVISOR_BASE_URL or http://localhost:4107.
+// baseUrl defaults to ADVISOR_BASE_URL or http://localhost:3000.
 
-const base = process.argv[2] ?? process.env.ADVISOR_BASE_URL ?? "http://localhost:4107";
+const base = process.argv[2] ?? process.env.ADVISOR_BASE_URL ?? "http://localhost:3000";
 const token = process.env.ADVISOR_JOBS_TOKEN;
 
 if (!token) {

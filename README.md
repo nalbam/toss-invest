@@ -34,7 +34,7 @@
 ```bash
 pnpm install
 cp .env.example .env.local   # 자격증명·안전 설정 입력
-pnpm run dev                 # http://localhost:4107
+pnpm run dev                 # http://localhost:3000
 ```
 
 ## 스크립트
