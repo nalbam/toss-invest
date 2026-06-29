@@ -127,7 +127,7 @@ docker run --rm -p 3000:3000 --env-file .env.local -v toss-invest-data:/app/data
 
 ```
 app/
-  api/**/route.ts      # GET 21 · POST 8 · PATCH 1 · DELETE 2 — Toss 프록시 + 로컬 SQLite 라우트(favorites · stocks/search · advisor-watchlist · advisor-jobs/run · market-advisor)
+  api/**/route.ts      # GET 22 · POST 8 · PATCH 1 · DELETE 2 — Toss 프록시 + 로컬 SQLite 라우트(favorites · stocks/search · advisor-watchlist · advisor-jobs/run · market-advisor)
   _components/*         # 대시보드 UI 섹션 + 주문 폼 + AI 어드바이저 + 종목 검색 모달 + 테마
   page.tsx             # 대시보드 페이지
 instrumentation.ts     # 부팅 시 인-프로세스 어드바이저 워커 시작(ADVISOR_WORKER_ENABLED)
@@ -138,6 +138,7 @@ lib/
     trading/           # safety(§6 게이트) · strategy · backtest · executor · auto-*
     advisor/           # 포트폴리오 어드바이저: 스냅샷 마스킹 · 프롬프트 · 검증 · 히스토리
     market-advisor/    # 차트 어드바이저 + watchlist · jobs · worker(백그라운드)
+    news/              # Tavily 심볼 뉴스 검색(ETF 구성종목 인지 · 10분 캐시, 차트 어드바이저와 공유)
     llm/               # provider 추상화 (openai · xai · chat-completions · container)
     db/                # SQLite(better-sqlite3) sqlite.ts: market_advice · portfolio_advice · advisor_watchlist · favorites · stock_directory · candle_cache
     candles/           # 캔들 캐시: 확정 캔들 SQLite 저장/조회 + 캐시 백드 페치(미확정은 Toss)
