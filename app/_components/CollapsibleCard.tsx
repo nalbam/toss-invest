@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { getStoredItem, setStoredItem } from "./settingsStore";
 import styles from "./dashboard.module.css";
 
 const STORAGE_PREFIX = "toss-invest:collapsed:";
@@ -11,7 +12,7 @@ function storageKey(key: string): string {
 
 function readStoredCollapsed(key: string): boolean | null {
   try {
-    const stored = window.localStorage.getItem(storageKey(key));
+    const stored = getStoredItem(storageKey(key));
     if (stored === "true") return true;
     if (stored === "false") return false;
     return null;
@@ -22,7 +23,7 @@ function readStoredCollapsed(key: string): boolean | null {
 
 function writeStoredCollapsed(key: string, collapsed: boolean): void {
   try {
-    window.localStorage.setItem(storageKey(key), String(collapsed));
+    setStoredItem(storageKey(key), String(collapsed));
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.
   }

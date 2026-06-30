@@ -2,12 +2,17 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ThemeSelector } from "./ThemeSelector";
+import {
+  __resetSettingsStore,
+  __seedSettings,
+  getStoredItem,
+} from "./settingsStore";
 
 afterEach(() => {
   cleanup();
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.style.colorScheme = "";
-  window.localStorage.clear();
+  __resetSettingsStore();
 });
 
 describe("ThemeSelector", () => {
@@ -27,13 +32,13 @@ describe("ThemeSelector", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "다크" }));
 
-    expect(window.localStorage.getItem("toss-invest:theme")).toBe('"dark"');
+    expect(getStoredItem("toss-invest:theme")).toBe('"dark"');
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.documentElement.style.colorScheme).toBe("dark");
   });
 
   it("restores a stored theme", async () => {
-    window.localStorage.setItem("toss-invest:theme", JSON.stringify("light"));
+    __seedSettings({ "toss-invest:theme": JSON.stringify("light") });
 
     render(<ThemeSelector />);
 

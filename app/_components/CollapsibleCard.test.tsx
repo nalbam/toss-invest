@@ -2,10 +2,15 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { CollapsibleCard } from "./CollapsibleCard";
+import {
+  __resetSettingsStore,
+  __seedSettings,
+  getStoredItem,
+} from "./settingsStore";
 
 afterEach(() => {
   cleanup();
-  window.localStorage.clear();
+  __resetSettingsStore();
 });
 
 describe("CollapsibleCard", () => {
@@ -24,13 +29,11 @@ describe("CollapsibleCard", () => {
 
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("본문")).not.toBeInTheDocument();
-    expect(
-      window.localStorage.getItem("toss-invest:collapsed:market-quote"),
-    ).toBe("true");
+    expect(getStoredItem("toss-invest:collapsed:market-quote")).toBe("true");
   });
 
   it("restores a previously collapsed state", async () => {
-    window.localStorage.setItem("toss-invest:collapsed:orders", "true");
+    __seedSettings({ "toss-invest:collapsed:orders": "true" });
 
     render(
       <CollapsibleCard title="주문내역" storageId="orders">
@@ -45,7 +48,7 @@ describe("CollapsibleCard", () => {
   });
 
   it("shows summary content while collapsed", async () => {
-    window.localStorage.setItem("toss-invest:collapsed:cash", "true");
+    __seedSettings({ "toss-invest:collapsed:cash": "true" });
 
     render(
       <CollapsibleCard

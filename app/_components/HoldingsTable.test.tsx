@@ -2,11 +2,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { HoldingsTable } from "./HoldingsTable";
+import { __resetSettingsStore, __seedSettings } from "./settingsStore";
 import type { HoldingsItem } from "@/lib/client/types";
 
 afterEach(() => {
   cleanup();
-  window.localStorage.clear();
+  __resetSettingsStore();
 });
 
 /**
@@ -110,7 +111,7 @@ describe("HoldingsTable", () => {
   });
 
   it("shows a holdings summary when collapsed", async () => {
-    window.localStorage.setItem("toss-invest:collapsed:holdings", "true");
+    __seedSettings({ "toss-invest:collapsed:holdings": "true" });
 
     render(<HoldingsTable items={[longNameEtf, apple]} />);
 
@@ -122,7 +123,7 @@ describe("HoldingsTable", () => {
   });
 
   it("shows an empty holdings summary when collapsed", async () => {
-    window.localStorage.setItem("toss-invest:collapsed:holdings", "true");
+    __seedSettings({ "toss-invest:collapsed:holdings": "true" });
 
     render(<HoldingsTable items={[]} />);
 

@@ -17,6 +17,11 @@ import type {
   Trade,
 } from "@/lib/client/types";
 import type { ChartInterval, TossCandleInterval } from "@/lib/client/candles";
+import {
+  __resetSettingsStore,
+  __seedSettings,
+  getStoredItem,
+} from "./settingsStore";
 
 // The SWR hooks hit `/api/*`; mock them so the component renders deterministic
 // states without a network. `lightweight-charts` is mocked because the rendered
@@ -204,7 +209,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   document.title = "";
-  window.localStorage.clear();
+  __resetSettingsStore();
   // The backfill cache is module-level; clear it so it never leaks between tests.
   __clearBackfillCache();
   vi.clearAllMocks();
@@ -381,13 +386,11 @@ describe("MarketQuote", () => {
     // 5분 still sources Toss 1m candles (aggregated client-side) and is persisted.
     expect(useCandles).toHaveBeenCalledWith("005930", "1m");
     expect((minuteSelect as HTMLSelectElement).value).toBe("5m");
-    expect(window.localStorage.getItem("toss-invest:chart-interval")).toBe(
-      "5m",
-    );
+    expect(getStoredItem("toss-invest:chart-interval")).toBe("5m");
   });
 
   it("restores the stored chart interval and marks it selected", async () => {
-    window.localStorage.setItem("toss-invest:chart-interval", "1w");
+    __seedSettings({ "toss-invest:chart-interval": "1w" });
 
     render(<MarketQuote symbol="005930" />);
 
@@ -399,7 +402,7 @@ describe("MarketQuote", () => {
   });
 
   it("waits for the stored minute interval before requesting chart candles", async () => {
-    window.localStorage.setItem("toss-invest:chart-interval", "1m");
+    __seedSettings({ "toss-invest:chart-interval": "1m" });
 
     render(<MarketQuote symbol="005930" />);
 

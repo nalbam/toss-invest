@@ -60,6 +60,7 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 | 라우트 | 메서드 | 동작 |
 |---|---|---|
 | `/api/favorites` | GET·POST·DELETE(`?symbol=`) | 즐겨찾기 목록·추가(upsert)·삭제 |
+| `/api/settings` | GET·PUT(`{upserts, deletes}`) | UI 상태 KV(`app_settings`) 전체 조회·배치 upsert/삭제. 과거 브라우저 localStorage 상태를 전역 1벌로 영속 |
 | `/api/stocks` | GET(`?symbols=`) | Toss 종목 마스터 조회(코드 다중) + 결과를 이름검색 디렉터리에 적재 |
 | `/api/stocks/search` | GET(`?q=&limit=`) | 이름/코드 부분검색(로컬 `stock_directory`) |
 | `/api/advisor-watchlist` | GET·POST·PATCH·DELETE(`?id=`) | 자동분석 watchlist CRUD(종목·인터벌·분석주기) |

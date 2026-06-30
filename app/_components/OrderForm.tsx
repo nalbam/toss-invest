@@ -18,6 +18,11 @@ import {
 import { CollapsibleCard } from "./CollapsibleCard";
 import { Money } from "./Money";
 import { readStoredJson, writeStoredJson } from "./localStorageJson";
+import {
+  getStoredItem,
+  removeStoredItem,
+  setStoredItem,
+} from "./settingsStore";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
@@ -85,7 +90,7 @@ function readStoredField(prefix: string, symbol: string): string {
     return "";
   }
   try {
-    const value = window.localStorage.getItem(prefix + symbol);
+    const value = getStoredItem(prefix + symbol);
     return value !== null && /^\d+(\.\d+)?$/.test(value) && Number(value) > 0
       ? value
       : "";
@@ -102,9 +107,9 @@ function writeStoredField(prefix: string, symbol: string, value: string): void {
   const trimmed = value.trim();
   try {
     if (trimmed === "") {
-      window.localStorage.removeItem(key);
+      removeStoredItem(key);
     } else {
-      window.localStorage.setItem(key, trimmed);
+      setStoredItem(key, trimmed);
     }
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.

@@ -10,6 +10,11 @@ import {
 } from "@testing-library/react";
 import { SWRConfig } from "swr";
 import { OrderForm } from "./OrderForm";
+import {
+  __resetSettingsStore,
+  __seedSettings,
+  getStoredItem,
+} from "./settingsStore";
 
 // Each render gets a fresh SWR cache so price/sellable reads never leak between
 // tests (e.g. an AAPL price cached by one test bleeding into the next).
@@ -38,7 +43,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
-  window.localStorage.clear();
+  __resetSettingsStore();
   vi.unstubAllGlobals();
 });
 
@@ -187,9 +192,7 @@ describe("OrderForm — quick order (default)", () => {
     fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
       target: { value: "7" },
     });
-    expect(window.localStorage.getItem("toss-invest:order-quantity:005930")).toBe(
-      "7",
-    );
+    expect(getStoredItem("toss-invest:order-quantity:005930")).toBe("7");
 
     // Switching to another symbol shows its own (empty) quantity ...
     rerender(ui("AAPL"));
@@ -585,10 +588,7 @@ describe("OrderForm — general order", () => {
     fireEvent.click(screen.getByLabelText("실주문 확인 (confirm)"));
 
     expect(
-      JSON.parse(
-        window.localStorage.getItem("toss-invest:order-form-preferences") ??
-          "{}",
-      ),
+      JSON.parse(getStoredItem("toss-invest:order-form-preferences") ?? "{}"),
     ).toEqual({
       mode: "GENERAL",
       side: "SELL",
@@ -598,15 +598,14 @@ describe("OrderForm — general order", () => {
   });
 
   it("restores stored order form preferences on reload", async () => {
-    window.localStorage.setItem(
-      "toss-invest:order-form-preferences",
-      JSON.stringify({
+    __seedSettings({
+      "toss-invest:order-form-preferences": JSON.stringify({
         mode: "GENERAL",
         side: "SELL",
         orderType: "MARKET",
         pricingMode: "AMOUNT",
       }),
-    );
+    });
 
     renderForm(<OrderForm accountSeq={1} symbol="AAPL" />);
 

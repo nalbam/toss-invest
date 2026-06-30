@@ -21,6 +21,11 @@ import type {
   SellableQuantity,
   Trade,
 } from "@/lib/client/types";
+import {
+  __resetSettingsStore,
+  __seedSettings,
+  getStoredItem,
+} from "./settingsStore";
 
 // Dashboard composes many SWR-backed children. Mock the whole hooks module so
 // the tree renders deterministic data, and `swr`'s config hook so the
@@ -232,12 +237,14 @@ beforeEach(() => {
     isLoading: false,
     error: undefined,
   });
+  // Open the dashboard's settings-hydration gate so the subtree renders.
+  __seedSettings({});
 });
 
 afterEach(() => {
   cleanup();
   document.title = "";
-  window.localStorage.clear();
+  __resetSettingsStore();
   vi.clearAllMocks();
 });
 
@@ -297,14 +304,10 @@ describe("Dashboard", () => {
     // 일반주문 tab exposes the prefilled 종목코드 field.
     fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
     expect(screen.getByLabelText("종목코드")).toHaveValue("AAPL");
-    expect(window.localStorage.getItem("toss-invest:last-symbol")).toBe("AAPL");
-    expect(window.localStorage.getItem("toss-invest:last-symbol:1")).toBe(
-      "AAPL",
-    );
+    expect(getStoredItem("toss-invest:last-symbol")).toBe("AAPL");
+    expect(getStoredItem("toss-invest:last-symbol:1")).toBe("AAPL");
     expect(
-      JSON.parse(
-        window.localStorage.getItem("toss-invest:last-symbol-selection:1")!,
-      ),
+      JSON.parse(getStoredItem("toss-invest:last-symbol-selection:1")!),
     ).toEqual({ symbol: "AAPL" });
   });
 
@@ -354,18 +357,14 @@ describe("Dashboard", () => {
     // Center order form 종목코드 follows the proposed symbol; 일반주문 tab shows it.
     fireEvent.click(screen.getByRole("tab", { name: "일반주문" }));
     expect(screen.getByLabelText("종목코드")).toHaveValue("360750");
-    expect(window.localStorage.getItem("toss-invest:last-symbol")).toBe(
-      "360750",
-    );
+    expect(getStoredItem("toss-invest:last-symbol")).toBe("360750");
     expect(
-      JSON.parse(
-        window.localStorage.getItem("toss-invest:last-symbol-selection:1")!,
-      ),
+      JSON.parse(getStoredItem("toss-invest:last-symbol-selection:1")!),
     ).toEqual({ symbol: "360750", name: "TIGER 미국S&P500" });
   });
 
   it("restores the last selected holding when it is still present", async () => {
-    window.localStorage.setItem("toss-invest:last-symbol:1", "AAPL");
+    __seedSettings({ "toss-invest:last-symbol:1": "AAPL" });
 
     render(<Dashboard />);
 
@@ -373,10 +372,12 @@ describe("Dashboard", () => {
   });
 
   it("restores a non-held selected symbol with its stored display name", async () => {
-    window.localStorage.setItem(
-      "toss-invest:last-symbol-selection:1",
-      JSON.stringify({ symbol: "360750", name: "TIGER 미국S&P500" }),
-    );
+    __seedSettings({
+      "toss-invest:last-symbol-selection:1": JSON.stringify({
+        symbol: "360750",
+        name: "TIGER 미국S&P500",
+      }),
+    });
 
     render(<Dashboard />);
 
@@ -388,7 +389,7 @@ describe("Dashboard", () => {
   });
 
   it("restores the selected account when it is still available", async () => {
-    window.localStorage.setItem("toss-invest:selected-account-seq", "2");
+    __seedSettings({ "toss-invest:selected-account-seq": "2" });
     useAccounts.mockReturnValue(
       loaded([
         { accountNo: "11001044791", accountSeq: 1, accountType: "BROKERAGE" },
@@ -430,9 +431,7 @@ describe("Dashboard", () => {
 
     fireEvent.change(screen.getByLabelText("계좌"), { target: { value: "2" } });
 
-    expect(window.localStorage.getItem("toss-invest:selected-account-seq")).toBe(
-      "2",
-    );
+    expect(getStoredItem("toss-invest:selected-account-seq")).toBe("2");
     expect(screen.getByText(/보유 종목을 선택하거나/)).toBeInTheDocument();
   });
 });

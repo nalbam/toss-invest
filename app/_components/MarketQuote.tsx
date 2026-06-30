@@ -39,6 +39,7 @@ import { Orderbook } from "./Orderbook";
 import { OrderbookDepth } from "./OrderbookDepth";
 import { TradesChart } from "./TradesChart";
 import { readStoredJson, writeStoredJson } from "./localStorageJson";
+import { getStoredItem, setStoredItem } from "./settingsStore";
 import styles from "./dashboard.module.css";
 import page from "@/app/page.module.css";
 
@@ -91,7 +92,7 @@ function isChartInterval(value: string | null): value is ChartInterval {
 
 function readStoredInterval(): ChartInterval {
   try {
-    const stored = window.localStorage.getItem(CHART_INTERVAL_KEY);
+    const stored = getStoredItem(CHART_INTERVAL_KEY);
     return isChartInterval(stored) ? stored : "1d";
   } catch {
     return "1d";
@@ -100,7 +101,7 @@ function readStoredInterval(): ChartInterval {
 
 function writeStoredInterval(interval: ChartInterval): void {
   try {
-    window.localStorage.setItem(CHART_INTERVAL_KEY, interval);
+    setStoredItem(CHART_INTERVAL_KEY, interval);
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.
   }

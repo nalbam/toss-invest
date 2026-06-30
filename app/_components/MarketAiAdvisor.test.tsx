@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { MarketAdvisorInput, MarketAdvisorHistoryEvent } from "@/lib/client/market-advisor";
 import type { WatchlistItem } from "@/lib/client/watchlist";
 import { MarketAiAdvisor } from "./MarketAiAdvisor";
+import { __resetSettingsStore, __seedSettings } from "./settingsStore";
 
 type WatchlistHook = {
   items: WatchlistItem[];
@@ -101,7 +102,7 @@ const event: MarketAdvisorHistoryEvent = {
 
 afterEach(() => {
   cleanup();
-  window.localStorage.clear();
+  __resetSettingsStore();
   vi.clearAllMocks();
   useWatchlist.mockReturnValue({ items: [], mutate: vi.fn(), isLoading: false });
   useMarketAdvisorHistory.mockReturnValue({
@@ -127,11 +128,12 @@ describe("MarketAiAdvisor", () => {
     expect(screen.getByText(/분석 200봉/)).toBeInTheDocument();
   });
 
-  it("does not read advice from localStorage", () => {
-    window.localStorage.setItem(
-      "toss-invest:market-ai-advisor-result:005930:1d",
-      JSON.stringify({ advice: "캐시된 조언" }),
-    );
+  it("does not read advice from the settings store", () => {
+    __seedSettings({
+      "toss-invest:market-ai-advisor-result:005930:1d": JSON.stringify({
+        advice: "캐시된 조언",
+      }),
+    });
     render(<MarketAiAdvisor input={input} />);
 
     expect(screen.queryByText(/캐시된 조언/)).not.toBeInTheDocument();

@@ -4,6 +4,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { ApiClientError } from "@/lib/client/hooks";
 import type { AdvisorResult } from "@/lib/client/advisor";
 import { AiAdvisor } from "./AiAdvisor";
+import {
+  __resetSettingsStore,
+  __seedSettings,
+  getStoredItem,
+} from "./settingsStore";
 
 const { fetchAdvisor } = vi.hoisted(() => ({ fetchAdvisor: vi.fn() }));
 vi.mock("@/lib/client/advisor", () => ({ fetchAdvisor }));
@@ -11,7 +16,7 @@ vi.mock("@/lib/client/advisor", () => ({ fetchAdvisor }));
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-  window.localStorage.clear();
+  __resetSettingsStore();
   vi.clearAllMocks();
 });
 
@@ -73,10 +78,12 @@ describe("AiAdvisor", () => {
   });
 
   it("restores stored auto rerun settings", async () => {
-    window.localStorage.setItem(
-      "toss-invest:ai-advisor-auto",
-      JSON.stringify({ enabled: true, intervalMs: 1_800_000 }),
-    );
+    __seedSettings({
+      "toss-invest:ai-advisor-auto": JSON.stringify({
+        enabled: true,
+        intervalMs: 1_800_000,
+      }),
+    });
 
     render(<AiAdvisor />);
 
@@ -96,16 +103,15 @@ describe("AiAdvisor", () => {
     fireEvent.click(screen.getByRole("button", { name: /조언 받기|분석/ }));
 
     await waitFor(() => expect(screen.getByText(/분산을 고려하세요/)).toBeInTheDocument());
-    expect(
-      window.localStorage.getItem("toss-invest:ai-advisor-result:7"),
-    ).toBe(JSON.stringify(result));
+    expect(getStoredItem("toss-invest:ai-advisor-result:7")).toBe(
+      JSON.stringify(result),
+    );
   });
 
   it("restores a stored advisor result without auto-fetching", async () => {
-    window.localStorage.setItem(
-      "toss-invest:ai-advisor-result:7",
-      JSON.stringify(result),
-    );
+    __seedSettings({
+      "toss-invest:ai-advisor-result:7": JSON.stringify(result),
+    });
 
     render(<AiAdvisor accountSeq={7} />);
 

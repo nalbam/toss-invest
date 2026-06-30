@@ -89,6 +89,12 @@ CREATE TABLE IF NOT EXISTS candle_cache (
 );
 CREATE INDEX IF NOT EXISTS idx_candle_cache_range
   ON candle_cache (symbol, interval, epoch_ms DESC);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `;
 
 // Additive migrations for DBs created before a column existed. SQLite lacks

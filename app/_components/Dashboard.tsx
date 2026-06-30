@@ -23,6 +23,12 @@ import { OrderForm } from "./OrderForm";
 import { OrdersTable } from "./OrdersTable";
 import { PortfolioComposition } from "./PortfolioComposition";
 import { PortfolioSummary } from "./PortfolioSummary";
+import {
+  getStoredItem,
+  preloadSettings,
+  setStoredItem,
+  useSettingsHydration,
+} from "./settingsStore";
 import { StockSearchModal } from "./StockSearchModal";
 import { ThemeSelector } from "./ThemeSelector";
 import { WatchlistControls } from "./WatchlistControls";
@@ -49,7 +55,7 @@ function symbolSelectionStorageKey(accountSeq: number): string {
 
 function readLastSymbol(): string | null {
   try {
-    return window.localStorage.getItem(LAST_SYMBOL_KEY);
+    return getStoredItem(LAST_SYMBOL_KEY);
   } catch {
     return null;
   }
@@ -57,7 +63,7 @@ function readLastSymbol(): string | null {
 
 function readStoredAccountSeq(): number | null {
   try {
-    const stored = window.localStorage.getItem(SELECTED_ACCOUNT_KEY);
+    const stored = getStoredItem(SELECTED_ACCOUNT_KEY);
     if (stored === null) return null;
     const parsed = Number(stored);
     return Number.isInteger(parsed) ? parsed : null;
@@ -68,7 +74,7 @@ function readStoredAccountSeq(): number | null {
 
 function writeStoredAccountSeq(accountSeq: number): void {
   try {
-    window.localStorage.setItem(SELECTED_ACCOUNT_KEY, String(accountSeq));
+    setStoredItem(SELECTED_ACCOUNT_KEY, String(accountSeq));
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.
   }
@@ -76,7 +82,7 @@ function writeStoredAccountSeq(accountSeq: number): void {
 
 function readStoredSymbol(accountSeq: number): string | null {
   try {
-    return window.localStorage.getItem(symbolStorageKey(accountSeq));
+    return getStoredItem(symbolStorageKey(accountSeq));
   } catch {
     return null;
   }
@@ -100,9 +106,7 @@ function readStoredSymbolSelection(
   accountSeq: number,
 ): StoredSymbolSelection | null {
   try {
-    const stored = window.localStorage.getItem(
-      symbolSelectionStorageKey(accountSeq),
-    );
+    const stored = getStoredItem(symbolSelectionStorageKey(accountSeq));
     if (stored !== null) {
       const parsed: unknown = JSON.parse(stored);
       if (isStoredSymbolSelection(parsed)) {
@@ -118,7 +122,7 @@ function readStoredSymbolSelection(
 
 function readLegacySymbolSelection(): StoredSymbolSelection | null {
   try {
-    const stored = window.localStorage.getItem(LAST_SYMBOL_SELECTION_KEY);
+    const stored = getStoredItem(LAST_SYMBOL_SELECTION_KEY);
     if (stored !== null) {
       const parsed: unknown = JSON.parse(stored);
       if (isStoredSymbolSelection(parsed)) {
@@ -134,8 +138,8 @@ function readLegacySymbolSelection(): StoredSymbolSelection | null {
 
 function writeStoredSymbol(accountSeq: number, symbol: string): void {
   try {
-    window.localStorage.setItem(symbolStorageKey(accountSeq), symbol);
-    window.localStorage.setItem(LAST_SYMBOL_KEY, symbol);
+    setStoredItem(symbolStorageKey(accountSeq), symbol);
+    setStoredItem(LAST_SYMBOL_KEY, symbol);
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.
   }
@@ -147,14 +151,8 @@ function writeStoredSymbolSelection(
 ): void {
   writeStoredSymbol(accountSeq, selection.symbol);
   try {
-    window.localStorage.setItem(
-      symbolSelectionStorageKey(accountSeq),
-      JSON.stringify(selection),
-    );
-    window.localStorage.setItem(
-      LAST_SYMBOL_SELECTION_KEY,
-      JSON.stringify(selection),
-    );
+    setStoredItem(symbolSelectionStorageKey(accountSeq), JSON.stringify(selection));
+    setStoredItem(LAST_SYMBOL_SELECTION_KEY, JSON.stringify(selection));
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.
   }
@@ -166,6 +164,13 @@ function writeStoredSymbolSelection(
  * comes from the app's own `/api/*` routes via SWR.
  */
 export function Dashboard() {
+  // Settings live in the server-backed KV cache; gate the subtree until it's
+  // hydrated so every descendant's sync read on mount sees the persisted value.
+  const hydrated = useSettingsHydration();
+  useEffect(() => {
+    void preloadSettings();
+  }, []);
+
   const accounts = useAccounts();
   const [selectedSeq, setSelectedSeq] = useState<number | undefined>(undefined);
   const [privacyBlurred, setPrivacyBlurred] = useState(false);
@@ -190,6 +195,7 @@ export function Dashboard() {
 
   // Restore the selected account when possible; otherwise default to the first.
   useEffect(() => {
+    if (!hydrated) return;
     if (selectedSeq === undefined && accounts.data && accounts.data.length > 0) {
       const storedSeq = readStoredAccountSeq();
       const nextSeq =
@@ -199,7 +205,7 @@ export function Dashboard() {
           : accounts.data[0].accountSeq;
       setSelectedSeq(nextSeq);
     }
-  }, [accounts.data, selectedSeq]);
+  }, [accounts.data, selectedSeq, hydrated]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -250,6 +256,7 @@ export function Dashboard() {
   }
 
   useEffect(() => {
+    if (!hydrated) return;
     if (selectedSymbol !== undefined || holdings.data === undefined) {
       return;
     }
@@ -272,7 +279,7 @@ export function Dashboard() {
           : undefined,
       );
     }
-  }, [holdings.data, selectedSeq, selectedSymbol]);
+  }, [holdings.data, selectedSeq, selectedSymbol, hydrated]);
 
   useEffect(() => {
     if (selectedSymbol === undefined) {
@@ -307,6 +314,9 @@ export function Dashboard() {
     setPrefill({ side: proposal.side, quantity: proposal.quantity });
   }
 
+  if (!hydrated) {
+    return <p className={page.status}>설정을 불러오는 중…</p>;
+  }
   if (accounts.isLoading) {
     return <p className={page.status}>계좌 정보를 불러오는 중…</p>;
   }
