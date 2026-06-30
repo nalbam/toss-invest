@@ -12,6 +12,7 @@ import {
 } from "@/lib/client/hooks";
 import type { Candle, Order } from "@/lib/client/types";
 import {
+  advisorSourceCandleCount,
   aggregateCandles,
   CHART_INTERVALS,
   combineCandlePages,
@@ -21,6 +22,7 @@ import {
   sourceInterval,
   type ChartInterval,
 } from "@/lib/client/candles";
+import { collectSourceCandles } from "@/lib/client/market-advisor";
 import { summarizeTrend } from "@/lib/client/indicators";
 import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
 import { previousClose, priceChange } from "@/lib/client/quote";
@@ -125,6 +127,17 @@ export function MarketQuote({
   const [olderCandles, setOlderCandles] = useState<Candle[]>([]);
   const [olderExhausted, setOlderExhausted] = useState(false);
   const loadingOlderRef = useRef(false);
+  // Initial backfill bookkeeping. `backfillGen` bumps once the interval-sized
+  // source window has loaded, to force a single chart re-fit (via fitKey).
+  // `backfilledSourceRef` records what was already collected so the same
+  // (symbol, source) isn't re-fetched, and only larger intervals top up.
+  // Kept separate from `loadingOlderRef` so an in-flight backfill never
+  // suppresses scroll-driven `loadOlder`.
+  const [backfillGen, setBackfillGen] = useState(0);
+  const backfilledSourceRef = useRef<{ key: string; count: number }>({
+    key: "",
+    count: 0,
+  });
 
   // Older pages are keyed to (symbol, source). Reset them during render — not in
   // an effect — when the key changes, so a stale page from the previous interval
@@ -213,6 +226,43 @@ export function MarketQuote({
       loadingOlderRef.current = false;
     }
   }, [mergedSourceCandles, symbol, source, olderExhausted]);
+
+  // Initial backfill: pull an interval-appropriate window of source candles so
+  // larger intervals (30m/60m/일+) fill the screen on first load instead of the
+  // handful of bars a single live page yields. Seeds the same `olderCandles`
+  // state the scroll-pagination uses, so the merge/aggregate path is unchanged;
+  // bumps `backfillGen` to trigger one re-fit (via `fitKey`) once data lands.
+  // Sized by interval but keyed by (symbol, source): 30m↔60m (same 1m source,
+  // same cap) skips a refetch, while 5m→10m tops up to the larger target.
+  useEffect(() => {
+    if (!loadedStoredInterval) {
+      return;
+    }
+    const desired = advisorSourceCandleCount(interval);
+    const already = backfilledSourceRef.current;
+    if (already.key === olderKey && already.count >= desired) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const collected = await collectSourceCandles(symbol, interval).catch(
+        () => [] as Candle[],
+      );
+      if (cancelled || collected.length === 0) {
+        return;
+      }
+      backfilledSourceRef.current = {
+        key: olderKey,
+        count: Math.max(already.count, collected.length),
+      };
+      setOlderCandles((prev) => combineCandlePages(collected, prev));
+      setBackfillGen((generation) => generation + 1);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol, interval, loadedStoredInterval, olderKey]);
+
   const titleName = name ?? symbol;
   const titlePrice = quote ? formatPrice(quote.lastPrice, currency) : "시세";
   const titleRate = quote ? (change ? formatPercent(change.rate) : "-") : "-";
@@ -361,7 +411,7 @@ export function MarketQuote({
         <>
           <CandleChart
             candles={chartCandles}
-            fitKey={`${symbol}:${interval}`}
+            fitKey={`${symbol}:${interval}:${backfillGen}`}
             onReachStart={loadOlder}
             priceLimits={limits.data}
             markers={orderMarkers}

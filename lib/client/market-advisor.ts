@@ -116,14 +116,16 @@ export async function fetchMarketAdvisor(
 }
 
 /**
- * Loads an interval-appropriate candle window for the chart advisor, independent
- * of how far the chart is scrolled: a 10m chart needs ~10× more 1m source candles
- * than its visible page to yield enough ten-minute bars for analysis. Paginates
- * the cache-backed `/api/candles` (latest + older via `before`) until it has
- * `advisorSourceCandleCount(interval)` source candles (or runs out), then
- * aggregates and keeps the most recent `ADVISOR_TARGET_BARS` bars.
+ * Collects an interval-appropriate window of raw source candles, independent of
+ * how far the chart is scrolled: a 10m chart needs ~10× more 1m source candles
+ * than its visible page to yield enough ten-minute bars. Paginates the
+ * cache-backed `/api/candles` (latest + older via `before`) until it has
+ * `advisorSourceCandleCount(interval)` source candles (or Toss runs out).
+ * Returns the un-aggregated source candles in fetch order; callers sort and
+ * de-duplicate via `combineCandlePages`. Shared by the chart's initial backfill
+ * (MarketQuote) and the advisor window below.
  */
-export async function loadAdvisorCandles(
+export async function collectSourceCandles(
   symbol: string,
   interval: ChartInterval,
 ): Promise<Candle[]> {
@@ -142,5 +144,19 @@ export async function loadAdvisorCandles(
     }
     before = page.nextBefore;
   }
-  return aggregateForAdvisor(collected, interval);
+  return collected;
+}
+
+/**
+ * Loads the candle window for the chart advisor: collects source candles, then
+ * aggregates and keeps the most recent `ADVISOR_TARGET_BARS` bars.
+ */
+export async function loadAdvisorCandles(
+  symbol: string,
+  interval: ChartInterval,
+): Promise<Candle[]> {
+  return aggregateForAdvisor(
+    await collectSourceCandles(symbol, interval),
+    interval,
+  );
 }

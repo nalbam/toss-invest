@@ -9,13 +9,14 @@ import {
 } from "@testing-library/react";
 import type { QueryResult } from "@/lib/client/hooks";
 import type {
+  Candle,
   CandlePageResponse,
   OrderbookResponse,
   PriceLimitResponse,
   PriceResponse,
   Trade,
 } from "@/lib/client/types";
-import type { TossCandleInterval } from "@/lib/client/candles";
+import type { ChartInterval, TossCandleInterval } from "@/lib/client/candles";
 
 // The SWR hooks hit `/api/*`; mock them so the component renders deterministic
 // states without a network. `lightweight-charts` is mocked because the rendered
@@ -41,6 +42,8 @@ const fetchOlderCandles =
       count?: number,
     ) => Promise<CandlePageResponse>
   >();
+const collectSourceCandles =
+  vi.fn<(symbol: string, interval: ChartInterval) => Promise<Candle[]>>();
 
 vi.mock("@/lib/client/hooks", () => ({
   usePrices: (symbols: string[]) => usePrices(symbols),
@@ -58,6 +61,18 @@ vi.mock("@/lib/client/hooks", () => ({
     count?: number,
   ) => fetchOlderCandles(symbol, interval, before, count),
 }));
+
+// Only the chart backfill is stubbed; the rest of market-advisor (used by the
+// rendered MarketAiAdvisor) stays real so its behavior is unaffected.
+vi.mock("@/lib/client/market-advisor", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/client/market-advisor")>();
+  return {
+    ...actual,
+    collectSourceCandles: (symbol: string, interval: ChartInterval) =>
+      collectSourceCandles(symbol, interval),
+  };
+});
 
 // Capture the chart's visible-range subscribers so a test can simulate the user
 // scrolling to the oldest edge (which drives auto-loading of older candles).
@@ -170,6 +185,7 @@ beforeEach(() => {
   useTrades.mockReturnValue(loaded([]));
   useMarketAdvisorHistory.mockReturnValue(loaded({ events: [] }));
   useFavorites.mockReturnValue({ items: [], mutate: vi.fn(), isLoading: false });
+  collectSourceCandles.mockResolvedValue([]);
   chartRangeHandlers.length = 0;
 });
 
@@ -184,6 +200,15 @@ describe("MarketQuote", () => {
   it("renders the last price", () => {
     render(<MarketQuote symbol="005930" />);
     expect(screen.getByText(byMoney("₩72,000"))).toBeInTheDocument();
+  });
+
+  it("backfills an interval-sized source window on mount", async () => {
+    render(<MarketQuote symbol="005930" />);
+    // Default stored interval is 1d; backfill collects its source window so
+    // larger intervals fill the screen rather than the single live page.
+    await waitFor(() =>
+      expect(collectSourceCandles).toHaveBeenCalledWith("005930", "1d"),
+    );
   });
 
   it("adds the current symbol to favorites via the star", async () => {

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 import { ApiClientError } from "./hooks";
 import {
+  collectSourceCandles,
   fetchMarketAdvisor,
   loadAdvisorCandles,
   type MarketAdvisorInput,
@@ -79,34 +80,67 @@ describe("fetchMarketAdvisor", () => {
   });
 });
 
+function candle1m(ms: number) {
+  return {
+    timestamp: new Date(ms).toISOString(),
+    openPrice: "100",
+    highPrice: "110",
+    lowPrice: "90",
+    closePrice: "105",
+    volume: "10",
+    currency: "KRW",
+  };
+}
+
+/** A fetch stub that pages back through `all` (ascending) 200-at-a-time,
+ *  newest-first, honoring the `before` cursor — like Toss `/api/v1/candles`. */
+function pagedCandleFetch(all: ReturnType<typeof candle1m>[]): FetchMock {
+  return vi.fn(async (url: string) => {
+    const u = new URL(url, "http://localhost");
+    const before = u.searchParams.get("before");
+    const cutoff = before === null ? Infinity : Date.parse(before);
+    const older = all.filter((c) => Date.parse(c.timestamp) < cutoff);
+    const page = older.slice(-200).reverse(); // up to 200, newest-first
+    const nextBefore =
+      older.length > 200 ? page[page.length - 1].timestamp : null;
+    return jsonResponse({ data: { candles: page, nextBefore } });
+  });
+}
+
+describe("collectSourceCandles", () => {
+  it("returns raw un-aggregated source candles, paginated to the interval target", async () => {
+    const base = Date.parse("2026-06-19T00:00:00Z");
+    const all = Array.from({ length: 2000 }, (_, i) => candle1m(base + i * 60_000));
+    const fetchMock = pagedCandleFetch(all);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await collectSourceCandles("005930", "10m");
+
+    // Raw 1m source — NOT the 200 aggregated bars loadAdvisorCandles returns.
+    expect(fetchMock.mock.calls.length).toBe(10);
+    expect(result).toHaveLength(2000);
+    const sorted = [...result].sort(
+      (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
+    );
+    expect(
+      Date.parse(sorted[1].timestamp) - Date.parse(sorted[0].timestamp),
+    ).toBe(60_000);
+  });
+
+  it("stops when Toss runs out of history (nextBefore null) before the target", async () => {
+    const base = Date.parse("2026-06-19T00:00:00Z");
+    const all = Array.from({ length: 50 }, (_, i) => candle1m(base + i * 60_000));
+    const fetchMock = pagedCandleFetch(all);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await collectSourceCandles("005930", "10m");
+
+    expect(result).toHaveLength(50);
+    expect(fetchMock.mock.calls.length).toBe(1);
+  });
+});
+
 describe("loadAdvisorCandles", () => {
-  function candle1m(ms: number) {
-    return {
-      timestamp: new Date(ms).toISOString(),
-      openPrice: "100",
-      highPrice: "110",
-      lowPrice: "90",
-      closePrice: "105",
-      volume: "10",
-      currency: "KRW",
-    };
-  }
-
-  /** A fetch stub that pages back through `all` (ascending) 200-at-a-time,
-   *  newest-first, honoring the `before` cursor — like Toss `/api/v1/candles`. */
-  function pagedCandleFetch(all: ReturnType<typeof candle1m>[]): FetchMock {
-    return vi.fn(async (url: string) => {
-      const u = new URL(url, "http://localhost");
-      const before = u.searchParams.get("before");
-      const cutoff = before === null ? Infinity : Date.parse(before);
-      const older = all.filter((c) => Date.parse(c.timestamp) < cutoff);
-      const page = older.slice(-200).reverse(); // up to 200, newest-first
-      const nextBefore =
-        older.length > 200 ? page[page.length - 1].timestamp : null;
-      return jsonResponse({ data: { candles: page, nextBefore } });
-    });
-  }
-
   it("aggregates 1m source into the SELECTED interval (10m → 200 ten-minute bars, not 200 one-minute candles)", async () => {
     const base = Date.parse("2026-06-19T00:00:00Z");
     const all = Array.from({ length: 2000 }, (_, i) => candle1m(base + i * 60_000));
