@@ -144,7 +144,7 @@ vi.mock("@/lib/client/favorites", () => ({
   removeFavoriteItem,
 }));
 
-const { MarketQuote } = await import("./MarketQuote");
+const { MarketQuote, __clearBackfillCache } = await import("./MarketQuote");
 
 /**
  * Matcher for a money amount whose currency symbol is split into its own span by
@@ -205,6 +205,8 @@ afterEach(() => {
   cleanup();
   document.title = "";
   window.localStorage.clear();
+  // The backfill cache is module-level; clear it so it never leaks between tests.
+  __clearBackfillCache();
   vi.clearAllMocks();
 });
 
@@ -223,8 +225,8 @@ describe("MarketQuote", () => {
     );
   });
 
-  it("re-backfills the original symbol after switching away mid-backfill and back", async () => {
-    // A's backfill completes (records A as filled at the 1d target of 200).
+  it("restores a previously backfilled symbol from cache without refetching", async () => {
+    // A's backfill completes (fills the 1d target of 200) and gets cached.
     collectSourceCandles.mockResolvedValueOnce(manyCandles(200));
     // B's backfill never resolves — the user leaves before it lands.
     collectSourceCandles.mockReturnValueOnce(new Promise<Candle[]>(() => {}));
@@ -233,6 +235,8 @@ describe("MarketQuote", () => {
     await waitFor(() =>
       expect(collectSourceCandles).toHaveBeenCalledWith("005930", "1d"),
     );
+    // Wait for A's chart to render (backfill settled) so its window is cached.
+    await screen.findByLabelText("캔들 차트");
 
     rerender(<MarketQuote symbol="000660" />);
     await waitFor(() =>
@@ -240,14 +244,35 @@ describe("MarketQuote", () => {
     );
 
     collectSourceCandles.mockClear();
-    collectSourceCandles.mockResolvedValue(manyCandles(200));
     rerender(<MarketQuote symbol="005930" />);
-    // Returning to A must re-backfill: its olderCandles were cleared on the
-    // switch, so skipping on a stale "already filled" flag would leave the
-    // chart on just the live page (the reported 8-bar bug).
-    await waitFor(() =>
-      expect(collectSourceCandles).toHaveBeenCalledWith("005930", "1d"),
+    // Returning to A restores its cached window immediately: the chart shows the
+    // full window in one pass (no transient few-bar view, the reported 8-bar
+    // bug) and A is not re-backfilled.
+    expect(await screen.findByLabelText("캔들 차트")).toBeInTheDocument();
+    expect(collectSourceCandles).not.toHaveBeenCalled();
+  });
+
+  it("holds the loader until backfill settles, then shows the full chart", async () => {
+    let resolveBackfill: (candles: Candle[]) => void = () => {};
+    // First-entry backfill stays in flight until the test resolves it.
+    collectSourceCandles.mockReturnValueOnce(
+      new Promise<Candle[]>((resolve) => {
+        resolveBackfill = resolve;
+      }),
     );
+    // The live page alone aggregates to only a handful of bars — what we must
+    // never flash. Keep the chart behind the loader until backfill lands.
+    useCandles.mockReturnValue(
+      loaded({ candles: manyCandles(7), nextBefore: null }),
+    );
+
+    render(<MarketQuote symbol="005930" />);
+
+    expect(screen.getByText("차트를 불러오는 중…")).toBeInTheDocument();
+    expect(screen.queryByLabelText("캔들 차트")).not.toBeInTheDocument();
+
+    resolveBackfill(manyCandles(200));
+    expect(await screen.findByLabelText("캔들 차트")).toBeInTheDocument();
   });
 
   it("adds the current symbol to favorites via the star", async () => {
@@ -435,6 +460,9 @@ describe("MarketQuote", () => {
     });
 
     render(<MarketQuote symbol="005930" />);
+
+    // The chart appears only once backfill settles (here an empty result).
+    await screen.findByLabelText("캔들 차트");
 
     // Far from the oldest edge → no fetch.
     fireChartVisibleRange({ from: 50, to: 100 });

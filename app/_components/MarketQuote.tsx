@@ -45,6 +45,17 @@ import page from "@/app/page.module.css";
 const CHART_INTERVAL_KEY = "toss-invest:chart-interval";
 const CHART_OVERLAYS_KEY = "toss-invest:chart-overlays";
 
+// Backfilled source candles cached per (symbol, source) for the lifetime of the
+// page. Returning to a previously viewed symbol restores its full window
+// instantly, so the chart never flashes the handful of bars a single live page
+// yields before backfill re-lands. Session-only (cleared on reload).
+const backfillCache = new Map<string, Candle[]>();
+
+/** Clears the in-memory backfill cache. Exposed for test isolation. */
+export function __clearBackfillCache(): void {
+  backfillCache.clear();
+}
+
 interface ChartOverlayState {
   labels: boolean;
   lines: boolean;
@@ -138,6 +149,11 @@ export function MarketQuote({
     key: "",
     count: 0,
   });
+  // Whether the current (symbol, source) has data ready to fit to: a cache hit,
+  // or a finished backfill attempt (success or empty). The chart stays hidden
+  // behind the loading state until this is true, so it never fits to a partial
+  // live-page-only window and then jumps when the full window arrives.
+  const [backfillSettled, setBackfillSettled] = useState(false);
 
   // Older pages are keyed to (symbol, source). Reset them during render — not in
   // an effect — when the key changes, so a stale page from the previous interval
@@ -148,14 +164,21 @@ export function MarketQuote({
   const [olderKeyState, setOlderKeyState] = useState(olderKey);
   if (olderKeyState !== olderKey) {
     setOlderKeyState(olderKey);
-    setOlderCandles([]);
+    // Restore this key's previously backfilled window from the cache instead of
+    // emptying it. A cache hit means the full window is available immediately —
+    // the chart fits to it in one pass, skipping the transient few-bar view.
+    const cached = backfillCache.get(olderKey) ?? [];
+    setOlderCandles(cached);
     setOlderExhausted(false);
     loadingOlderRef.current = false;
-    // Clear the backfill record alongside olderCandles. Otherwise, returning to
-    // a previously viewed symbol whose backfill once completed would match the
-    // stale "already filled" flag and skip — leaving the chart on just the live
-    // page (a few bars) because olderCandles was emptied here.
-    backfilledSourceRef.current = { key: "", count: 0 };
+    // Restore the backfill record from the cache: a hit counts as already
+    // filled (so the effect below can skip), a miss resets it so backfill runs.
+    backfilledSourceRef.current =
+      cached.length > 0
+        ? { key: olderKey, count: cached.length }
+        : { key: "", count: 0 };
+    // A hit can fit immediately; a miss must wait for backfill before showing.
+    setBackfillSettled(cached.length > 0);
   }
 
   const prices = usePrices([symbol]);
@@ -246,6 +269,9 @@ export function MarketQuote({
     const desired = advisorSourceCandleCount(interval);
     const already = backfilledSourceRef.current;
     if (already.key === olderKey && already.count >= desired) {
+      // Already filled (e.g. restored from cache): nothing to fetch, but the
+      // chart is ready to fit.
+      setBackfillSettled(true);
       return;
     }
     let cancelled = false;
@@ -253,20 +279,34 @@ export function MarketQuote({
       const collected = await collectSourceCandles(symbol, interval).catch(
         () => [] as Candle[],
       );
-      if (cancelled || collected.length === 0) {
+      if (cancelled) {
         return;
       }
-      backfilledSourceRef.current = {
-        key: olderKey,
-        count: Math.max(already.count, collected.length),
-      };
-      setOlderCandles((prev) => combineCandlePages(collected, prev));
-      setBackfillGen((generation) => generation + 1);
+      if (collected.length > 0) {
+        backfilledSourceRef.current = {
+          key: olderKey,
+          count: Math.max(already.count, collected.length),
+        };
+        setOlderCandles((prev) => combineCandlePages(collected, prev));
+        setBackfillGen((generation) => generation + 1);
+      }
+      // Settle even on an empty result so the chart shows the live page (all
+      // the data there is) instead of staying on the loader indefinitely.
+      setBackfillSettled(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [symbol, interval, loadedStoredInterval, olderKey]);
+
+  // Keep the cache in sync with whatever older window is loaded — from backfill
+  // or scroll pagination — so returning to this symbol restores it (including
+  // any history the user scrolled into) without a refetch.
+  useEffect(() => {
+    if (olderCandles.length > 0) {
+      backfillCache.set(olderKey, olderCandles);
+    }
+  }, [olderCandles, olderKey]);
 
   const titleName = name ?? symbol;
   const titlePrice = quote ? formatPrice(quote.lastPrice, currency) : "시세";
@@ -406,7 +446,10 @@ export function MarketQuote({
         ))}
       </div>
 
-      {candles.isLoading ? (
+      {candles.isLoading || (!backfillSettled && candles.data) ? (
+        // Hold the loader until the full window is ready (cache hit or finished
+        // backfill), so the chart fits to it directly instead of flashing the
+        // few bars a single live page yields and then jumping.
         <p className={page.status}>차트를 불러오는 중…</p>
       ) : candles.error ? (
         <p className={`${page.status} ${page.error}`} role="alert">
