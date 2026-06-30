@@ -16,6 +16,15 @@
 6. **멱등성**: `clientOrderId`로 중복 주문 방지(`request-in-progress`/`already-*` 처리). **dry-run으로 강등된 시도는 `clientOrderId`를 발급·소비하지 않는다**(이후 실주문 재시도 시 오판 방지).
 7. **감사 로그**: 모든 주문 시도(전송/강등/거부)를 입력·사유와 함께 남긴다. 단, 시크릿·PII 제외.
 
+### 주문 결과 판정
+
+`POST /orders*`가 로컬 게이트에서 `SENT`가 되거나 Toss가 200을 반환해도 이는 **실제 POST 전송/주문 생성 완료**다. 체결 성공은 별도 판정한다.
+
+- 생성 응답의 `orderId`를 저장하고 `GET /orders/{orderId}`로 상세를 조회한다.
+- `FILLED`만 전량 체결 완료로 본다.
+- `PARTIAL_FILLED`와 취소·거부·정정 계열 상태는 `execution.filledQuantity`를 확인해 부분 체결 여부를 판단한다.
+- 응답 유실/타임아웃 후 재시도는 같은 `clientOrderId`로만 수행한다. 새 id로 재시도하면 중복 주문 위험이 있다.
+
 ### 통화-인지 notional
 
 notional 한도 검사는 통화를 추론한다 — KRX 심볼(`^\d{6}$`)=KRW, 그 외=USD. USD 주문은 `fxRate`로 KRW 환산하며, **USD인데 fxRate가 없으면 BLOCK(fail-safe)**. (notional 계산 불가 시에도 BLOCK.)

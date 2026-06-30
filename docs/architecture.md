@@ -51,7 +51,7 @@ lib/
 
 ### 서버 toss 계층
 
-`auth`(토큰 발급/캐싱/만료 전 갱신, DI fetch/clock) · `client`(인증·rate limit·에러·429 백오프) · `rate-limiter` · `schemas`(decimal=string, openEnum) · `endpoints`(GET 17 typed) · `container`(getServerTossClient).
+`auth`(토큰 발급/캐싱/만료 전 갱신, DI fetch/clock) · `client`(인증·rate limit·에러·429 백오프) · `rate-limiter` · `schemas`(decimal=string, openEnum) · `endpoints`(Toss GET 조회 + 주문 raw POST typed wrapper) · `container`(getServerTossClient/getServerTradingExecutor).
 
 ### API 라우트
 

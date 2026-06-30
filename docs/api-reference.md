@@ -30,9 +30,28 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 
 - **Rate limit**: 응답 헤더 `X-RateLimit-Limit/Remaining/Reset` 존중. 429 시 `Retry-After` + 지수 백오프(1→2→4s)+지터, `Remaining` 낮으면 선제 스로틀.
 - **에러 모델**: 봉투에 `error.{requestId, code, message, data?}`. `requestId`=헤더 `X-Request-Id`(없으면 `cf-ray`). 코드별 분기 처리.
+- **주문 생성 성공의 의미**: Toss `POST /api/v1/orders` 200은 `result.orderId`(+ optional `clientOrderId`)만 반환한다. 이는 **주문 접수/생성 성공**이지 체결 완료가 아니다. 체결 성공 여부는 `GET /api/v1/orders/{orderId}` 상세 조회의 `status`와 `execution`으로 확인한다.
+  - 완료: `status=FILLED`.
+  - 진행 중/부분 체결: `PENDING`·`PENDING_CANCEL`·`PENDING_REPLACE`·`PARTIAL_FILLED`. `PARTIAL_FILLED`는 `execution.filledQuantity`로 체결분을 표시한다.
+  - 종료/실패/전환: `CANCELED`·`REJECTED`·`REPLACED`·`CANCEL_REJECTED`·`REPLACE_REJECTED`. 이 경우에도 부분 체결이 있을 수 있으므로 `execution.filledQuantity`를 확인한다.
+- **주문 목록과 상세 조회**: `GET /api/v1/orders?status=OPEN|CLOSED`는 라이프사이클 그룹 필터이고, 응답 `orders[].status`는 실제 주문 상태 enum이다. 주문 직후 확정 확인은 목록보다 `GET /api/v1/orders/{orderId}`를 우선한다.
+- **공식 문서 충돌 주의**: `openapi.json` 1.1.5 기준 경로 설명과 예제는 `status=CLOSED` 조회를 설명하지만, `PaginatedOrderResponse.description`에는 `CLOSED`가 `400 closed-not-supported`라는 오래된 문구가 남아 있다. 현재 구현은 경로 스펙에 맞춰 `CLOSED`를 통과시키며, 실제 운영 연동에서는 upstream 응답을 그대로 확인한다.
+- **멱등성**: `clientOrderId`는 주문 생성 멱등성 키다. 네트워크 타임아웃 후 같은 주문을 재시도해야 하면 새 요청을 만들지 말고 같은 `clientOrderId`로 재요청한다. dry-run/blocked 시도는 로컬 §6 게이트에서 새 `clientOrderId`를 발급·소비하지 않는다.
 - **고액 주문**: 1억원 이상은 `confirmHighValueOrder=true` 필요(400 `confirm-high-value-required`).
 - **장 운영**: `order-hours-closed`(422), 미국 금액주문은 정규장만(`amount-order-outside-regular-hours`).
 - **⚠️ 모의투자(paper) 모드가 문서에 없음 → 모든 주문을 실거래로 간주**. 안전장치([trading-safety.md](trading-safety.md))는 타협 불가.
+
+## 로컬 주문 API 의미
+
+브라우저는 Toss 원 API가 아니라 로컬 `/api/orders*`를 호출한다. 성공 응답은 `{data}` 봉투이며, `POST /api/orders`의 `data.status`는 로컬 §6 게이트 결과다.
+
+| 로컬 상태 | 의미 |
+|---|---|
+| `DRY_RUN` | 실 POST 미전송. `wouldSend`는 전송될 본문 미리보기. |
+| `BLOCKED` | 안전 게이트 차단. `reasons`에 차단 사유. |
+| `SENT` | Toss에 실제 POST 전송 완료. `response.orderId`는 Toss 서버 주문 id이며, 체결 완료를 뜻하지 않는다. |
+
+`SENT` 이후 체결 확인은 `GET /api/orders/{orderId}`(내부적으로 Toss `GET /api/v1/orders/{orderId}`)를 폴링해 `status`/`execution`을 판정한다.
 
 ## 로컬 라우트 (SQLite 기반, Toss 프록시 아님)
 
