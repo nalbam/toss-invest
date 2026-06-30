@@ -22,6 +22,7 @@ function jsonResponse(
 
 const tokenProvider: TokenProvider = {
   getAccessToken: async () => "tok-abc",
+  invalidate: () => {},
 };
 
 const resultSchema = z.object({ value: z.string() });
@@ -35,7 +36,7 @@ interface Harness {
 
 function harness(
   responses: Response[],
-  opts: { random?: () => number } = {},
+  opts: { random?: () => number; tokenProvider?: TokenProvider } = {},
 ): Harness {
   const queue = [...responses];
   const fetchFn = vi.fn(async () => {
@@ -49,7 +50,7 @@ function harness(
     return 0;
   });
   const client = createTossClient({
-    tokenProvider,
+    tokenProvider: opts.tokenProvider ?? tokenProvider,
     fetchFn,
     now: () => 0,
     sleep,
@@ -193,6 +194,91 @@ describe("createTossClient 429 retry", () => {
     expect(error.status).toBe(429);
     // initial attempt + MAX_RETRIES retries
     expect(fetchFn).toHaveBeenCalledTimes(MAX_RETRIES + 1);
+  });
+});
+
+describe("createTossClient 401 token recovery", () => {
+  it("re-issues the token once and retries on a 401, then succeeds", async () => {
+    const invalidate = vi.fn();
+    let issued = 0;
+    const tp: TokenProvider = {
+      getAccessToken: async () => `tok-${issued++}`,
+      invalidate,
+    };
+    const { client, fetchFn } = harness(
+      [
+        jsonResponse(
+          { error: { requestId: "r", code: "invalid-token", message: "bad token" } },
+          { status: 401 },
+        ),
+        jsonResponse({ result: { value: "ok" } }),
+      ],
+      { tokenProvider: tp },
+    );
+
+    const result = await client.get("/api/v1/thing", resultSchema, {
+      group: "MARKET_DATA",
+    });
+
+    expect(result).toEqual({ value: "ok" });
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers from a 401 only once, then surfaces the error", async () => {
+    const invalidate = vi.fn();
+    const tp: TokenProvider = {
+      getAccessToken: async () => "tok",
+      invalidate,
+    };
+    const { client, fetchFn } = harness(
+      [
+        jsonResponse(
+          { error: { requestId: "r", code: "invalid-token", message: "bad" } },
+          { status: 401 },
+        ),
+        jsonResponse(
+          { error: { requestId: "r", code: "invalid-token", message: "bad" } },
+          { status: 401 },
+        ),
+      ],
+      { tokenProvider: tp },
+    );
+
+    const error = (await client
+      .get("/api/v1/thing", resultSchema, { group: "MARKET_DATA" })
+      .catch((e: unknown) => e)) as TossApiError;
+
+    expect(error).toBeInstanceOf(TossApiError);
+    expect(error.status).toBe(401);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledTimes(2); // initial + one re-auth retry
+  });
+
+  it("does not spend the 429 backoff budget on the 401 retry", async () => {
+    // A 401 followed by MAX_RETRIES 429s must still exhaust all 429 retries:
+    // the 401 retry rewinds `attempt`, so it never counts against the backoff.
+    const { client, fetchFn } = harness([
+      jsonResponse(
+        { error: { requestId: "r", code: "invalid-token", message: "bad" } },
+        { status: 401 },
+      ),
+      ...Array.from({ length: MAX_RETRIES }, () =>
+        jsonResponse(
+          { error: { requestId: "r", code: "rate-limited", message: "slow" } },
+          { status: 429 },
+        ),
+      ),
+      jsonResponse({ result: { value: "ok" } }),
+    ]);
+
+    const result = await client.get("/api/v1/thing", resultSchema, {
+      group: "MARKET_DATA",
+    });
+
+    expect(result).toEqual({ value: "ok" });
+    // initial 401 + 1 re-auth + MAX_RETRIES 429 attempts + final success
+    expect(fetchFn).toHaveBeenCalledTimes(MAX_RETRIES + 2);
   });
 });
 

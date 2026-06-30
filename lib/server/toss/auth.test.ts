@@ -124,4 +124,20 @@ describe("createTokenProvider", () => {
     expect(b).toBe("tok-1");
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
+
+  it("re-issues on the next call after invalidate, even before expiry", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(tokenResponse("tok-1", 3600))
+      .mockResolvedValueOnce(tokenResponse("tok-2", 3600));
+    const provider = createTokenProvider({ ...config, fetchFn, now: () => 0 });
+
+    const first = await provider.getAccessToken();
+    provider.invalidate();
+    const second = await provider.getAccessToken(); // still within 3600s, cache cleared
+
+    expect(first).toBe("tok-1");
+    expect(second).toBe("tok-2");
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
 });

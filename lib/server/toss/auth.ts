@@ -13,6 +13,13 @@ export interface TokenProviderConfig {
 
 export interface TokenProvider {
   getAccessToken(): Promise<string>;
+  /**
+   * Drops the cached token so the next `getAccessToken` re-issues. Used to
+   * recover when the API rejects the current token as invalid (a 401) even
+   * though it has not locally expired — e.g. another client sharing the same
+   * credentials issued a new token and the Toss API invalidated this one.
+   */
+  invalidate(): void;
 }
 
 interface ParsedToken {
@@ -100,6 +107,9 @@ export function createTokenProvider(config: TokenProviderConfig): TokenProvider 
         inFlight = null;
       });
       return inFlight;
+    },
+    invalidate(): void {
+      cached = null;
     },
   };
 }

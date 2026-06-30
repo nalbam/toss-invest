@@ -35,6 +35,7 @@ function jsonResponse(
 
 const tokenProvider: TokenProvider = {
   getAccessToken: async () => "tok-abc",
+  invalidate: () => {},
 };
 
 interface Harness {

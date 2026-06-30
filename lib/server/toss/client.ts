@@ -175,6 +175,7 @@ export function createTossClient(config: TossClientConfig): TossClient {
   ): Promise<Response> {
     const url = buildUrl(config.baseUrl, path, options.query);
 
+    let reauthed = false;
     for (let attempt = 0; ; attempt += 1) {
       await config.rateLimiter.acquire(options.group);
 
@@ -192,6 +193,19 @@ export function createTossClient(config: TossClientConfig): TossClient {
       const snapshot = readRateLimit(response);
       if (snapshot) {
         snapshots.set(options.group, snapshot);
+      }
+
+      // Recover from an externally invalidated token: force a one-time re-issue
+      // and retry. Credentials shared across deployments mean another client can
+      // invalidate this token mid-flight, surfacing as a 401 the local cache
+      // (still within expiry) can't detect. Limited to once so a genuinely bad
+      // credential fails fast. The attempt is rewound so this never eats into
+      // the 429 backoff budget.
+      if (response.status === 401 && !reauthed) {
+        reauthed = true;
+        config.tokenProvider.invalidate();
+        attempt -= 1;
+        continue;
       }
 
       if (response.status !== 429) {
