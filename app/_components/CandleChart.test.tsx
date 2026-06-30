@@ -245,9 +245,6 @@ describe("CandleChart", () => {
     vi.clearAllMocks();
     visibleLogicalRangeHandlers = [];
     timeToCoordinate.mockReturnValue(120);
-    // The span-restore path reads localStorage at mount; clear it so each test
-    // starts with no saved zoom (else fitContent assertions below would break).
-    window.localStorage.clear();
   });
   afterEach(cleanup);
 
@@ -669,60 +666,6 @@ describe("CandleChart", () => {
     expect(fitContent).toHaveBeenCalledTimes(2);
   });
 
-  it("preserves the chosen visible bar count (zoom) across a dataset switch", () => {
-    const { rerender } = render(
-      <CandleChart
-        candles={[candle({ timestamp: "2026-03-25T09:00:00+09:00" })]}
-        fitKey="005930:1d"
-      />,
-    );
-    expect(fitContent).toHaveBeenCalledTimes(1); // first mount fits
-
-    // User zooms/scrolls so 3 bars are visible.
-    fireVisibleLogicalRange({ from: 1, to: 4 });
-
-    // Switch interval: restore the same 3-bar span anchored to the latest bar
-    // (to = total) instead of re-fitting to the new dataset's bar count.
-    rerender(
-      <CandleChart
-        candles={[
-          candle({ timestamp: "2026-03-22T09:00:00+09:00" }),
-          candle({ timestamp: "2026-03-23T09:00:00+09:00" }),
-          candle({ timestamp: "2026-03-24T09:00:00+09:00" }),
-          candle({ timestamp: "2026-03-25T09:00:00+09:00" }),
-          candle({ timestamp: "2026-03-26T09:00:00+09:00" }),
-        ]}
-        fitKey="005930:1w"
-      />,
-    );
-    expect(fitContent).toHaveBeenCalledTimes(1); // not re-fit
-    // span 3 over a 5-bar dataset → latest 3 bars, positive left edge.
-    expect(setVisibleLogicalRange).toHaveBeenCalledWith({ from: 2, to: 5 });
-  });
-
-  it("clamps the left edge to 0 when the dataset has fewer bars than the saved span", () => {
-    const { rerender } = render(
-      <CandleChart
-        candles={[candle({ timestamp: "2026-03-25T09:00:00+09:00" })]}
-        fitKey="005930:1d"
-      />,
-    );
-    fireVisibleLogicalRange({ from: 0, to: 50 }); // span 50
-
-    rerender(
-      <CandleChart
-        candles={[
-          candle({ timestamp: "2026-03-24T09:00:00+09:00" }),
-          candle({ timestamp: "2026-03-25T09:00:00+09:00" }),
-          candle({ timestamp: "2026-03-26T09:00:00+09:00" }),
-        ]}
-        fitKey="005930:1w"
-      />,
-    );
-    // total (3) < span (50): from clamped to 0 instead of -47 (no right-pile).
-    expect(setVisibleLogicalRange).toHaveBeenCalledWith({ from: 0, to: 3 });
-  });
-
   it("defers fitting an empty series so the fitKey is consumed by the real data", () => {
     // Interval switch can briefly render an empty series (new source page still
     // loading). Fitting then — and marking the key consumed — would leave the
@@ -738,43 +681,5 @@ describe("CandleChart", () => {
       />,
     );
     expect(fitContent).toHaveBeenCalledTimes(1);
-  });
-
-  it("seeds the visible span from localStorage on a fresh mount", () => {
-    window.localStorage.setItem("toss-invest:chart-bar-span", "8");
-    render(
-      <CandleChart
-        candles={Array.from({ length: 10 }, (_, i) =>
-          candle({
-            timestamp: `2026-03-${String(i + 1).padStart(2, "0")}T09:00:00+09:00`,
-          }),
-        )}
-        fitKey="000660:1d"
-      />,
-    );
-    // Saved span (8) restored on the first fit instead of fitContent.
-    expect(fitContent).not.toHaveBeenCalled();
-    expect(setVisibleLogicalRange).toHaveBeenCalledWith({ from: 2, to: 10 });
-  });
-
-  it("persists the zoom to localStorage after the debounce settles", () => {
-    vi.useFakeTimers();
-    try {
-      render(
-        <CandleChart
-          candles={[candle({ timestamp: "2026-03-25T09:00:00+09:00" })]}
-          fitKey="005930:1d"
-        />,
-      );
-      fireVisibleLogicalRange({ from: 12, to: 20 }); // span 8
-      // Not written until the debounce window elapses.
-      expect(
-        window.localStorage.getItem("toss-invest:chart-bar-span"),
-      ).toBeNull();
-      vi.advanceTimersByTime(400);
-      expect(window.localStorage.getItem("toss-invest:chart-bar-span")).toBe("8");
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

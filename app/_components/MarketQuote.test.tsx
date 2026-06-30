@@ -164,6 +164,18 @@ function loading<T>(): QueryResult<T> {
   return { data: undefined, error: undefined, isLoading: true };
 }
 
+function manyCandles(n: number): Candle[] {
+  return Array.from({ length: n }, (_, i) => ({
+    timestamp: new Date(Date.UTC(2026, 0, 1) + i * 86_400_000).toISOString(),
+    openPrice: "100",
+    highPrice: "110",
+    lowPrice: "90",
+    closePrice: "105",
+    volume: "10",
+    currency: "KRW",
+  }));
+}
+
 beforeEach(() => {
   // Sensible defaults; individual tests override as needed.
   usePrices.mockReturnValue(
@@ -206,6 +218,33 @@ describe("MarketQuote", () => {
     render(<MarketQuote symbol="005930" />);
     // Default stored interval is 1d; backfill collects its source window so
     // larger intervals fill the screen rather than the single live page.
+    await waitFor(() =>
+      expect(collectSourceCandles).toHaveBeenCalledWith("005930", "1d"),
+    );
+  });
+
+  it("re-backfills the original symbol after switching away mid-backfill and back", async () => {
+    // A's backfill completes (records A as filled at the 1d target of 200).
+    collectSourceCandles.mockResolvedValueOnce(manyCandles(200));
+    // B's backfill never resolves — the user leaves before it lands.
+    collectSourceCandles.mockReturnValueOnce(new Promise<Candle[]>(() => {}));
+
+    const { rerender } = render(<MarketQuote symbol="005930" />);
+    await waitFor(() =>
+      expect(collectSourceCandles).toHaveBeenCalledWith("005930", "1d"),
+    );
+
+    rerender(<MarketQuote symbol="000660" />);
+    await waitFor(() =>
+      expect(collectSourceCandles).toHaveBeenCalledWith("000660", "1d"),
+    );
+
+    collectSourceCandles.mockClear();
+    collectSourceCandles.mockResolvedValue(manyCandles(200));
+    rerender(<MarketQuote symbol="005930" />);
+    // Returning to A must re-backfill: its olderCandles were cleared on the
+    // switch, so skipping on a stale "already filled" flag would leave the
+    // chart on just the live page (the reported 8-bar bug).
     await waitFor(() =>
       expect(collectSourceCandles).toHaveBeenCalledWith("005930", "1d"),
     );

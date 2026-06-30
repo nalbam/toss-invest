@@ -151,6 +151,11 @@ export function MarketQuote({
     setOlderCandles([]);
     setOlderExhausted(false);
     loadingOlderRef.current = false;
+    // Clear the backfill record alongside olderCandles. Otherwise, returning to
+    // a previously viewed symbol whose backfill once completed would match the
+    // stale "already filled" flag and skip — leaving the chart on just the live
+    // page (a few bars) because olderCandles was emptied here.
+    backfilledSourceRef.current = { key: "", count: 0 };
   }
 
   const prices = usePrices([symbol]);

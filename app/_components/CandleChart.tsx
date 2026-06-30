@@ -25,7 +25,6 @@ import type {
   MarketChartAnnotations,
 } from "@/lib/client/market-advisor";
 import type { Candle, Order, PriceLimitResponse } from "@/lib/client/types";
-import { readStoredJson, writeStoredJson } from "./localStorageJson";
 import styles from "./dashboard.module.css";
 
 /** A buy/sell execution marker placed on the candle series at a given time. */
@@ -46,17 +45,6 @@ const DEFAULT_MA_PERIODS = [5, 20];
 /** Trigger older-data loading once the leftmost visible bar is within N bars of
  *  the oldest loaded candle, so history streams in before the user hits the edge. */
 const LOAD_OLDER_THRESHOLD_BARS = 10;
-
-/** localStorage key persisting the user's horizontal zoom (visible bar count),
- *  so it survives reloads and dataset switches. */
-const CHART_BAR_SPAN_KEY = "toss-invest:chart-bar-span";
-/** Idle delay before persisting a zoom change, so a continuous zoom/scroll
- *  gesture writes once it settles instead of on every frame. */
-const CHART_BAR_SPAN_SAVE_DEBOUNCE_MS = 400;
-
-function isBarSpan(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
 
 /**
  * Converts API candles (string OHLCV, ISO/epoch timestamp) into the numeric
@@ -443,19 +431,6 @@ export function CandleChart({
   onReachStartRef.current = onReachStart;
   // Dataset identity the chart last fit to; fitContent runs only when it changes.
   const fitKeyRef = useRef<string | undefined>(undefined);
-  // Visible bar count (logical-range span) the user last viewed. Restored on a
-  // dataset switch so the horizontal zoom — how many bars are shown — stays
-  // constant across symbol/interval changes instead of re-fitting to a different
-  // bar count per dataset. Seeded from localStorage so the zoom also survives a
-  // reload. SSR-safe: window is absent on the server, and readStoredJson guards
-  // localStorage access.
-  const visibleBarSpanRef = useRef<number | null>(
-    typeof window === "undefined"
-      ? null
-      : readStoredJson(CHART_BAR_SPAN_KEY, isBarSpan),
-  );
-  // Pending debounced localStorage write of the span (cleared on unmount).
-  const spanSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const renderAdviceLines = useCallback(() => {
     const chart = chartRef.current;
@@ -651,12 +626,10 @@ export function CandleChart({
     maRefs.current.forEach((ma, index) => {
       ma.setData(movingAverage(chartSeries, maPeriods[index] ?? 0));
     });
-    // On a new dataset (symbol/interval change) keep the horizontal zoom the
-    // user chose: restore the same visible bar count, anchored to the latest
-    // bar, instead of fitContent — which would show a different number of bars
-    // per dataset. Fall back to fitContent before any view is recorded (first
-    // mount) or with no fitKey (legacy callers). On same-key updates — older
-    // pages prepended or live ticks — keep the current view so the scroll
+    // On a new dataset (symbol/interval change, or a backfill that just widened
+    // the window) fit all bars, so the chart always opens on a full view rather
+    // than the handful of bars a single live page yields. On same-key updates —
+    // older pages prepended or live ticks — keep the current view so the scroll
     // position holds and older-loading doesn't loop.
     //
     // Only consume the fitKey change once real data has arrived (length > 0):
@@ -667,19 +640,7 @@ export function CandleChart({
     // series is non-empty fits the actual data.
     const total = chartSeries.length;
     if (total > 0 && (fitKey === undefined || fitKeyRef.current !== fitKey)) {
-      const timeScale = chartRef.current?.timeScale();
-      const span = visibleBarSpanRef.current;
-      if (timeScale != null && span != null && span > 0) {
-        // Clamp the left edge: when the dataset has fewer bars than the saved
-        // span, a negative `from` would pile the bars on the right behind
-        // whitespace. `from: 0` stretches the available bars across the width.
-        timeScale.setVisibleLogicalRange({
-          from: Math.max(0, total - span),
-          to: total,
-        });
-      } else {
-        timeScale?.fitContent();
-      }
+      chartRef.current?.timeScale().fitContent();
       fitKeyRef.current = fitKey;
     }
     renderAdviceLines();
@@ -757,18 +718,6 @@ export function CandleChart({
       if (range == null) {
         return;
       }
-      // Remember how many bars are shown so a dataset switch can restore it.
-      const span = range.to - range.from;
-      visibleBarSpanRef.current = span;
-      // Persist the zoom (debounced) so it also survives a reload.
-      if (spanSaveTimerRef.current !== null) {
-        clearTimeout(spanSaveTimerRef.current);
-      }
-      if (span > 0) {
-        spanSaveTimerRef.current = setTimeout(() => {
-          writeStoredJson(CHART_BAR_SPAN_KEY, Math.round(span));
-        }, CHART_BAR_SPAN_SAVE_DEBOUNCE_MS);
-      }
       if (range.from < LOAD_OLDER_THRESHOLD_BARS) {
         onReachStartRef.current?.();
       }
@@ -776,10 +725,6 @@ export function CandleChart({
     timeScale.subscribeVisibleLogicalRangeChange(handler);
     return () => {
       timeScale.unsubscribeVisibleLogicalRangeChange(handler);
-      if (spanSaveTimerRef.current !== null) {
-        clearTimeout(spanSaveTimerRef.current);
-        spanSaveTimerRef.current = null;
-      }
     };
   }, [showVolume, maPeriods]);
 
