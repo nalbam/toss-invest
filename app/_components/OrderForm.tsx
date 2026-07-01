@@ -85,8 +85,8 @@ function writeOrderFormPreferences(prefs: OrderFormPreferences): void {
 const ORDER_QUANTITY_KEY_PREFIX = "toss-invest:order-quantity:";
 const ORDER_AMOUNT_KEY_PREFIX = "toss-invest:order-amount:";
 
-/** How long the "전송됨" confirmation stays visible before auto-dismissing. */
-const SENT_RESULT_TIMEOUT_MS = 3000;
+/** How long an order outcome (전송됨/차단됨/오류) stays visible before auto-dismissing. */
+const ORDER_RESULT_TIMEOUT_MS = 3000;
 
 function readStoredField(prefix: string, symbol: string): string {
   if (symbol === "") {
@@ -253,13 +253,20 @@ export function OrderForm({
     setConfirm(false);
   }, [prefill]);
 
-  // Auto-dismiss the "전송됨" confirmation so it doesn't linger. Only the SENT
-  // status clears itself; DRY_RUN/BLOCKED/errors stay until the next action.
+  // Auto-dismiss order outcomes (전송됨/차단됨/오류) so they don't linger. The
+  // DRY_RUN preview stays until the next action since the user reads it to decide.
   useEffect(() => {
-    if (result?.status !== "SENT") return;
-    const timer = setTimeout(() => setResult(null), SENT_RESULT_TIMEOUT_MS);
+    const isOutcome =
+      error !== null ||
+      result?.status === "SENT" ||
+      result?.status === "BLOCKED";
+    if (!isOutcome) return;
+    const timer = setTimeout(() => {
+      setResult(null);
+      setError(null);
+    }, ORDER_RESULT_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [result]);
+  }, [result, error]);
 
   // Amount-based ordering is US MARKET only; LIMIT always uses quantity.
   const amountMode = pricingMode === "AMOUNT" && orderType === "MARKET";
@@ -955,9 +962,7 @@ function OrderResult({
     return (
       <div className={`${styles.orderResult} ${styles.negative}`} role="alert">
         <p className={styles.resultTitle}>오류</p>
-        <p>
-          [{error.code}] {error.message}
-        </p>
+        <p>{error.message}</p>
       </div>
     );
   }
