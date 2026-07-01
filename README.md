@@ -127,7 +127,7 @@ docker run --rm -p 3000:3000 --env-file .env.local -v toss-invest-data:/app/data
 
 ```
 app/
-  api/**/route.ts      # GET 22 · POST 8 · PATCH 1 · DELETE 2 — Toss 프록시 + 로컬 SQLite 라우트(favorites · stocks/search · advisor-watchlist · advisor-jobs/run · market-advisor)
+  api/**/route.ts      # GET 23 · POST 8 · PATCH 1 · PUT 1 · DELETE 2 — Toss 프록시 + 로컬 SQLite 라우트(favorites · stocks/search · advisor-watchlist · advisor-jobs/run · market-advisor · settings)
   _components/*         # 대시보드 UI 섹션 + 주문 폼 + AI 어드바이저 + 종목 검색 모달 + 테마
   page.tsx             # 대시보드 페이지
 instrumentation.ts     # 부팅 시 인-프로세스 어드바이저 워커 시작(ADVISOR_WORKER_ENABLED)

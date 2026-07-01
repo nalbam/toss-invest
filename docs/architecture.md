@@ -21,7 +21,7 @@
 
 ```
 app/
-  api/**/route.ts      # GET 22 · POST 8 · PATCH 1 · DELETE 2 — Toss 프록시 + 로컬 SQLite 라우트
+  api/**/route.ts      # GET 23 · POST 8 · PATCH 1 · PUT 1 · DELETE 2 — Toss 프록시 + 로컬 SQLite 라우트
   _components/*         # 대시보드 UI 섹션 + 주문 폼 + AI 어드바이저 + 종목 검색 모달
   page.tsx             # 대시보드 페이지
 instrumentation.ts     # register(): 부팅 시 인-프로세스 어드바이저 워커 시작(ADVISOR_WORKER_ENABLED)
@@ -55,7 +55,7 @@ lib/
 
 ### API 라우트
 
-**GET 22 · POST 8 · PATCH 1 · DELETE 2.** 두 종류: (1) Toss 프록시 — 시세·계좌·주문 등. (2) 로컬 SQLite 라우트 — `favorites`(GET/POST/DELETE) · `stocks/search`(GET) · `advisor-watchlist`(GET/POST/PATCH/DELETE) · `advisor-jobs/run`(POST, Bearer) · `advisor`·`market-advisor`(POST) · `market-advisor/history`(GET). 모두 `force-dynamic`, 성공은 `{ data }`, 실패는 sanitized `{ error }` 봉투. 쿼리/바디는 zod 검증. `TossApiError`→upstream status 매핑(번들 간 클래스 식별 깨짐 방지 위해 `name` 마커 폴백). SQLite·워커를 쓰는 라우트는 `runtime = "nodejs"`(better-sqlite3 네이티브).
+**GET 23 · POST 8 · PATCH 1 · PUT 1 · DELETE 2.** 두 종류: (1) Toss 프록시 — 시세·계좌·주문 등. (2) 로컬 SQLite 라우트 — `favorites`(GET/POST/DELETE) · `stocks/search`(GET) · `advisor-watchlist`(GET/POST/PATCH/DELETE) · `advisor-jobs/run`(POST, Bearer) · `advisor`·`market-advisor`(POST) · `market-advisor/history`(GET) · `settings`(GET/PUT). 모두 `force-dynamic`, 성공은 `{ data }`, 실패는 sanitized `{ error }` 봉투. 쿼리/바디는 zod 검증. `TossApiError`→upstream status 매핑(번들 간 클래스 식별 깨짐 방지 위해 `name` 마커 폴백). SQLite·워커를 쓰는 라우트는 `runtime = "nodejs"`(better-sqlite3 네이티브).
 
 ## 컴포넌트 맵
 
