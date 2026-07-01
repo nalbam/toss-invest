@@ -40,6 +40,7 @@ lib/
     favorites/         # 즐겨찾기 스토어
     stocks/            # 종목 이름검색 디렉터리
     settings/          # app_settings KV 스토어 (/api/settings 백엔드, settingsStore 영속)
+    api/               # respond 헬퍼 ({data}/sanitized error) · advisor-error(어드바이저/LLM 에러→503/502 매핑)
   client/**            # types · format · hooks · quote · candles · indicators · polling · advisor · market-advisor · favorites · watchlist · envelope (서버 import 금지)
 ```
 

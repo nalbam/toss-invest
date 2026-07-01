@@ -206,14 +206,17 @@ export function useOrderForm({
 
   // Prefill the symbol from the dashboard selection. Selecting a new holding
   // overwrites the field so the form follows the chosen symbol; the user can
-  // still edit it freely afterwards. A new symbol also disarms any pending
-  // quick-order confirmation so a stale price can never be confirmed.
+  // still edit it freely afterwards. Switching symbols also clears the LIMIT
+  // price, the live-order confirm, and any armed quick order so a stale price or
+  // confirm from the previous symbol can never be submitted for the new one.
   useEffect(() => {
     if (selectedSymbol) {
       setSymbol(selectedSymbol);
       // Restore the quantity/amount last entered for this symbol (empty if none).
       setQuantity(readStoredField(ORDER_QUANTITY_KEY_PREFIX, selectedSymbol));
       setOrderAmount(readStoredField(ORDER_AMOUNT_KEY_PREFIX, selectedSymbol));
+      setPrice("");
+      setConfirm(false);
       setArmed(null);
     }
   }, [selectedSymbol]);

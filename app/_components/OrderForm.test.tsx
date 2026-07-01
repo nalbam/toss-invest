@@ -434,6 +434,29 @@ describe("OrderForm — general order", () => {
     expect(screen.queryByLabelText("구매 가격")).not.toBeInTheDocument();
   });
 
+  it("clears the LIMIT price and confirm when the selected symbol changes", () => {
+    fetchMock.mockImplementation(quoteFetch(() => jsonResponse({ data: {} })));
+    const ui = (sym: string) => (
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <OrderForm accountSeq={1} symbol={sym} />
+      </SWRConfig>
+    );
+    const { rerender } = render(ui("005930"));
+    goGeneral();
+    fireEvent.change(screen.getByLabelText("구매 가격"), {
+      target: { value: "71000" },
+    });
+    fireEvent.click(screen.getByLabelText("실주문 확인 (confirm)"));
+    expect(screen.getByLabelText("구매 가격")).toHaveValue("71000");
+    expect(screen.getByLabelText("실주문 확인 (confirm)")).toBeChecked();
+
+    // Switching symbols must not carry the previous symbol's stale price or the
+    // live-order confirm over to the new one.
+    rerender(ui("AAPL"));
+    expect(screen.getByLabelText("구매 가격")).toHaveValue("");
+    expect(screen.getByLabelText("실주문 확인 (confirm)")).not.toBeChecked();
+  });
+
   it("submits confirm:false and renders the DRY_RUN preview", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({

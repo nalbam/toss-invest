@@ -141,4 +141,40 @@ describe("StockSearchModal", () => {
     expect(onSelectSymbol).toHaveBeenCalledWith("005930", "삼성전자");
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("keeps focus on a result when re-rendered with a new onClose", () => {
+    useFavorites.mockReturnValue({
+      items: [{ id: 1, symbol: "005930", name: "삼성전자", currency: "KRW" }],
+      mutate: vi.fn(),
+      isLoading: false,
+    });
+    const { rerender } = render(
+      <StockSearchModal open onClose={() => {}} onSelectSymbol={() => {}} />,
+    );
+    const favButton = screen.getByRole("button", { name: /삼성전자 \(005930\)/ });
+    favButton.focus();
+    expect(document.activeElement).toBe(favButton);
+
+    // A parent re-render (e.g. polling) passes a fresh onClose while open; it
+    // must not steal focus back to the search input.
+    rerender(
+      <StockSearchModal open onClose={() => {}} onSelectSymbol={() => {}} />,
+    );
+    expect(document.activeElement).toBe(favButton);
+  });
+
+  it("closes on Escape using the latest onClose after a re-render", () => {
+    const firstClose = vi.fn();
+    const secondClose = vi.fn();
+    const { rerender } = render(
+      <StockSearchModal open onClose={firstClose} onSelectSymbol={() => {}} />,
+    );
+    rerender(
+      <StockSearchModal open onClose={secondClose} onSelectSymbol={() => {}} />,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(secondClose).toHaveBeenCalledTimes(1);
+    expect(firstClose).not.toHaveBeenCalled();
+  });
 });

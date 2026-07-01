@@ -13,7 +13,12 @@ import { orderCreateRequestSchema } from "@/lib/server/toss/schemas";
 export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
-  accountSeq: z.coerce.number().int().optional(),
+  // `?accountSeq=` → "" which z.coerce.number() turns into 0; map empty to
+  // undefined so a blank value falls back to the first account (see /api/advisor).
+  accountSeq: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().int().optional(),
+  ),
   status: z.enum(["OPEN", "CLOSED"]).default("OPEN"),
   symbol: z.string().min(1).optional(),
   from: z.string().min(1).optional(),
@@ -23,7 +28,12 @@ const querySchema = z.object({
 });
 
 const postQuerySchema = z.object({
-  accountSeq: z.coerce.number().int().optional(),
+  // `?accountSeq=` → "" which z.coerce.number() turns into 0; map empty to
+  // undefined so a blank value falls back to the first account (see /api/advisor).
+  accountSeq: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().int().optional(),
+  ),
 });
 
 /**

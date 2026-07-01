@@ -58,20 +58,32 @@ export function StockSearchModal({
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ status: "idle" });
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Keep the latest onClose without re-running the effects below, so a parent
+  // re-render (e.g. polling) that passes a fresh onClose can't re-bind the
+  // listener or steal focus back to the input while the user is interacting.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
+  // Focus the search field only when the modal transitions open.
+  useEffect(() => {
+    if (open) {
+      inputRef.current?.focus();
+    }
+  }, [open]);
+
+  // Close on Escape while open; the listener is bound once per open.
   useEffect(() => {
     if (!open) {
       return;
     }
-    inputRef.current?.focus();
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) {
     return null;

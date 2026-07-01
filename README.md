@@ -146,7 +146,7 @@ lib/
     env.ts             # zod 환경 변수 검증
     auth/              # withAuth(세션 재검증 가드, /api/* 래퍼)
     toss/              # auth · client · rate-limiter · schemas · endpoints · account · container
-    trading/           # safety(§6 게이트) · strategy · backtest · executor · auto-*
+    trading/           # safety(§6 게이트) · strategy · backtest · executor · audit-store · auto-*
     advisor/           # 포트폴리오 어드바이저: 스냅샷 마스킹 · 프롬프트 · 검증 · 히스토리
     market-advisor/    # 차트 어드바이저 + watchlist · jobs · worker(백그라운드)
     news/              # Tavily 심볼 뉴스 검색(ETF 구성종목 인지 · 10분 캐시, 차트 어드바이저와 공유)
