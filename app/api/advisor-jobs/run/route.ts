@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { ok } from "@/lib/server/api/respond";
 import { handleAdvisorError } from "@/lib/server/api/advisor-error";
@@ -8,6 +9,14 @@ import { getServerTossClient } from "@/lib/server/toss/container";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+/** Constant-time string compare to avoid leaking the token via timing. */
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 
 /**
  * Background trigger: runs one advisor pass over the enabled watchlist. This is a
@@ -25,7 +34,9 @@ export async function POST(request: Request): Promise<Response> {
       { status: 401 },
     );
   }
-  if (request.headers.get("authorization") !== `Bearer ${token}`) {
+  const provided = request.headers.get("authorization") ?? "";
+  const expected = `Bearer ${token}`;
+  if (!timingSafeStringEqual(provided, expected)) {
     return NextResponse.json(
       { error: { code: "unauthorized", message: "Invalid or missing token" } },
       { status: 401 },

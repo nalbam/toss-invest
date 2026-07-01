@@ -1037,8 +1037,7 @@
   gap: 12px;
 }
 
-.orderSideTabs,
-.priceModeTabs {
+.orderSideTabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
@@ -1047,12 +1046,7 @@
   background: var(--gray-alpha);
 }
 
-.priceModeTabs {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.orderSideTabs button,
-.priceModeTabs button {
+.orderSideTabs button {
   min-height: 34px;
 }
 

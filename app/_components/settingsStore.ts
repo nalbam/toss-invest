@@ -107,10 +107,17 @@ async function flushNow(): Promise<void> {
       keepalive: true,
     });
     if (!res.ok) {
-      // The server rejected the batch (e.g. 400 over the key cap). Re-queuing
-      // would just resend the same rejected payload forever, so surface it
-      // instead of dropping it silently. The in-memory cache still reflects it.
-      console.error(`[settings] persist rejected: HTTP ${res.status}`);
+      if (res.status >= 500 || res.status === 429) {
+        // Transient server error (5xx / rate limit) — restore and retry like a
+        // network failure so the write is not lost.
+        requeuePayload(payload);
+        scheduleFlush();
+      } else {
+        // Deterministic client error (e.g. 400 over the key cap). Re-queuing
+        // would just resend the same rejected payload forever, so surface it
+        // instead of dropping it silently. The in-memory cache still reflects it.
+        console.error(`[settings] persist rejected: HTTP ${res.status}`);
+      }
     }
   } catch {
     // Transient network failure — restore the batch and retry on the next flush
