@@ -22,7 +22,10 @@ import {
   sourceInterval,
   type ChartInterval,
 } from "@/lib/client/candles";
-import { collectSourceCandles } from "@/lib/client/market-advisor";
+import {
+  collectSourceCandles,
+  type MarketAdvisorHistoryEvent,
+} from "@/lib/client/market-advisor";
 import { summarizeTrend } from "@/lib/client/indicators";
 import { formatKrw, formatPercent, formatUsd, signOf } from "@/lib/client/format";
 import { previousClose, priceChange } from "@/lib/client/quote";
@@ -45,6 +48,10 @@ import page from "@/app/page.module.css";
 
 const CHART_INTERVAL_KEY = "toss-invest:chart-interval";
 const CHART_OVERLAYS_KEY = "toss-invest:chart-overlays";
+
+// Stable empty reference for advisor events before history loads, so passing it
+// to CandleChart doesn't churn its overlay effect with a fresh [] every render.
+const NO_ADVISOR_EVENTS: MarketAdvisorHistoryEvent[] = [];
 
 // Backfilled source candles cached per (symbol, source) for the lifetime of the
 // page. Returning to a previously viewed symbol restores its full window
@@ -463,7 +470,7 @@ export function MarketQuote({
             markers={orderMarkers}
             averagePurchasePrice={averagePurchasePrice}
             annotations={marketAdvisorHistory.data?.events[0]?.annotations}
-            advisorEvents={marketAdvisorHistory.data?.events ?? []}
+            advisorEvents={marketAdvisorHistory.data?.events ?? NO_ADVISOR_EVENTS}
             showAnnotationLabels={overlays.labels}
             showAnnotationLines={overlays.lines}
             showAdviceLines={overlays.advice}

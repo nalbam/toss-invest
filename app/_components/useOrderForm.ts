@@ -184,10 +184,13 @@ export function useOrderForm({
 
   const currentQuote = quickQuote.data?.[0];
   const lastPrice = currentQuote?.lastPrice;
-  // Currency drives KRW vs USD everywhere. Fall back to the symbol shape (6-digit
-  // = KRW) so buying power can show before the price arrives.
+  // Currency drives KRW vs USD everywhere. Before the price arrives, fall back to
+  // the symbol shape: a digit-led 6-char KRX code = KRW (same predicate as the
+  // server's isKrwSymbol, so letter-embedded ETF codes like 0167A0 aren't
+  // misread as USD), otherwise USD. The server re-derives currency, display-only.
   const currency =
-    currentQuote?.currency ?? (/^\d{6}$/.test(trimmedSymbol) ? "KRW" : "USD");
+    currentQuote?.currency ??
+    (/^\d[0-9A-Z]{5}$/.test(trimmedSymbol) ? "KRW" : "USD");
   const buyingPower = currency === "USD" ? cash?.usd : cash?.krw;
   const maxBuyable =
     buyingPower !== undefined && lastPrice !== undefined

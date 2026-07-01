@@ -102,10 +102,24 @@ describe("buildAdvisorSnapshot", () => {
     });
   });
 
-  it("computes weight percent from market values", () => {
+  it("weights holdings by their KRW-converted market value", () => {
+    const snapshot = buildAdvisorSnapshot({
+      holdings: holdingsOverview(),
+      buyingPower,
+      exchangeRate,
+    });
+    // 삼성 7000 KRW; AAPL 3000 USD × 1350.5 = 4,051,500 KRW; total 4,058,500.
+    expect(snapshot.holdings[0].weightPercent).toBe(0.17);
+    expect(snapshot.holdings[1].weightPercent).toBe(99.83);
+  });
+
+  it("excludes USD holdings from the weight basis when no fx rate is available", () => {
+    // Without a rate the USD position can't be valued in KRW, so it's left out
+    // of the basis rather than summed raw across currencies (which skews every
+    // weight). Only the KRW holding contributes.
     const snapshot = buildAdvisorSnapshot({ holdings: holdingsOverview(), buyingPower });
-    expect(snapshot.holdings[0].weightPercent).toBe(70);
-    expect(snapshot.holdings[1].weightPercent).toBe(30);
+    expect(snapshot.holdings[0].weightPercent).toBe(100);
+    expect(snapshot.holdings[1].weightPercent).toBe(0);
   });
 
   it("treats a zero total market value as zero weight (no division by zero)", () => {

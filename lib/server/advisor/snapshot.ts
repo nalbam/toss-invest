@@ -61,16 +61,31 @@ function toAmount(value: string): number {
  */
 export function buildAdvisorSnapshot(inputs: RawAdvisorInputs): AdvisorSnapshot {
   const items = inputs.holdings.items;
-  const totalMarketValue = items.reduce(
-    (sum, item) => sum + toAmount(item.marketValue.amount),
-    0,
-  );
+  // Value every holding in KRW before weighting so a mixed KRW+USD portfolio
+  // isn't skewed by summing raw amounts across currencies (mirrors
+  // PortfolioComposition). USD is only valued when an fx rate is available;
+  // without one it's left out of the weight basis (weight 0) rather than mixed.
+  const fxRate =
+    inputs.exchangeRate && toAmount(inputs.exchangeRate.rate) > 0
+      ? toAmount(inputs.exchangeRate.rate)
+      : null;
+  const valueInKrw = (item: (typeof items)[number]): number | null => {
+    const amount = toAmount(item.marketValue.amount);
+    if (item.currency === "USD") {
+      return fxRate !== null ? amount * fxRate : null;
+    }
+    return amount;
+  };
+  const totalMarketValue = items.reduce((sum, item) => {
+    const value = valueInKrw(item);
+    return value !== null ? sum + value : sum;
+  }, 0);
 
   const holdings: SnapshotHolding[] = items.map((item) => {
-    const amount = toAmount(item.marketValue.amount);
+    const value = valueInKrw(item);
     const weightPercent =
-      totalMarketValue > 0
-        ? Number(((amount / totalMarketValue) * 100).toFixed(2))
+      value !== null && totalMarketValue > 0
+        ? Number(((value / totalMarketValue) * 100).toFixed(2))
         : 0;
     return {
       symbol: item.symbol,
