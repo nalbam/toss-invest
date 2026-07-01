@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiClientError } from "@/lib/client/hooks";
-import { readStoredJson, writeStoredJson } from "./localStorageJson";
+import { readSessionJson, writeSessionJson } from "./sessionStorageJson";
 
 // Shared async state machine for the on-demand advisor cards (AiAdvisor,
-// MarketAiAdvisor). Both restore a cached result from localStorage on mount,
+// MarketAiAdvisor). Both restore a cached result from sessionStorage on mount,
 // trigger one fetch on `run`, persist + surface the result, and guard against
-// out-of-order responses with a request sequence ref. The fetch/result types and
-// the generic error message are the only per-domain differences.
+// out-of-order responses with a request sequence ref. The result cache is
+// client-only (sessionStorage, per tab) so these large per-symbol blobs never
+// accumulate in the server-synced settings store. The fetch/result types and the
+// generic error message are the only per-domain differences.
 
 export type AdvisorRunState<T> =
   | { status: "idle" }
@@ -19,7 +21,7 @@ export type AdvisorRunState<T> =
 const NOT_CONFIGURED_MESSAGE = "AI 어드바이저가 설정되지 않았습니다.";
 
 export interface UseAdvisorRunOptions<T> {
-  /** localStorage key for the cached result; changing it reloads from storage. */
+  /** sessionStorage key for the cached result; changing it reloads from storage. */
   storageKey: string;
   /** Type guard validating a stored/parsed result before use. */
   isResult: (value: unknown) => value is T;
@@ -50,7 +52,7 @@ export function useAdvisorRun<T>({
 
   useEffect(() => {
     requestSeqRef.current += 1;
-    const stored = readStoredJson(storageKey, isResult);
+    const stored = readSessionJson(storageKey, isResult);
     setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
     onResultRef.current?.(stored ?? undefined);
   }, [storageKey, isResult]);
@@ -61,7 +63,7 @@ export function useAdvisorRun<T>({
     try {
       const result = await fetcher();
       if (seq !== requestSeqRef.current) return;
-      writeStoredJson(storageKey, result);
+      writeSessionJson(storageKey, result);
       setState({ status: "loaded", result });
       onResultRef.current?.(result);
     } catch (error) {

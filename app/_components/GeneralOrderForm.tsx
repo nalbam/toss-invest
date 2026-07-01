@@ -106,25 +106,6 @@ export function GeneralOrderForm({ form }: { form: OrderFormState }) {
         </div>
       ) : null}
 
-      <div className={styles.priceModeTabs} aria-label="가격 방식">
-        <button
-          type="button"
-          className={page.select}
-          aria-pressed={orderType === "LIMIT"}
-          onClick={() => handleOrderTypeChange("LIMIT")}
-        >
-          지정가
-        </button>
-        <button
-          type="button"
-          className={page.select}
-          aria-pressed={orderType === "MARKET"}
-          onClick={() => handleOrderTypeChange("MARKET")}
-        >
-          시장가
-        </button>
-      </div>
-
       <div className={styles.formRow}>
         {amountMode ? (
           <>

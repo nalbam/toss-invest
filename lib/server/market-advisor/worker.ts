@@ -57,7 +57,14 @@ export function startAdvisorWorker(): void {
     return;
   }
   const tickMs = Number(process.env.ADVISOR_WORKER_TICK_MS ?? 60_000);
-  timer = setInterval(() => void tick(), tickMs);
+  timer = setInterval(() => {
+    // tick() swallows its own operational errors, but an unexpected throw before
+    // the internal try (e.g. a non-LlmNotConfigured provider error) would become
+    // an unhandled rejection here — catch it so the standing timer survives.
+    tick().catch((error) => {
+      console.error("[advisor-worker] tick crashed:", error);
+    });
+  }, tickMs);
   // Don't let the timer keep the process alive on its own.
   timer.unref?.();
   console.log(`[advisor-worker] started (tick ${tickMs}ms)`);

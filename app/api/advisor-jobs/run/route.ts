@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { ok } from "@/lib/server/api/respond";
 import { handleAdvisorError } from "@/lib/server/api/advisor-error";
-import { withAuth } from "@/lib/server/auth/with-auth";
 import { getServerLlmProvider } from "@/lib/server/llm/container";
 import { getServerNewsSearch } from "@/lib/server/news/container";
 import { runAdvisorJobsOnce } from "@/lib/server/market-advisor/jobs";
@@ -11,13 +10,14 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * Background trigger: runs one advisor pass over the enabled watchlist. Protected
- * by ADVISOR_JOBS_TOKEN (Bearer). Fail-closed: if the token is unset, the route
- * is disabled (401). Meant to be called by an external scheduler (cron / script),
- * keeping the standing-loop out of the app per the project's trigger-separation
- * convention.
+ * Background trigger: runs one advisor pass over the enabled watchlist. This is a
+ * machine-to-machine endpoint authenticated by ADVISOR_JOBS_TOKEN (Bearer), NOT
+ * a user session — external schedulers (cron / `scripts/advisor-run.mjs`) have no
+ * session cookie, so it is deliberately NOT wrapped in `withAuth`. Fail-closed:
+ * if the token is unset the route is disabled (401). Kept out of the standing
+ * loop per the project's trigger-separation convention.
  */
-export const POST = withAuth(async (request: Request): Promise<Response> => {
+export async function POST(request: Request): Promise<Response> {
   const token = process.env.ADVISOR_JOBS_TOKEN;
   if (!token) {
     return NextResponse.json(
@@ -42,4 +42,4 @@ export const POST = withAuth(async (request: Request): Promise<Response> => {
   } catch (error) {
     return handleAdvisorError(error);
   }
-});
+}

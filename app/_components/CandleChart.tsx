@@ -531,6 +531,16 @@ export function CandleChart({
     }
   }, [advisorEvents, showAdviceLines]);
 
+  // Stable ref so the data-push effect can re-apply advice overlays after
+  // `setData` without listing `renderAdviceLines` in its deps. Its identity
+  // changes whenever advisorEvents / showAdviceLines toggle; depending on it
+  // there would rebuild the entire candle/volume/MA dataset on every overlay
+  // toggle. Toggles are instead handled by the dedicated effect below.
+  const renderAdviceLinesRef = useRef(renderAdviceLines);
+  useEffect(() => {
+    renderAdviceLinesRef.current = renderAdviceLines;
+  }, [renderAdviceLines]);
+
   // Create the chart and its series once; recreate only if the overlay shape
   // (volume toggle or number of MA lines) changes. Defaults have stable
   // identities, so for the common case this runs only on mount.
@@ -643,8 +653,10 @@ export function CandleChart({
       chartRef.current?.timeScale().fitContent();
       fitKeyRef.current = fitKey;
     }
-    renderAdviceLines();
-  }, [candles, maPeriods, renderAdviceLines, fitKey]);
+    // Re-apply advice overlays after setData (which clears markers) via the ref,
+    // so this effect runs only on data/fit changes — not on overlay toggles.
+    renderAdviceLinesRef.current();
+  }, [candles, maPeriods, fitKey]);
 
   // Redraw the dashed upper/lower price-limit lines when the limits change.
   useEffect(() => {

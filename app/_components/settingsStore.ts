@@ -75,19 +75,48 @@ function scheduleFlush(): void {
   }, FLUSH_DELAY_MS);
 }
 
+/**
+ * Merges a batch back into the pending maps after a failed flush, without
+ * clobbering newer writes that arrived during the in-flight request (a key
+ * already pending, or since deleted, keeps its newer state — last write wins).
+ */
+function requeuePayload(payload: {
+  upserts: { key: string; value: string }[];
+  deletes: string[];
+}): void {
+  for (const { key, value } of payload.upserts) {
+    if (!pendingUpserts.has(key) && !pendingDeletes.has(key)) {
+      pendingUpserts.set(key, value);
+    }
+  }
+  for (const key of payload.deletes) {
+    if (!pendingUpserts.has(key) && !pendingDeletes.has(key)) {
+      pendingDeletes.add(key);
+    }
+  }
+}
+
 async function flushNow(): Promise<void> {
   const payload = takePendingPayload();
   if (payload === null) return;
   try {
-    await fetch(SETTINGS_URL, {
+    const res = await fetch(SETTINGS_URL, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
       keepalive: true,
     });
+    if (!res.ok) {
+      // The server rejected the batch (e.g. 400 over the key cap). Re-queuing
+      // would just resend the same rejected payload forever, so surface it
+      // instead of dropping it silently. The in-memory cache still reflects it.
+      console.error(`[settings] persist rejected: HTTP ${res.status}`);
+    }
   } catch {
-    // Best-effort persistence — matches the prior swallow-on-failure behavior of
-    // localStorage writes. The in-memory cache already reflects the change.
+    // Transient network failure — restore the batch and retry on the next flush
+    // so writes are not silently lost (the prior behavior discarded them).
+    requeuePayload(payload);
+    scheduleFlush();
   }
 }
 

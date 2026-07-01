@@ -4,11 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { ApiClientError } from "@/lib/client/hooks";
 import type { AdvisorResult } from "@/lib/client/advisor";
 import { AiAdvisor } from "./AiAdvisor";
-import {
-  __resetSettingsStore,
-  __seedSettings,
-  getStoredItem,
-} from "./settingsStore";
+import { __resetSettingsStore, __seedSettings } from "./settingsStore";
 
 const { fetchAdvisor } = vi.hoisted(() => ({ fetchAdvisor: vi.fn() }));
 vi.mock("@/lib/client/advisor", () => ({ fetchAdvisor }));
@@ -17,6 +13,8 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   __resetSettingsStore();
+  // Advisor result cache is client-only (sessionStorage); clear it between tests.
+  window.sessionStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -103,15 +101,16 @@ describe("AiAdvisor", () => {
     fireEvent.click(screen.getByRole("button", { name: /조언 받기|분석/ }));
 
     await waitFor(() => expect(screen.getByText(/분산을 고려하세요/)).toBeInTheDocument());
-    expect(getStoredItem("toss-invest:ai-advisor-result:7")).toBe(
-      JSON.stringify(result),
-    );
+    expect(
+      window.sessionStorage.getItem("toss-invest:ai-advisor-result:7"),
+    ).toBe(JSON.stringify(result));
   });
 
   it("restores a stored advisor result without auto-fetching", async () => {
-    __seedSettings({
-      "toss-invest:ai-advisor-result:7": JSON.stringify(result),
-    });
+    window.sessionStorage.setItem(
+      "toss-invest:ai-advisor-result:7",
+      JSON.stringify(result),
+    );
 
     render(<AiAdvisor accountSeq={7} />);
 

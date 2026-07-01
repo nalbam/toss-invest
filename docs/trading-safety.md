@@ -14,7 +14,7 @@
 4. **Kill switch**(`KILL_SWITCH`): ON이면 모든 실주문 경로 즉시 차단(자동거래·취소 포함). 테스트로 증명.
 5. **고액 주문**: 1억원 이상은 명시적 `confirmHighValueOrder=true` 없이는 전송 금지.
 6. **멱등성**: `clientOrderId`로 중복 주문 방지(`request-in-progress`/`already-*` 처리). **dry-run으로 강등된 시도는 `clientOrderId`를 발급·소비하지 않는다**(이후 실주문 재시도 시 오판 방지).
-7. **감사 로그**: 모든 주문 시도(전송/강등/거부)를 입력·사유와 함께 남긴다. 단, 시크릿·PII 제외.
+7. **감사 로그**: 모든 주문 시도(전송/강등/거부)를 입력·사유와 함께 콘솔 + `trading_audit` SQLite 테이블에 secret-free 요약으로 영속한다(`lib/server/trading/audit-store.ts`). 단, 시크릿·PII 제외.
 
 ### 주문 결과 판정
 

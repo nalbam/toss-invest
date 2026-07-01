@@ -4,7 +4,7 @@ import { getDb } from "@/lib/server/db/sqlite";
 
 // Global key/value store backing what used to live in the browser's
 // localStorage (theme, collapsed cards, chart settings, selected account,
-// per-symbol order drafts, advisor caches, ...). There is no per-user scoping —
+// advisor auto settings, ...). There is no per-user scoping —
 // a single global row set, matching the favorites/watchlist single-user model.
 
 export interface SettingEntry {
