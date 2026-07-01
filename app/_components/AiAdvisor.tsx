@@ -10,6 +10,7 @@ import {
 import { AdvisorAutoControls } from "./AdvisorAutoControls";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
+import { formatAdviceTime } from "./formatAdviceTime";
 import { useAdvisorAutoRerun } from "./useAdvisorAutoRerun";
 import { useAdvisorRun } from "./useAdvisorRun";
 
@@ -175,6 +176,9 @@ export function AiAdvisor({
                 ))}
               </ul>
             )}
+            <p className={styles.advisorTimestamp}>
+              조언 일시: {formatAdviceTime(state.result.generatedAt)}
+            </p>
           </div>
         )}
       </div>

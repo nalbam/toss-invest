@@ -443,6 +443,13 @@
   color: var(--gain);
 }
 
+.version {
+  margin: 0;
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .orderCardBottom {
   display: flex;
   align-items: center;

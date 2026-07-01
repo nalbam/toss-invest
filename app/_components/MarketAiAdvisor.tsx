@@ -23,6 +23,7 @@ import { AdvisorAutoControls, ANALYSIS_INTERVALS } from "./AdvisorAutoControls";
 import { ChartOverlayControls } from "./ChartOverlayControls";
 import { CollapsibleCard } from "./CollapsibleCard";
 import styles from "./dashboard.module.css";
+import { formatAdviceTime } from "./formatAdviceTime";
 
 const DEFAULT_RUN_EVERY_MS = 600_000; // 10분 (차트 분봉 옵션에 존재)
 const NOT_CONFIGURED_MESSAGE = "AI 어드바이저가 설정되지 않았습니다.";
@@ -33,19 +34,6 @@ type RunState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; message: string };
-
-/** Formats an ISO timestamp as `YYYY-MM-DD HH:mm` in the viewer's local time. */
-function formatAdviceTime(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
-}
 
 export function MarketAiAdvisor({
   input,
