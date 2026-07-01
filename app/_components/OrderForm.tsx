@@ -85,6 +85,9 @@ function writeOrderFormPreferences(prefs: OrderFormPreferences): void {
 const ORDER_QUANTITY_KEY_PREFIX = "toss-invest:order-quantity:";
 const ORDER_AMOUNT_KEY_PREFIX = "toss-invest:order-amount:";
 
+/** How long the "전송됨" confirmation stays visible before auto-dismissing. */
+const SENT_RESULT_TIMEOUT_MS = 3000;
+
 function readStoredField(prefix: string, symbol: string): string {
   if (symbol === "") {
     return "";
@@ -249,6 +252,14 @@ export function OrderForm({
     setArmed(null);
     setConfirm(false);
   }, [prefill]);
+
+  // Auto-dismiss the "전송됨" confirmation so it doesn't linger. Only the SENT
+  // status clears itself; DRY_RUN/BLOCKED/errors stay until the next action.
+  useEffect(() => {
+    if (result?.status !== "SENT") return;
+    const timer = setTimeout(() => setResult(null), SENT_RESULT_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [result]);
 
   // Amount-based ordering is US MARKET only; LIMIT always uses quantity.
   const amountMode = pricingMode === "AMOUNT" && orderType === "MARKET";
