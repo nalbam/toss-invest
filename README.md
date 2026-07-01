@@ -1,8 +1,8 @@
 # toss-invest
 
 토스증권 Open API 기반 **개인 투자 대시보드**. 내 계좌·보유자산·시세·거래내역을 한눈에 보고,
-**수동 거래**와 **제한적 자동거래**까지 안전 게이트 안에서 수행한다. 1인 개인용(멀티테넌트·인증 서버 없음),
-웹소켓 없이 폴링 기반이다.
+**수동 거래**와 **제한적 자동거래**까지 안전 게이트 안에서 수행한다. 1인 개인용(멀티테넌트 아님, Google OAuth
+로그인 게이트로 접근 제한), 웹소켓 없이 폴링 기반이다.
 
 - API 레퍼런스: https://developers.tossinvest.com/llms.txt
 
@@ -57,10 +57,17 @@ pnpm run dev                 # http://localhost:3000
 ## 환경 변수
 
 `.env.example` 참고. TOSS·거래·LLM 변수는 `lib/server/env.ts` 의 zod 스키마로 fail-fast 검증되고,
-DB·워커 변수(`ADVISOR_*`)는 기본값 폴백으로 `process.env`에서 직접 읽힌다.
+DB·워커 변수(`ADVISOR_*`)는 기본값 폴백으로 `process.env`에서 직접 읽힌다. 인증 변수(`BETTER_AUTH_*`·
+`GOOGLE_*`·`AUTH_*`)는 `lib/auth.ts` 가 `process.env`에서 직접 읽는다.
 
 | 변수 | 기본값 | 설명 |
 | --- | --- | --- |
+| `BETTER_AUTH_SECRET` | (필수) | better-auth 서명 시크릿 (`npx @better-auth/cli secret`로 생성) |
+| `BETTER_AUTH_URL` | `http://localhost:3000` | 배포 시 연결한 HTTPS 도메인 |
+| `GOOGLE_CLIENT_ID` | (필수) | Google OAuth 2.0 클라이언트 id |
+| `GOOGLE_CLIENT_SECRET` | (필수) | Google OAuth 2.0 클라이언트 secret |
+| `AUTH_ALLOWED_DOMAINS` | `nalbam.com` | 로그인 허용 이메일 도메인(콤마 구분) |
+| `AUTH_DB_PATH` | `data/auth.db` | better-auth SQLite 경로(user/session/account/verification) |
 | `TOSS_CLIENT_ID` | (필수) | Toss Open API client id |
 | `TOSS_CLIENT_SECRET` | (필수) | Toss Open API client secret |
 | `TOSS_ACCOUNT_SEQ` | (필수) | 계좌 시퀀스 |
@@ -79,6 +86,9 @@ DB·워커 변수(`ADVISOR_*`)는 기본값 폴백으로 `process.env`에서 직
 | `ADVISOR_JOBS_TOKEN` | (미설정) | 설정 시 `POST /api/advisor-jobs/run` 활성화(Bearer). 미설정 시 비활성(fail-closed) |
 | `ADVISOR_WORKER_ENABLED` | (미설정) | `true`면 인-프로세스 백그라운드 어드바이저 워커 시작(`pnpm dev`가 자동 설정) |
 | `ADVISOR_WORKER_TICK_MS` | `60000` | 워커가 watchlist due 항목을 점검하는 주기(ms) |
+| `ADVISOR_BASE_URL` | `http://localhost:3000` | `advisor:run`이 `POST /api/advisor-jobs/run`을 호출할 서버 주소(원격 트리거 시) |
+
+> `NEXT_PUBLIC_APP_VERSION`은 빌드 시 `next.config.ts`가 `package.json` 버전에서 자동 주입한다(사이드바 버전 표시용, 사용자 설정 불필요).
 
 ## 배포 (Docker / EC2)
 
@@ -140,10 +150,11 @@ lib/
     market-advisor/    # 차트 어드바이저 + watchlist · jobs · worker(백그라운드)
     news/              # Tavily 심볼 뉴스 검색(ETF 구성종목 인지 · 10분 캐시, 차트 어드바이저와 공유)
     llm/               # provider 추상화 (openai · xai · chat-completions · container)
-    db/                # SQLite(better-sqlite3) sqlite.ts: market_advice · portfolio_advice · advisor_watchlist · favorites · stock_directory · candle_cache
+    db/                # SQLite(better-sqlite3) sqlite.ts: market_advice · portfolio_advice · advisor_watchlist · favorites · stock_directory · candle_cache · app_settings
     candles/           # 캔들 캐시: 확정 캔들 SQLite 저장/조회 + 캐시 백드 페치(미확정은 Toss)
     favorites/         # 즐겨찾기 스토어
     stocks/            # 종목 이름검색 디렉터리
+    settings/          # app_settings KV 스토어 (/api/settings 백엔드)
     api/               # respond 헬퍼 ({data}/sanitized error)
   client/**            # types · format · hooks · quote · candles · indicators · polling · advisor · market-advisor · favorites · watchlist · envelope (서버 import 금지)
 ```

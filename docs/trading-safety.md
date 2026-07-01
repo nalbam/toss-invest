@@ -10,7 +10,7 @@
 2. **실주문 확인 게이트**: 모든 실제 `POST /orders*`는 (a) `DRY_RUN=false` **그리고** (b) 승인 **그리고** (c) 한도 검사 통과일 때만 전송. 하나라도 거짓이면 dry-run으로 강등하고 기록.
    - **수동거래(Phase 2)**: (b)는 *주문 단위로 사람이 입력하는* 확인값.
    - **자동거래(Phase 3)**: (b)는 사람이 사전에 out-of-band로 부여한 활성화 승인(`AUTO_TRADE_ENABLED`) + §6.3 한도 + §6.4 kill switch로 갈음한다(주문 단위 사람 확인 생략). 단, **에이전트가 자기 자신에게 확인 토큰/승인을 발급하는 것은 절대 금지.**
-3. **하드 리밋**(환경변수): 1회 최대 주문금액(`MAX_ORDER_AMOUNT`, 미설정 시 실주문 차단=fail-safe), 일일 누적 주문/손실 한도(`DAILY_LOSS_LIMIT`), 종목당 최대 포지션 비중.
+3. **하드 리밋**(환경변수): 1회 최대 주문금액(`MAX_ORDER_AMOUNT`, 미설정 시 실주문 차단=fail-safe)을 `evaluateOrderGate`가 집행한다. *후속(아직 게이트 미집행)*: 일일 손실 한도(`DAILY_LOSS_LIMIT`는 config에 로드되나 `safety.ts`에서 미집행), 종목당 최대 포지션 비중(현재 SELL 전략 생성기에만 존재하며 §6 게이트가 아님).
 4. **Kill switch**(`KILL_SWITCH`): ON이면 모든 실주문 경로 즉시 차단(자동거래·취소 포함). 테스트로 증명.
 5. **고액 주문**: 1억원 이상은 명시적 `confirmHighValueOrder=true` 없이는 전송 금지.
 6. **멱등성**: `clientOrderId`로 중복 주문 방지(`request-in-progress`/`already-*` 처리). **dry-run으로 강등된 시도는 `clientOrderId`를 발급·소비하지 않는다**(이후 실주문 재시도 시 오판 방지).

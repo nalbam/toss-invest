@@ -44,6 +44,9 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   __resetSettingsStore();
+  // Per-symbol drafts live in sessionStorage now; clear it so they never leak
+  // between tests.
+  window.sessionStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -192,7 +195,11 @@ describe("OrderForm — quick order (default)", () => {
     fireEvent.change(screen.getByLabelText("몇 주 주문할까요?"), {
       target: { value: "7" },
     });
-    expect(getStoredItem("toss-invest:order-quantity:005930")).toBe("7");
+    // Per-symbol drafts are client-only (sessionStorage), never synced to the
+    // server settings store.
+    expect(window.sessionStorage.getItem("toss-invest:order-quantity:005930")).toBe(
+      "7",
+    );
 
     // Switching to another symbol shows its own (empty) quantity ...
     rerender(ui("AAPL"));
@@ -529,7 +536,7 @@ describe("OrderForm — general order", () => {
     expect(screen.getByText("kill-switch-on")).toBeInTheDocument();
   });
 
-  it("renders the error code and message on an error envelope", async () => {
+  it("renders the human-readable error message (no error code) on an error envelope", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(
         {
@@ -549,10 +556,10 @@ describe("OrderForm — general order", () => {
     fireEvent.click(screen.getByRole("button", { name: "미리보기" }));
 
     await waitFor(() => {
-      expect(
-        screen.getByText("[already-canceled] Order already canceled"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Order already canceled")).toBeInTheDocument();
     });
+    // The raw error code is no longer surfaced to the user.
+    expect(screen.queryByText(/already-canceled/)).toBeNull();
   });
 
   it("prefills side and quantity from a proposal without arming or confirming (§6.A-2)", () => {

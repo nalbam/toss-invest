@@ -19,6 +19,12 @@ vi.mock("@/lib/server/news/container", () => ({
   getServerNewsSearch: () => null,
 }));
 
+// Plain function (not vi.fn) so the per-test `vi.clearAllMocks()` never wipes it
+// and the route sees an authenticated session under `withAuth`.
+vi.mock("@/lib/auth", () => ({
+  auth: { api: { getSession: async () => ({ user: { id: "test" } }) } },
+}));
+
 import { POST } from "./route";
 
 function postReq(body: unknown): Request {

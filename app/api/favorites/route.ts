@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import {
   addFavorite,
   listFavorites,
@@ -18,15 +19,15 @@ const addSchema = z.object({
   currency: z.string().min(1).optional(),
 });
 
-export async function GET(): Promise<Response> {
+export const GET = withAuth(async (): Promise<Response> => {
   try {
     return ok({ items: listFavorites() });
   } catch (error) {
     return handleError(error);
   }
-}
+});
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = withAuth(async (request: Request): Promise<Response> => {
   let body: unknown;
   try {
     body = await request.json();
@@ -57,9 +58,9 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     return handleError(error);
   }
-}
+});
 
-export async function DELETE(request: Request): Promise<Response> {
+export const DELETE = withAuth(async (request: Request): Promise<Response> => {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol");
   if (symbol === null || !symbolPattern.test(symbol)) {
@@ -71,4 +72,4 @@ export async function DELETE(request: Request): Promise<Response> {
   } catch (error) {
     return handleError(error);
   }
-}
+});

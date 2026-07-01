@@ -5,6 +5,7 @@ import {
   modifyOrderRaw,
 } from "@/lib/server/toss/endpoints";
 import type { TossClient } from "@/lib/server/toss/client";
+import { insertAuditEntry } from "@/lib/server/trading/audit-store";
 import {
   cancelOrder,
   getTradingConfig,
@@ -49,12 +50,18 @@ export interface ServerTradingExecutor {
 
 /**
  * Secret-free audit logger. Emits the structured §6 audit entry as JSON to the
- * server console; `summarizeOrder`/`summarizeModify` in `safety.ts` already
- * strip auth material, so only an order summary, decision, reasons, and notional
- * are recorded.
+ * server console AND persists it to SQLite; `summarizeOrder`/`summarizeModify`
+ * in `safety.ts` already strip auth material, so only an order summary, decision,
+ * reasons, and notional are recorded. Persistence is best-effort: a write failure
+ * must never break the order path, so it is caught and logged, not propagated.
  */
 function auditLog(entry: AuditEntry | OrderOpAuditEntry): void {
   console.info("[trading-audit]", JSON.stringify(entry));
+  try {
+    insertAuditEntry(entry);
+  } catch (error) {
+    console.error("[trading-audit] persist failed", error);
+  }
 }
 
 /**

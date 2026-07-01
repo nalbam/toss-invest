@@ -42,6 +42,12 @@ vi.mock("@/lib/server/toss/container", () => ({
   getServerTradingExecutor: () => executor,
 }));
 
+// Plain function (not vi.fn) so the per-test `vi.clearAllMocks()` never wipes it
+// and every route sees an authenticated session under `withAuth`.
+vi.mock("@/lib/auth", () => ({
+  auth: { api: { getSession: async () => ({ user: { id: "test" } }) } },
+}));
+
 import { GET as accountsGET } from "@/app/api/accounts/route";
 import { GET as holdingsGET } from "@/app/api/holdings/route";
 import { GET as pricesGET } from "@/app/api/prices/route";
@@ -93,7 +99,7 @@ describe("GET /api/accounts", () => {
     ];
     facade.getAccounts.mockResolvedValue(accounts);
 
-    const res = await accountsGET();
+    const res = await accountsGET(req("http://localhost/api/accounts"));
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ data: accounts });
@@ -109,7 +115,7 @@ describe("GET /api/accounts", () => {
       }),
     );
 
-    const res = await accountsGET();
+    const res = await accountsGET(req("http://localhost/api/accounts"));
 
     expect(res.status).toBe(404);
     const body = await res.json();
@@ -122,7 +128,7 @@ describe("GET /api/accounts", () => {
       new Error(`boom containing ${SECRET}`),
     );
 
-    const res = await accountsGET();
+    const res = await accountsGET(req("http://localhost/api/accounts"));
 
     expect(res.status).toBe(500);
     const body = await res.json();
@@ -803,6 +809,96 @@ describe("POST /api/orders", () => {
       available: "3",
       requested: "10",
       insufficient: true,
+    });
+  });
+
+  it("flags an amount-based BUY as insufficient when cash is below the amount", async () => {
+    executor.placeOrder.mockResolvedValue({
+      status: "DRY_RUN",
+      wouldSend: {},
+      reasons: ["dry-run-enabled"],
+    });
+    facade.getBuyingPower.mockResolvedValue({
+      currency: "KRW",
+      cashBuyingPower: "5000",
+    });
+
+    const res = await ordersPOST(
+      postReq("http://localhost/api/orders?accountSeq=7", {
+        symbol: "005930",
+        side: "BUY",
+        orderType: "MARKET",
+        orderAmount: "1000000",
+      }),
+    );
+
+    const body = await res.json();
+    // Aligned units (cash vs amount) => the advisory comparison is meaningful.
+    expect(body.data.prevalidation).toEqual({
+      side: "BUY",
+      available: "5000",
+      requested: "1000000",
+      insufficient: true,
+    });
+  });
+
+  it("never flags a quantity-based BUY as insufficient (cash vs share count is not comparable)", async () => {
+    executor.placeOrder.mockResolvedValue({
+      status: "DRY_RUN",
+      wouldSend: {},
+      reasons: ["dry-run-enabled"],
+    });
+    // Cash (5) is numerically below the share count (10), but the units differ
+    // so the flag must stay false rather than mislead with a bogus comparison.
+    facade.getBuyingPower.mockResolvedValue({
+      currency: "KRW",
+      cashBuyingPower: "5",
+    });
+
+    const res = await ordersPOST(
+      postReq("http://localhost/api/orders?accountSeq=7", {
+        symbol: "005930",
+        side: "BUY",
+        orderType: "LIMIT",
+        quantity: "10",
+        price: "72000",
+      }),
+    );
+
+    const body = await res.json();
+    expect(body.data.prevalidation).toEqual({
+      side: "BUY",
+      available: "5",
+      requested: "10",
+      insufficient: false,
+    });
+  });
+
+  it("never flags an amount-based SELL as insufficient (share count vs cash is not comparable)", async () => {
+    executor.placeOrder.mockResolvedValue({
+      status: "DRY_RUN",
+      wouldSend: {},
+      reasons: ["dry-run-enabled"],
+    });
+    // Sellable shares (3) below the cash amount (1,000,000) — different units,
+    // so the flag must stay false.
+    facade.getSellableQuantity.mockResolvedValue({ sellableQuantity: "3" });
+
+    const res = await ordersPOST(
+      postReq("http://localhost/api/orders?accountSeq=7", {
+        symbol: "005930",
+        side: "SELL",
+        orderType: "MARKET",
+        orderAmount: "1000000",
+      }),
+    );
+
+    const body = await res.json();
+    expect(body.data.prevalidation).toEqual({
+      side: "SELL",
+      available: "3",
+      requested: "1000000",
+      insufficient: false,
     });
   });
 

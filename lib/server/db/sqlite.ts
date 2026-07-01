@@ -95,6 +95,23 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS trading_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  reasons TEXT NOT NULL,
+  account_seq TEXT NOT NULL,
+  symbol TEXT,
+  order_id TEXT,
+  notional_krw REAL,
+  high_value INTEGER NOT NULL,
+  entry TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_trading_audit_lookup
+  ON trading_audit (at DESC);
 `;
 
 // Additive migrations for DBs created before a column existed. SQLite lacks

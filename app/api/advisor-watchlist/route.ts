@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import {
   addWatchlist,
   listWatchlist,
@@ -27,15 +28,15 @@ const patchSchema = z.object({
   runEveryMinutes: z.number().int().positive().optional(),
 });
 
-export async function GET(): Promise<Response> {
+export const GET = withAuth(async (): Promise<Response> => {
   try {
     return ok({ items: listWatchlist() });
   } catch (error) {
     return handleError(error);
   }
-}
+});
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = withAuth(async (request: Request): Promise<Response> => {
   let body: unknown;
   try {
     body = await request.json();
@@ -51,9 +52,9 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     return handleError(error);
   }
-}
+});
 
-export async function PATCH(request: Request): Promise<Response> {
+export const PATCH = withAuth(async (request: Request): Promise<Response> => {
   let body: unknown;
   try {
     body = await request.json();
@@ -75,9 +76,9 @@ export async function PATCH(request: Request): Promise<Response> {
   } catch (error) {
     return handleError(error);
   }
-}
+});
 
-export async function DELETE(request: Request): Promise<Response> {
+export const DELETE = withAuth(async (request: Request): Promise<Response> => {
   const { searchParams } = new URL(request.url);
   const id = Number(searchParams.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
@@ -89,4 +90,4 @@ export async function DELETE(request: Request): Promise<Response> {
   } catch (error) {
     return handleError(error);
   }
-}
+});

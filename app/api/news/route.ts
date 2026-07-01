@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { invalidRequest, ok } from "@/lib/server/api/respond";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import { getServerNewsSearch } from "@/lib/server/news/container";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ const querySchema = z.object({
  * total). News is auxiliary: an unconfigured key or an upstream failure returns
  * an empty list (200), never an error, so the card degrades quietly.
  */
-export async function GET(request: Request): Promise<Response> {
+export const GET = withAuth(async (request: Request): Promise<Response> => {
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
     symbol: searchParams.get("symbol") ?? undefined,
@@ -46,4 +47,4 @@ export async function GET(request: Request): Promise<Response> {
     // Best-effort: an upstream search failure must not break the card.
     return ok([]);
   }
-}
+});

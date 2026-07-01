@@ -401,7 +401,7 @@ describe("MarketQuote", () => {
     expect(useCandles).toHaveBeenCalledWith("005930", "1d");
   });
 
-  it("waits for the stored minute interval before requesting chart candles", async () => {
+  it("reads the stored minute interval at mount and requests its source candles immediately", async () => {
     __seedSettings({ "toss-invest:chart-interval": "1m" });
 
     render(<MarketQuote symbol="005930" />);
@@ -411,7 +411,9 @@ describe("MarketQuote", () => {
         (screen.getByLabelText("분봉 단위") as HTMLSelectElement).value,
       ).toBe("1m");
     });
-    expect(useCandles).toHaveBeenCalledWith(undefined, "1d");
+    // The stored interval is read synchronously at mount, so the chart requests
+    // its source candles straight away without a deferred "1d" fetch first.
+    expect(useCandles).not.toHaveBeenCalledWith(undefined, "1d");
     expect(useCandles).toHaveBeenCalledWith("005930", "1m");
   });
 

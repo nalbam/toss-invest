@@ -11,8 +11,18 @@ import { runAdvisorJobsOnce } from "./jobs";
 // the worker just provides the standing tick (kept out of jobs by design).
 
 let timer: ReturnType<typeof setInterval> | null = null;
+let running = false;
 
-async function tick(): Promise<void> {
+/**
+ * Runs one advisor pass. Exported for tests. A module-scoped `running` guard
+ * serializes ticks: if a pass is still in flight (slow LLM / large watchlist)
+ * when the next interval fires, that tick is skipped so overlapping passes never
+ * pick the same due item and double-call the LLM / double-record advice.
+ */
+export async function tick(): Promise<void> {
+  if (running) {
+    return;
+  }
   let provider;
   try {
     provider = getServerLlmProvider();
@@ -22,6 +32,7 @@ async function tick(): Promise<void> {
     }
     throw error;
   }
+  running = true;
   try {
     const summary = await runAdvisorJobsOnce({
       client: getServerTossClient(),
@@ -33,6 +44,8 @@ async function tick(): Promise<void> {
     }
   } catch (error) {
     console.error("[advisor-worker] tick failed:", error);
+  } finally {
+    running = false;
   }
   // Keep the WAL file from growing without bound (the worker is the main writer).
   checkpointWal();

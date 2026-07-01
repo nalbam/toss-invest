@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import { getServerTossClient } from "@/lib/server/toss/container";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ const querySchema = z.object({
   dateTime: z.string().min(1).optional(),
 });
 
-export async function GET(request: Request): Promise<Response> {
+export const GET = withAuth(async (request: Request): Promise<Response> => {
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
     baseCurrency: searchParams.get("baseCurrency") ?? undefined,
@@ -29,4 +30,4 @@ export async function GET(request: Request): Promise<Response> {
   } catch (error) {
     return handleError(error);
   }
-}
+});

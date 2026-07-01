@@ -107,6 +107,16 @@ function writeStoredInterval(interval: ChartInterval): void {
   }
 }
 
+function readStoredOverlays(): ChartOverlayState {
+  return (
+    readStoredJson(CHART_OVERLAYS_KEY, isChartOverlayState) ?? {
+      labels: true,
+      lines: true,
+      advice: true,
+    }
+  );
+}
+
 /**
  * Market quote section for the selected symbol: its name/last price header, a
  * candlestick chart, the orderbook, and the daily price limits.
@@ -126,13 +136,12 @@ export function MarketQuote({
   averagePurchasePrice?: string;
   quantity?: string;
 }) {
-  const [interval, setIntervalState] = useState<ChartInterval>("1d");
-  const [loadedStoredInterval, setLoadedStoredInterval] = useState(false);
-  const [overlays, setOverlays] = useState<ChartOverlayState>({
-    labels: true,
-    lines: true,
-    advice: true,
-  });
+  const [interval, setIntervalState] = useState<ChartInterval>(() =>
+    readStoredInterval(),
+  );
+  const [overlays, setOverlays] = useState<ChartOverlayState>(() =>
+    readStoredOverlays(),
+  );
   // Older candles auto-loaded as the user scrolls the chart back, keyed to the
   // current symbol + source interval. The latest page still comes from SWR below.
   const source = sourceInterval(interval);
@@ -186,8 +195,11 @@ export function MarketQuote({
   const limits = usePriceLimits(symbol);
   const orderbook = useOrderbook(symbol);
   const trades = useTrades(symbol);
-  const orderMarkers = toOrderMarkers(orders, symbol);
-  const candles = useCandles(loadedStoredInterval ? symbol : undefined, source);
+  const orderMarkers = useMemo(
+    () => toOrderMarkers(orders, symbol),
+    [orders, symbol],
+  );
+  const candles = useCandles(symbol, source);
   const marketAdvisorHistory = useMarketAdvisorHistory(symbol, interval);
   // Daily candles power the header's day change (vs previous close), regardless
   // of the chart's selected interval.
@@ -264,9 +276,6 @@ export function MarketQuote({
   // Sized by interval but keyed by (symbol, source): 30m↔60m (same 1m source,
   // same cap) skips a refetch, while 5m→10m tops up to the larger target.
   useEffect(() => {
-    if (!loadedStoredInterval) {
-      return;
-    }
     const desired = advisorSourceCandleCount(interval);
     const already = backfilledSourceRef.current;
     if (already.key === olderKey && already.count >= desired) {
@@ -298,7 +307,7 @@ export function MarketQuote({
     return () => {
       cancelled = true;
     };
-  }, [symbol, interval, loadedStoredInterval, olderKey]);
+  }, [symbol, interval, olderKey]);
 
   // Keep the cache in sync with whatever older window is loaded — from backfill
   // or scroll pagination — so returning to this symbol restores it (including
@@ -355,18 +364,6 @@ export function MarketQuote({
       writeStoredJson(CHART_OVERLAYS_KEY, next);
       return next;
     });
-  }, []);
-
-  useEffect(() => {
-    setIntervalState(readStoredInterval());
-    setLoadedStoredInterval(true);
-  }, []);
-
-  useEffect(() => {
-    const stored = readStoredJson(CHART_OVERLAYS_KEY, isChartOverlayState);
-    if (stored) {
-      setOverlays(stored);
-    }
   }, []);
 
   useEffect(() => {

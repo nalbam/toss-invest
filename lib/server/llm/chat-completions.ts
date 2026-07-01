@@ -18,6 +18,21 @@ import type {
 // Adapters differ only in name + default base URL, so they delegate here.
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+/**
+ * Thrown when the provider's chat-completions endpoint returns a non-2xx status.
+ * A typed class (not a bare `Error`) so callers map it to a 502 via `instanceof`
+ * instead of matching the message text. The message carries only the status —
+ * never the request body or the api key.
+ */
+export class ChatRequestError extends Error {
+  readonly status: number;
+  constructor(name: LlmProviderName, status: number) {
+    super(`${name} chat request failed with status ${status}`);
+    this.name = "ChatRequestError";
+    this.status = status;
+  }
+}
+
 export interface ChatCompletionsConfig {
   name: LlmProviderName;
   apiKey: string;
@@ -106,9 +121,7 @@ export function createChatCompletionsProvider(
 
       if (!response.ok) {
         // Status only — never echo the request body or the api key.
-        throw new Error(
-          `${config.name} chat request failed with status ${response.status}`,
-        );
+        throw new ChatRequestError(config.name, response.status);
       }
 
       return parseChatResponse(config.name, await response.json());

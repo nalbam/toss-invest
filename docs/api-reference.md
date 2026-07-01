@@ -69,6 +69,8 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 | `/api/market-advisor` | POST | 차트 어드바이저(캔들→LLM→조언, SQLite 기록) |
 | `/api/market-advisor/history` | GET(`?symbol=&interval=`) | 조언 히스토리(차트 오버레이용) |
 
+> `GET /api/news`(`?symbol=`(필수)`&name=`(선택))는 대시보드 뉴스 카드용 로컬 라우트다 — SQLite가 아니라 **Tavily 기반**(in-memory 10분 캐시, 차트 어드바이저와 공유). `TAVILY_API_KEY` 미설정·검색 실패 시 빈 배열(200, fail-open).
+
 ## 데이터 표현 규칙 (구현)
 
 - decimal 금액/수량은 **문자열**로 보존(정밀도). 표시 시에만 포맷, 차트 입력 시에만 숫자 변환.

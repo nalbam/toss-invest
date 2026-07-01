@@ -33,6 +33,17 @@ export interface SettingsChanges {
   deletes?: string[];
 }
 
+/** Upper bound on total stored keys, so the global KV can't grow without bound. */
+export const MAX_TOTAL_KEYS = 1000;
+
+/** Thrown when a batch would push the store past `MAX_TOTAL_KEYS`. */
+export class SettingsLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SettingsLimitError";
+  }
+}
+
 /** Applies a batch of upserts and deletes in a single transaction. */
 export function applySettings(
   changes: SettingsChanges,
@@ -45,6 +56,7 @@ export function applySettings(
        DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
   );
   const remove = db.prepare("DELETE FROM app_settings WHERE key = ?");
+  const count = db.prepare("SELECT COUNT(*) AS n FROM app_settings");
   const run = db.transaction((next: SettingsChanges) => {
     const now = new Date().toISOString();
     for (const entry of next.upserts ?? []) {
@@ -52,6 +64,15 @@ export function applySettings(
     }
     for (const key of next.deletes ?? []) {
       remove.run(key);
+    }
+    // Enforced after applying the batch so deletes in the same request free room.
+    // Throwing rolls the whole transaction back (better-sqlite3), so an
+    // over-limit batch is rejected atomically.
+    const total = (count.get() as { n: number }).n;
+    if (total > MAX_TOTAL_KEYS) {
+      throw new SettingsLimitError(
+        `settings key limit exceeded (${total} > ${MAX_TOTAL_KEYS})`,
+      );
     }
   });
   run(changes);

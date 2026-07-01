@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import {
   getServerTossClient,
   getServerTradingExecutor,
 } from "@/lib/server/toss/container";
+import { resolveAccountSeq } from "@/lib/server/toss/account";
 import { assembleCreateContext } from "@/lib/server/trading/context";
 import { isKrwSymbol } from "@/lib/server/trading/symbol";
 import { orderCreateRequestSchema } from "@/lib/server/toss/schemas";
@@ -33,7 +35,7 @@ const confirmSchema = z.object({
   confirm: z.boolean().default(false),
 });
 
-export async function GET(request: Request): Promise<Response> {
+export const GET = withAuth(async (request: Request): Promise<Response> => {
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
     accountSeq: searchParams.get("accountSeq") ?? undefined,
@@ -50,14 +52,9 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const client = getServerTossClient();
-    let { accountSeq } = parsed.data;
-    if (accountSeq === undefined) {
-      const accounts = await client.getAccounts();
-      const first = accounts[0];
-      if (!first) {
-        return invalidRequest("No account available to resolve accountSeq");
-      }
-      accountSeq = first.accountSeq;
+    const accountSeq = await resolveAccountSeq(client, parsed.data.accountSeq);
+    if (accountSeq === null) {
+      return invalidRequest("No account available to resolve accountSeq");
     }
     const data = await client.getOrders({
       accountSeq,
@@ -72,7 +69,7 @@ export async function GET(request: Request): Promise<Response> {
   } catch (error) {
     return handleError(error);
   }
-}
+});
 
 /** Informational prevalidation attached to the preview (never a hard stop). */
 interface Prevalidation {
@@ -97,8 +94,12 @@ async function prevalidate(
   request: z.infer<typeof orderCreateRequestSchema>,
 ): Promise<Prevalidation> {
   const isKrw = isKrwSymbol(request.symbol);
-  const requested =
-    "orderAmount" in request ? request.orderAmount : request.quantity;
+  // Amount-based orders carry `orderAmount` (currency); quantity-based carry
+  // `quantity` (share count). The `insufficient` flag is only meaningful when
+  // the request's unit matches `available`'s unit, so it is computed only for
+  // the aligned cases and left false otherwise (advisory — never blocks).
+  const isAmount = "orderAmount" in request;
+  const requested = isAmount ? request.orderAmount : request.quantity;
   try {
     if (request.side === "BUY") {
       const power = await client.getBuyingPower({
@@ -110,7 +111,8 @@ async function prevalidate(
         side: "BUY",
         available,
         requested,
-        insufficient: Number(available) < Number(requested),
+        // available is cash buying power; comparable only to an amount request.
+        insufficient: isAmount && Number(available) < Number(requested),
       };
     }
     const sellable = await client.getSellableQuantity({
@@ -122,7 +124,8 @@ async function prevalidate(
       side: "SELL",
       available,
       requested,
-      insufficient: Number(available) < Number(requested),
+      // available is a share count; comparable only to a quantity request.
+      insufficient: !isAmount && Number(available) < Number(requested),
     };
   } catch {
     // Prevalidation is supplementary; a failed lookup must not block the order.
@@ -130,7 +133,7 @@ async function prevalidate(
   }
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = withAuth(async (request: Request): Promise<Response> => {
   const { searchParams } = new URL(request.url);
   const parsedQuery = postQuerySchema.safeParse({
     accountSeq: searchParams.get("accountSeq") ?? undefined,
@@ -157,14 +160,9 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const client = getServerTossClient();
-    let { accountSeq } = parsedQuery.data;
-    if (accountSeq === undefined) {
-      const accounts = await client.getAccounts();
-      const first = accounts[0];
-      if (!first) {
-        return invalidRequest("No account available to resolve accountSeq");
-      }
-      accountSeq = first.accountSeq;
+    const accountSeq = await resolveAccountSeq(client, parsedQuery.data.accountSeq);
+    if (accountSeq === null) {
+      return invalidRequest("No account available to resolve accountSeq");
     }
 
     const gateInputs = await assembleCreateContext(client, parsedOrder.data);
@@ -186,4 +184,4 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     return handleError(error);
   }
-}
+});

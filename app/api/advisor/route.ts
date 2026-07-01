@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
-import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { invalidRequest, ok } from "@/lib/server/api/respond";
+import { handleAdvisorError } from "@/lib/server/api/advisor-error";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import { getServerTossClient } from "@/lib/server/toss/container";
-import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
+import { resolveAccountSeq } from "@/lib/server/toss/account";
+import { getServerLlmProvider } from "@/lib/server/llm/container";
 import { AdvisorResponseError, runAdvisor } from "@/lib/server/advisor/advisor";
 import { recordPortfolioAdvice } from "@/lib/server/advisor/history";
 import { advisorJsonSchema } from "@/lib/server/advisor/schema";
@@ -27,7 +30,7 @@ const querySchema = z.object({
  * against reality. The LLM is strictly upstream of §6 — this route never places
  * an order; it returns proposals (flagged valid/invalid) for the user to review.
  */
-export async function POST(request: Request): Promise<Response> {
+export const POST = withAuth(async (request: Request): Promise<Response> => {
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
     accountSeq: searchParams.get("accountSeq") ?? undefined,
@@ -39,14 +42,9 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const client = getServerTossClient();
 
-    let accountSeq = parsed.data.accountSeq;
-    if (accountSeq === undefined) {
-      const accounts = await client.getAccounts();
-      const first = accounts[0];
-      if (!first) {
-        return invalidRequest("No account available to resolve accountSeq");
-      }
-      accountSeq = first.accountSeq;
+    const accountSeq = await resolveAccountSeq(client, parsed.data.accountSeq);
+    if (accountSeq === null) {
+      return invalidRequest("No account available to resolve accountSeq");
     }
 
     const holdings = await client.getHoldings({ accountSeq });
@@ -96,7 +94,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const generatedAt = new Date().toISOString();
     recordPortfolioAdvice({
-      accountSeq,
+      accountSeq: Number(accountSeq),
       generatedAt,
       model: result.model,
       advice: result.advice,
@@ -110,18 +108,12 @@ export async function POST(request: Request): Promise<Response> {
       generatedAt,
     });
   } catch (error) {
-    if (error instanceof LlmNotConfiguredError) {
-      return NextResponse.json(
-        { error: { code: "advisor-not-configured", message: "AI advisor is not configured" } },
-        { status: 503 },
-      );
-    }
     if (error instanceof AdvisorResponseError) {
       return NextResponse.json(
         { error: { code: "advisor-response-invalid", message: "The AI advisor returned an unusable response" } },
         { status: 502 },
       );
     }
-    return handleError(error);
+    return handleAdvisorError(error);
   }
-}
+});

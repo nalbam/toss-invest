@@ -1,12 +1,13 @@
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import { getServerTossClient } from "@/lib/server/toss/container";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
+export const GET = withAuth(async (
   _request: Request,
   context: { params: Promise<{ symbol: string }> },
-): Promise<Response> {
+): Promise<Response> => {
   const { symbol } = await context.params;
   if (symbol.length === 0) {
     return invalidRequest("Missing symbol");
@@ -18,4 +19,4 @@ export async function GET(
   } catch (error) {
     return handleError(error);
   }
-}
+});

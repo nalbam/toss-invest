@@ -6,7 +6,7 @@
 
 토스증권의 **내 계좌·보유자산·시세·거래내역을 한눈에 보는 대시보드** + **수동 거래** + **제한적 자동거래**.
 
-- 사용자: 개발자 본인 1인(개인용). 멀티테넌트·인증 서버 불필요.
+- 사용자: 개발자 본인 1인(개인용). 멀티테넌트 아님. Google OAuth 로그인 게이트(허용 도메인 제한, better-auth)로 접근 제어.
 - 데이터 출처: 토스증권 Open API (REST). 웹소켓 없음 → **폴링 기반**.
 
 ## 기술 스택 (고정)
@@ -38,6 +38,7 @@ lib/
     candles/           # 캔들 캐시: cache(확정 캔들 SQLite 저장/조회) · service(캐시 백드 페치)
     favorites/         # 즐겨찾기 스토어
     stocks/            # 종목 이름검색 디렉터리
+    settings/          # app_settings KV 스토어 (/api/settings 백엔드, settingsStore 영속)
   client/**            # types · format · hooks · quote · candles · indicators · polling · advisor · market-advisor · favorites · watchlist · envelope (서버 import 금지)
 ```
 

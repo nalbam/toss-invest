@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { handleError, ok } from "@/lib/server/api/respond";
-import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
+import { ok } from "@/lib/server/api/respond";
+import { handleAdvisorError } from "@/lib/server/api/advisor-error";
+import { withAuth } from "@/lib/server/auth/with-auth";
+import { getServerLlmProvider } from "@/lib/server/llm/container";
 import { getServerNewsSearch } from "@/lib/server/news/container";
 import { runAdvisorJobsOnce } from "@/lib/server/market-advisor/jobs";
 import { getServerTossClient } from "@/lib/server/toss/container";
@@ -15,7 +17,7 @@ export const runtime = "nodejs";
  * keeping the standing-loop out of the app per the project's trigger-separation
  * convention.
  */
-export async function POST(request: Request): Promise<Response> {
+export const POST = withAuth(async (request: Request): Promise<Response> => {
   const token = process.env.ADVISOR_JOBS_TOKEN;
   if (!token) {
     return NextResponse.json(
@@ -38,12 +40,6 @@ export async function POST(request: Request): Promise<Response> {
     });
     return ok(summary);
   } catch (error) {
-    if (error instanceof LlmNotConfiguredError) {
-      return NextResponse.json(
-        { error: { code: "advisor-not-configured", message: "AI advisor is not configured" } },
-        { status: 503 },
-      );
-    }
-    return handleError(error);
+    return handleAdvisorError(error);
   }
-}
+});

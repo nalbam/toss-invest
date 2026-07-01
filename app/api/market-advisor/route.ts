@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { invalidRequest, ok } from "@/lib/server/api/respond";
+import { handleAdvisorError } from "@/lib/server/api/advisor-error";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import { recordMarketAdvice } from "@/lib/server/market-advisor/history";
-import { getServerLlmProvider, LlmNotConfiguredError } from "@/lib/server/llm/container";
+import { getServerLlmProvider } from "@/lib/server/llm/container";
 import { getServerNewsSearch } from "@/lib/server/news/container";
 import {
   marketAdvisorJsonSchema,
@@ -22,7 +24,7 @@ export const runtime = "nodejs";
  * a reference decision + chart annotations (re-validated against a zod schema).
  * Best-effort records the advice to history; never blocks on the cache.
  */
-export async function POST(request: Request): Promise<Response> {
+export const POST = withAuth(async (request: Request): Promise<Response> => {
   let body: unknown;
   try {
     body = await request.json();
@@ -65,24 +67,12 @@ export async function POST(request: Request): Promise<Response> {
       generatedAt,
     });
   } catch (error) {
-    if (error instanceof LlmNotConfiguredError) {
-      return NextResponse.json(
-        { error: { code: "advisor-not-configured", message: "AI advisor is not configured" } },
-        { status: 503 },
-      );
-    }
-    if (error instanceof Error && error.message.includes("chat request failed")) {
-      return NextResponse.json(
-        { error: { code: "market-advisor-failed", message: "AI market advisor request failed" } },
-        { status: 502 },
-      );
-    }
     if (error instanceof MarketAdvisorResponseError) {
       return NextResponse.json(
         { error: { code: "market-advisor-response-invalid", message: "AI market advisor response is invalid" } },
         { status: 502 },
       );
     }
-    return handleError(error);
+    return handleAdvisorError(error);
   }
-}
+});

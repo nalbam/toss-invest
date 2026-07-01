@@ -23,6 +23,12 @@ vi.mock("@/lib/server/llm/container", async (importOriginal) => {
   return { ...actual, getServerLlmProvider };
 });
 
+// Plain function (not vi.fn) so the per-test `vi.clearAllMocks()` never wipes it
+// and the route sees an authenticated session under `withAuth`.
+vi.mock("@/lib/auth", () => ({
+  auth: { api: { getSession: async () => ({ user: { id: "test" } }) } },
+}));
+
 import { POST } from "@/app/api/advisor/route";
 import { LlmNotConfiguredError } from "@/lib/server/llm/container";
 

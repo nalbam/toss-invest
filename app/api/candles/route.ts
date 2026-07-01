@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import { getServerTossClient } from "@/lib/server/toss/container";
 import { getCandlesCached } from "@/lib/server/candles/service";
 
@@ -22,7 +23,7 @@ const querySchema = z.object({
     .optional(),
 });
 
-export async function GET(request: Request): Promise<Response> {
+export const GET = withAuth(async (request: Request): Promise<Response> => {
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
     symbol: searchParams.get("symbol") ?? undefined,
@@ -55,4 +56,4 @@ export async function GET(request: Request): Promise<Response> {
   } catch (error) {
     return handleError(error);
   }
-}
+});

@@ -28,6 +28,16 @@ export function invalidRequest(message: string): NextResponse {
   return NextResponse.json(body, { status: 400 });
 }
 
+/** 401 for requests without a valid session (see `withAuth`). */
+export function unauthorized(
+  message = "Authentication required.",
+): NextResponse {
+  const body: ApiErrorBody = {
+    error: { code: "unauthorized", message },
+  };
+  return NextResponse.json(body, { status: 401 });
+}
+
 /**
  * Cross-bundle-safe `TossApiError` check. Next.js may evaluate `client.ts` in
  * separate module registries (route vs instrumentation bundles), and the Toss

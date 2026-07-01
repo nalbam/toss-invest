@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { handleError, invalidRequest, ok } from "@/lib/server/api/respond";
+import { withAuth } from "@/lib/server/auth/with-auth";
 import {
   getServerTossClient,
   getServerTradingExecutor,
 } from "@/lib/server/toss/container";
+import { resolveAccountSeq } from "@/lib/server/toss/account";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +23,10 @@ const bodySchema = z.object({
   confirm: z.boolean().default(false),
 });
 
-export async function POST(
+export const POST = withAuth(async (
   request: Request,
   context: { params: Promise<{ orderId: string }> },
-): Promise<Response> {
+): Promise<Response> => {
   const { orderId } = await context.params;
   if (orderId.length === 0) {
     return invalidRequest("Missing orderId");
@@ -56,14 +58,9 @@ export async function POST(
 
   try {
     const client = getServerTossClient();
-    let { accountSeq } = parsedQuery.data;
-    if (accountSeq === undefined) {
-      const accounts = await client.getAccounts();
-      const first = accounts[0];
-      if (!first) {
-        return invalidRequest("No account available to resolve accountSeq");
-      }
-      accountSeq = first.accountSeq;
+    const accountSeq = await resolveAccountSeq(client, parsedQuery.data.accountSeq);
+    if (accountSeq === null) {
+      return invalidRequest("No account available to resolve accountSeq");
     }
 
     const executor = getServerTradingExecutor();
@@ -76,4 +73,4 @@ export async function POST(
   } catch (error) {
     return handleError(error);
   }
-}
+});
