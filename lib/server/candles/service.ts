@@ -10,8 +10,12 @@ import { getDb } from "@/lib/server/db/sqlite";
 import type { Candle, CandlePageResponse } from "@/lib/server/toss/schemas";
 import type { GetCandlesParams } from "@/lib/server/toss/endpoints";
 import {
+  isConfirmedCandle,
+  parseTimestampMs,
   putConfirmedCandles,
   readCachedCandles,
+  readCoverage,
+  recordCoverageFetch,
   type SourceInterval,
 } from "./cache";
 
@@ -67,8 +71,19 @@ export async function getCandlesCached(
       db,
     );
     if (cached.length >= limit) {
-      const oldest = cached[cached.length - 1];
-      return { candles: cached, nextBefore: oldest.timestamp };
+      // Only trust the cached page when the recorded coverage vouches for the
+      // whole window between the cursor and the newest candle returned. Without
+      // this, a hole in the cache would be silently jumped (the query returns
+      // `limit` candles from the far side) and never backfilled from Toss.
+      const cov = readCoverage(params.symbol, params.interval, db);
+      const oldestMs = parseTimestampMs(cached[cached.length - 1].timestamp);
+      const cursorMs = parseTimestampMs(params.before);
+      if (cov && cursorMs <= cov.to && oldestMs >= cov.from) {
+        const oldest = cached[cached.length - 1];
+        return { candles: cached, nextBefore: oldest.timestamp };
+      }
+      // else: coverage doesn't span this window (hole jumped, or above the
+      // proven range) → fall through to a live fetch that fills the gap.
     }
   }
 
@@ -80,6 +95,28 @@ export async function getCandlesCached(
     adjusted: params.adjusted,
   });
   putConfirmedCandles(params.symbol, params.interval, page.candles, nowMs, db);
+  // Record the proven-fetched window so future reads can trust this range. A
+  // latest fetch (no cursor) proves coverage up to `nowMs`; an older fetch proves
+  // it up to the request cursor.
+  const epochs = page.candles
+    .filter((c) => isConfirmedCandle(c.timestamp, params.interval, nowMs))
+    .map((c) => parseTimestampMs(c.timestamp));
+  if (epochs.length > 0) {
+    recordCoverageFetch(
+      params.symbol,
+      params.interval,
+      {
+        from: Math.min(...epochs),
+        to:
+          params.before === undefined
+            ? nowMs
+            : parseTimestampMs(params.before),
+        latest: params.before === undefined,
+      },
+      nowMs,
+      db,
+    );
+  }
   return page;
 }
 

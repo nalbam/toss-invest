@@ -6,6 +6,8 @@ import {
   isConfirmedCandle,
   putConfirmedCandles,
   readCachedCandles,
+  readCoverage,
+  recordCoverageFetch,
 } from "./cache";
 
 function makeDb() {
@@ -175,5 +177,40 @@ describe("putConfirmedCandles / readCachedCandles", () => {
     expect(
       readCachedCandles("005930", "1m", { limit: 10 }, db)[0].currency,
     ).toBe("KRW");
+  });
+});
+
+describe("candle_coverage", () => {
+  it("returns null before any coverage is recorded", () => {
+    const db = makeDb();
+    expect(readCoverage("005930", "1m", db)).toBeNull();
+  });
+
+  it("a latest fetch below an existing range replaces it (a hole opened above)", () => {
+    const db = makeDb();
+    recordCoverageFetch("005930", "1m", { from: 100, to: 200, latest: true }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: 500, to: 600, latest: true }, NOW, db);
+    expect(readCoverage("005930", "1m", db)).toEqual({ from: 500, to: 600 });
+  });
+
+  it("a latest fetch overlapping the range unions it", () => {
+    const db = makeDb();
+    recordCoverageFetch("005930", "1m", { from: 100, to: 300, latest: true }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: 250, to: 400, latest: true }, NOW, db);
+    expect(readCoverage("005930", "1m", db)).toEqual({ from: 100, to: 400 });
+  });
+
+  it("an older fetch reaching the anchor bottom extends it down", () => {
+    const db = makeDb();
+    recordCoverageFetch("005930", "1m", { from: 300, to: 600, latest: true }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: 100, to: 300, latest: false }, NOW, db);
+    expect(readCoverage("005930", "1m", db)).toEqual({ from: 100, to: 600 });
+  });
+
+  it("a detached older fetch leaves the anchor intact", () => {
+    const db = makeDb();
+    recordCoverageFetch("005930", "1m", { from: 300, to: 600, latest: true }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: 100, to: 150, latest: false }, NOW, db);
+    expect(readCoverage("005930", "1m", db)).toEqual({ from: 300, to: 600 });
   });
 });

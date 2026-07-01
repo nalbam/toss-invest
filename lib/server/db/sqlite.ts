@@ -90,6 +90,19 @@ CREATE TABLE IF NOT EXISTS candle_cache (
 CREATE INDEX IF NOT EXISTS idx_candle_cache_range
   ON candle_cache (symbol, interval, epoch_ms DESC);
 
+-- Tracks the single latest-anchored contiguous window (per symbol/interval) that
+-- has actually been fetched from Toss. candle_cache alone cannot distinguish a
+-- real hole from a legitimate market-hours gap, so cache reads are only trusted
+-- inside this proven range; anything outside falls back to a live fetch.
+CREATE TABLE IF NOT EXISTS candle_coverage (
+  symbol TEXT NOT NULL,
+  interval TEXT NOT NULL,
+  covered_from_epoch INTEGER NOT NULL,
+  covered_to_epoch INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (symbol, interval)
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,

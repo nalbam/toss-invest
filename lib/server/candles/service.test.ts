@@ -7,6 +7,8 @@ import {
   parseTimestampMs,
   putConfirmedCandles,
   readCachedCandles,
+  readCoverage,
+  recordCoverageFetch,
 } from "./cache";
 import {
   collectAdvisorCandles,
@@ -70,6 +72,11 @@ function stubClient(
 const NOW = Date.parse("2026-06-18T09:05:00Z");
 const now = () => NOW;
 
+// Late enough that every 09:00–09:06 candle used by the coverage tests below is
+// confirmed (start + 60s <= now), so they are all cacheable.
+const NOW_LATE = Date.parse("2026-06-18T10:00:00Z");
+const nowLate = () => NOW_LATE;
+
 describe("getCandlesCached", () => {
   it("latest request fetches from Toss and caches only the confirmed candles", async () => {
     const db = makeDb();
@@ -110,6 +117,16 @@ describe("getCandlesCached", () => {
         candle("2026-06-18T09:01:00Z"),
         candle("2026-06-18T09:02:00Z"),
       ],
+      NOW,
+      db,
+    );
+    // Warm cache now also requires recorded coverage spanning the cursor — a raw
+    // putConfirmedCandles seed alone no longer counts as trusted (a hole would
+    // otherwise be served silently).
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: parseTimestampMs("2026-06-18T09:00:00Z"), to: NOW, latest: true },
       NOW,
       db,
     );
@@ -165,6 +182,149 @@ describe("getCandlesCached", () => {
     );
 
     expect(client.calls).toHaveLength(1); // 1 cached < count 2 → fetch
+  });
+
+  it("a holed cache is not served across the gap — the missing range is fetched live", async () => {
+    const db = makeDb();
+    // Two cached blocks straddling a gap at 09:02–09:04.
+    putConfirmedCandles(
+      "005930",
+      "1m",
+      [candle("2026-06-18T09:00:00Z"), candle("2026-06-18T09:01:00Z")],
+      NOW_LATE,
+      db,
+    );
+    putConfirmedCandles(
+      "005930",
+      "1m",
+      [candle("2026-06-18T09:05:00Z"), candle("2026-06-18T09:06:00Z")],
+      NOW_LATE,
+      db,
+    );
+    // Only the upper block is proven-covered.
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: parseTimestampMs("2026-06-18T09:05:00Z"), to: NOW_LATE, latest: true },
+      NOW_LATE,
+      db,
+    );
+    const client = stubClient([
+      {
+        candles: [candle("2026-06-18T09:04:00Z"), candle("2026-06-18T09:03:00Z")],
+        nextBefore: "2026-06-18T09:02:00Z",
+      },
+    ]);
+
+    const page = await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 2, before: "2026-06-18T09:05:00Z" },
+      { client, db, now: nowLate },
+    );
+
+    // Cache read would return the far-side 09:01/09:00, but coverage doesn't span
+    // them → live fetch of the actual missing candles instead.
+    expect(client.calls).toHaveLength(1);
+    expect(page.candles.map((c) => c.timestamp)).toEqual([
+      "2026-06-18T09:04:00Z",
+      "2026-06-18T09:03:00Z",
+    ]);
+  });
+
+  it("a contiguous covered walk is served from cache across successive older pages", async () => {
+    const db = makeDb();
+    putConfirmedCandles(
+      "005930",
+      "1m",
+      [
+        candle("2026-06-18T09:00:00Z"),
+        candle("2026-06-18T09:01:00Z"),
+        candle("2026-06-18T09:02:00Z"),
+        candle("2026-06-18T09:03:00Z"),
+        candle("2026-06-18T09:04:00Z"),
+        candle("2026-06-18T09:05:00Z"),
+      ],
+      NOW_LATE,
+      db,
+    );
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: parseTimestampMs("2026-06-18T09:00:00Z"), to: NOW_LATE, latest: true },
+      NOW_LATE,
+      db,
+    );
+    const client = stubClient([]);
+
+    await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 2, before: "2026-06-18T09:04:00Z" },
+      { client, db, now: nowLate },
+    );
+    await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 2, before: "2026-06-18T09:02:00Z" },
+      { client, db, now: nowLate },
+    );
+
+    expect(client.calls).toHaveLength(0); // both pages within coverage → cache
+  });
+
+  it("self-heals a hole: live fetch fills and covers the gap, then re-reads from cache", async () => {
+    const db = makeDb();
+    // Holed state (as above): upper block cached+covered, lower block cached.
+    putConfirmedCandles(
+      "005930",
+      "1m",
+      [candle("2026-06-18T09:00:00Z"), candle("2026-06-18T09:01:00Z")],
+      NOW_LATE,
+      db,
+    );
+    putConfirmedCandles(
+      "005930",
+      "1m",
+      [candle("2026-06-18T09:05:00Z"), candle("2026-06-18T09:06:00Z")],
+      NOW_LATE,
+      db,
+    );
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: parseTimestampMs("2026-06-18T09:05:00Z"), to: NOW_LATE, latest: true },
+      NOW_LATE,
+      db,
+    );
+    // A contiguous upstream backing 09:00–09:06 (literal timestamps so cached
+    // strings match the assertions exactly, not toISOString's ".000Z" form).
+    const client = pagedClient([
+      candle("2026-06-18T09:00:00Z"),
+      candle("2026-06-18T09:01:00Z"),
+      candle("2026-06-18T09:02:00Z"),
+      candle("2026-06-18T09:03:00Z"),
+      candle("2026-06-18T09:04:00Z"),
+      candle("2026-06-18T09:05:00Z"),
+      candle("2026-06-18T09:06:00Z"),
+    ]);
+
+    // First read across the hole → one live fetch that fills 09:03/09:04 and
+    // extends coverage down to 09:03.
+    await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 2, before: "2026-06-18T09:05:00Z" },
+      { client, db, now: nowLate },
+    );
+    expect(client.count).toBe(1);
+    const cachedTs = readCachedCandles("005930", "1m", { limit: 20 }, db).map(
+      (c) => c.timestamp,
+    );
+    expect(cachedTs).toContain("2026-06-18T09:03:00Z");
+    expect(cachedTs).toContain("2026-06-18T09:04:00Z");
+    expect(readCoverage("005930", "1m", db)?.from).toBe(
+      parseTimestampMs("2026-06-18T09:03:00Z"),
+    );
+
+    // The heal persists: the identical request now serves from cache, no new fetch.
+    await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 2, before: "2026-06-18T09:05:00Z" },
+      { client, db, now: nowLate },
+    );
+    expect(client.count).toBe(1);
   });
 });
 
