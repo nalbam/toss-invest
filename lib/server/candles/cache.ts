@@ -16,6 +16,11 @@ const INTERVAL_MS: Record<SourceInterval, number> = {
   "1d": 86_400_000,
 };
 
+/** One candle period in ms for the given source interval. */
+export function intervalMs(interval: SourceInterval): number {
+  return INTERVAL_MS[interval];
+}
+
 /**
  * Parses a candle timestamp to epoch milliseconds, accepting both ISO 8601
  * (with or without an offset) and a bare epoch-millis integer string. Returns

@@ -10,6 +10,7 @@ import { getDb } from "@/lib/server/db/sqlite";
 import type { Candle, CandlePageResponse } from "@/lib/server/toss/schemas";
 import type { GetCandlesParams } from "@/lib/server/toss/endpoints";
 import {
+  intervalMs,
   isConfirmedCandle,
   parseTimestampMs,
   putConfirmedCandles,
@@ -25,6 +26,32 @@ import {
 
 /** Page size used for cache-vs-Toss decisions when the caller omits `count`. */
 export const DEFAULT_PAGE_COUNT = 200;
+
+/** Extra candles fetched beyond the elapsed-time estimate on a warm latest
+ *  refresh, so a market reopen / boundary can't leave the delta short of the
+ *  cache's newest candle (which would open a gap). */
+const REFRESH_BUFFER = 3;
+
+/** Newest-first merge of the forming candle(s) on top of the cached confirmed
+ *  candles, de-duped by timestamp (the live/forming copy wins), capped at
+ *  `limit`. Used to assemble a latest page from cache + live delta. */
+function mergeLatest(
+  forming: Candle[],
+  confirmed: Candle[],
+  limit: number,
+): Candle[] {
+  const seen = new Set<string>();
+  const out: Candle[] = [];
+  for (const c of [...forming, ...confirmed]) {
+    if (seen.has(c.timestamp)) {
+      continue;
+    }
+    seen.add(c.timestamp);
+    out.push(c);
+  }
+  out.sort((a, b) => parseTimestampMs(b.timestamp) - parseTimestampMs(a.timestamp));
+  return out.slice(0, limit);
+}
 
 /** The single Toss method this layer needs — narrowed for easy stubbing. */
 export interface CandleFetcher {
@@ -84,6 +111,77 @@ export async function getCandlesCached(
       }
       // else: coverage doesn't span this window (hole jumped, or above the
       // proven range) → fall through to a live fetch that fills the gap.
+    }
+  } else {
+    // Latest page (no cursor). A cold cache must fetch the whole page, but a warm
+    // one (a full page cached AND coverage vouching for its newest candle) only
+    // needs the delta from Toss: the forming candle plus any candles confirmed
+    // since the cache's newest. The confirmed remainder is served from the local
+    // DB, so a reload / 20s poll stops re-downloading every confirmed candle.
+    const limit = params.count ?? DEFAULT_PAGE_COUNT;
+    const cachedLatest = readCachedCandles(
+      params.symbol,
+      params.interval,
+      { limit },
+      db,
+    );
+    const cov = readCoverage(params.symbol, params.interval, db);
+    if (cachedLatest.length >= limit && cov !== null) {
+      const newestCachedMs = parseTimestampMs(cachedLatest[0].timestamp);
+      if (cov.to >= newestCachedMs) {
+        const step = intervalMs(params.interval);
+        const elapsed = Math.max(0, nowMs - newestCachedMs);
+        // Size the delta by elapsed calendar time (an upper bound on how many
+        // candles could have confirmed), plus a buffer, capped at a full page.
+        const refreshCount = Math.min(
+          limit,
+          Math.ceil(elapsed / step) + REFRESH_BUFFER,
+        );
+        const live = await deps.client.getCandles({
+          symbol: params.symbol,
+          interval: params.interval,
+          count: refreshCount,
+          adjusted: params.adjusted,
+        });
+        putConfirmedCandles(params.symbol, params.interval, live.candles, nowMs, db);
+        const liveEpochs = live.candles
+          .filter((c) => isConfirmedCandle(c.timestamp, params.interval, nowMs))
+          .map((c) => parseTimestampMs(c.timestamp));
+        const oldestLiveMs =
+          liveEpochs.length > 0 ? Math.min(...liveEpochs) : nowMs;
+        // Only merge when the live delta overlaps/adjoins the cache's newest —
+        // otherwise a gap opened between them (cache too stale for this delta) and
+        // we fall through to a full fetch rather than serve a holed page.
+        if (oldestLiveMs <= newestCachedMs + step) {
+          recordCoverageFetch(
+            params.symbol,
+            params.interval,
+            {
+              from: liveEpochs.length > 0 ? oldestLiveMs : newestCachedMs,
+              to: nowMs,
+              latest: true,
+            },
+            nowMs,
+            db,
+          );
+          const confirmed = readCachedCandles(
+            params.symbol,
+            params.interval,
+            { limit },
+            db,
+          );
+          const forming = live.candles.filter(
+            (c) => !isConfirmedCandle(c.timestamp, params.interval, nowMs),
+          );
+          const merged = mergeLatest(forming, confirmed, limit);
+          const oldest = merged[merged.length - 1];
+          return {
+            candles: merged,
+            nextBefore: oldest ? oldest.timestamp : null,
+          };
+        }
+        // gap → fall through to the full fetch (the live delta is already cached).
+      }
     }
   }
 

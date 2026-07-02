@@ -267,6 +267,101 @@ describe("getCandlesCached", () => {
     expect(client.calls).toHaveLength(0); // both pages within coverage → cache
   });
 
+  it("warm latest fetches only a small delta and serves the rest from cache", async () => {
+    const db = makeDb();
+    const base = Date.parse("2026-06-18T00:00:00Z");
+    // Seed a full page (200 confirmed 1m candles, base..base+199min) + coverage,
+    // as a prior latest fetch would have left it.
+    const cacheNow = base + 200 * 60_000; // base+199 is confirmed (199+1<=200)
+    const seeded = Array.from({ length: 200 }, (_, i) =>
+      candle(new Date(base + i * 60_000).toISOString()),
+    );
+    putConfirmedCandles("005930", "1m", seeded, cacheNow, db);
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: base, to: cacheNow, latest: true },
+      cacheNow,
+      db,
+    );
+
+    // Two minutes later a reload asks for the latest 200. Newest cached = base+199.
+    const later = base + 201 * 60_000;
+    const client = stubClient([
+      {
+        candles: [
+          candle(new Date(base + 199 * 60_000).toISOString()),
+          candle(new Date(base + 200 * 60_000).toISOString()),
+          candle(new Date(base + 201 * 60_000).toISOString()), // forming at `later`
+        ],
+        nextBefore: new Date(base + 198 * 60_000).toISOString(),
+      },
+    ]);
+
+    const page = await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 200 },
+      { client, db, now: () => later },
+    );
+
+    // One live call, sized to the elapsed delta (2 min + buffer 3 = 5) — NOT the
+    // full 200-candle page. The confirmed remainder comes from the local cache.
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0].before).toBeUndefined();
+    expect(client.calls[0].count).toBe(5);
+    // A full page is returned, newest-first, topped by the forming candle; the
+    // newly-confirmed base+200 candle is now cached too.
+    expect(page.candles).toHaveLength(200);
+    expect(page.candles[0].timestamp).toBe(
+      new Date(base + 201 * 60_000).toISOString(),
+    );
+    expect(page.candles[1].timestamp).toBe(
+      new Date(base + 200 * 60_000).toISOString(),
+    );
+    expect(
+      readCachedCandles("005930", "1m", { limit: 1 }, db)[0].timestamp,
+    ).toBe(new Date(base + 200 * 60_000).toISOString());
+  });
+
+  it("warm latest falls back to a full fetch when the cache is too stale to adjoin the delta", async () => {
+    const db = makeDb();
+    const base = Date.parse("2026-06-18T00:00:00Z");
+    const cacheNow = base + 200 * 60_000;
+    const seeded = Array.from({ length: 200 }, (_, i) =>
+      candle(new Date(base + i * 60_000).toISOString()),
+    );
+    putConfirmedCandles("005930", "1m", seeded, cacheNow, db); // newest = base+199
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: base, to: cacheNow, latest: true },
+      cacheNow,
+      db,
+    );
+
+    // 300 minutes later: the delta (capped at 200) returns base+301..500, which
+    // does NOT reach back to the cache's newest (base+199) → a gap would open.
+    const later = base + 500 * 60_000;
+    const newest200 = Array.from({ length: 200 }, (_, i) =>
+      candle(new Date(base + (301 + i) * 60_000).toISOString()),
+    ).reverse();
+    const client = stubClient([
+      { candles: newest200, nextBefore: new Date(base + 300 * 60_000).toISOString() },
+      { candles: newest200, nextBefore: new Date(base + 300 * 60_000).toISOString() },
+    ]);
+
+    const page = await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 200 },
+      { client, db, now: () => later },
+    );
+
+    // Delta fetch didn't adjoin the cache → fell through to a full latest fetch.
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1].before).toBeUndefined();
+    expect(page.candles[0].timestamp).toBe(
+      new Date(base + 500 * 60_000).toISOString(),
+    );
+  });
+
   it("self-heals a hole: live fetch fills and covers the gap, then re-reads from cache", async () => {
     const db = makeDb();
     // Holed state (as above): upper block cached+covered, lower block cached.
