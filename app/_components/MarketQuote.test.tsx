@@ -474,9 +474,12 @@ describe("MarketQuote", () => {
     expect(fetchOlderCandles).not.toHaveBeenCalled();
 
     // Scrolled near the oldest bar → auto-fetch older candles before the oldest
-    // shown timestamp, at the source interval (no button involved).
-    fireChartVisibleRange({ from: 1, to: 40 });
+    // shown timestamp, at the source interval (no button involved). Re-fire
+    // inside waitFor: the chart's range subscription registers in an effect that
+    // may not have run yet when the chart first appears, so a single event can be
+    // dropped — a real scroll fires repeatedly until the fetch lands.
     await waitFor(() => {
+      fireChartVisibleRange({ from: 1, to: 40 });
       expect(fetchOlderCandles).toHaveBeenCalledWith(
         "005930",
         "1d",
