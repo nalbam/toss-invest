@@ -267,6 +267,52 @@ describe("getCandlesCached", () => {
     expect(client.calls).toHaveLength(0); // both pages within coverage → cache
   });
 
+  it("reload of the latest page fetches only the delta after a real-sized cold fetch", async () => {
+    // Regression: a real latest fetch returns a full page whose newest candle is
+    // still forming, so the cache holds `limit - 1` confirmed candles — never
+    // `limit`. A warm gate keyed on `length >= limit` therefore never triggers
+    // and every reload re-fetches the whole page. This asserts the reload is a
+    // small delta instead.
+    const db = makeDb();
+    const base = Date.parse("2026-06-18T00:00:00Z");
+    const min = (n: number) => new Date(base + n * 60_000).toISOString();
+    const now1 = base + 200 * 60_000;
+    // Cold latest page: 200 candles newest-first (base+200 .. base+1); base+200 is
+    // forming at now1, so 199 get cached.
+    const coldPage = {
+      candles: Array.from({ length: 200 }, (_, i) => candle(min(200 - i))),
+      nextBefore: min(0),
+    };
+    // The delta a warm reload should fetch (forming base+201 + a few confirmed).
+    const deltaPage = {
+      candles: [min(201), min(200), min(199), min(198), min(197)].map((t) =>
+        candle(t),
+      ),
+      nextBefore: min(196),
+    };
+    const client = stubClient([coldPage, deltaPage]);
+
+    await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 200 },
+      { client, db, now: () => now1 },
+    );
+    expect(client.calls).toHaveLength(1);
+
+    const now2 = base + 201 * 60_000;
+    const page = await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 200 },
+      { client, db, now: () => now2 },
+    );
+
+    // The reload must be a small delta (not a full 200-candle re-fetch).
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1].before).toBeUndefined();
+    expect(client.calls[1].count).toBeLessThan(200);
+    // And it still returns a full, current page topped by the forming candle.
+    expect(page.candles[0].timestamp).toBe(min(201));
+    expect(page.candles.length).toBeGreaterThan(100);
+  });
+
   it("warm latest fetches only a small delta and serves the rest from cache", async () => {
     const db = makeDb();
     const base = Date.parse("2026-06-18T00:00:00Z");

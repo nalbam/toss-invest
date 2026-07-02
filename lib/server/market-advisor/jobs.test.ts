@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, LlmProvider } from "@/lib/server/llm/types";
 import type { ServerTossClient } from "@/lib/server/toss/container";
 
@@ -15,7 +15,17 @@ const { listEnabledWatchlist, touchWatchlistRun, recordMarketAdvice } = vi.hoist
 vi.mock("./watchlist", () => ({ listEnabledWatchlist, touchWatchlistRun }));
 vi.mock("./history", () => ({ recordMarketAdvice }));
 
+import { getDb } from "@/lib/server/db/sqlite";
 import { runAdvisorJobsOnce } from "./jobs";
+
+// The candle cache is a process-wide singleton (shared :memory: DB). Clear it
+// between tests so each starts cold — otherwise a warm cache left by a prior
+// test changes how many times / with what args the job fetches candles.
+beforeEach(() => {
+  const db = getDb();
+  db.prepare("DELETE FROM candle_cache").run();
+  db.prepare("DELETE FROM candle_coverage").run();
+});
 
 function candle(timestamp: string) {
   return {

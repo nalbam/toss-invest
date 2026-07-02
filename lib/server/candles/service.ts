@@ -114,10 +114,14 @@ export async function getCandlesCached(
     }
   } else {
     // Latest page (no cursor). A cold cache must fetch the whole page, but a warm
-    // one (a full page cached AND coverage vouching for its newest candle) only
+    // one (confirmed candles cached AND coverage vouching for the newest) only
     // needs the delta from Toss: the forming candle plus any candles confirmed
     // since the cache's newest. The confirmed remainder is served from the local
     // DB, so a reload / 20s poll stops re-downloading every confirmed candle.
+    //
+    // The gate is `length > 0`, NOT `>= limit`: a real latest page's newest
+    // candle is still forming, so the cache holds `limit - 1` confirmed candles
+    // at most and could never reach `limit` — a `>= limit` gate would never fire.
     const limit = params.count ?? DEFAULT_PAGE_COUNT;
     const cachedLatest = readCachedCandles(
       params.symbol,
@@ -126,7 +130,7 @@ export async function getCandlesCached(
       db,
     );
     const cov = readCoverage(params.symbol, params.interval, db);
-    if (cachedLatest.length >= limit && cov !== null) {
+    if (cachedLatest.length > 0 && cov !== null) {
       const newestCachedMs = parseTimestampMs(cachedLatest[0].timestamp);
       if (cov.to >= newestCachedMs) {
         const step = intervalMs(params.interval);
