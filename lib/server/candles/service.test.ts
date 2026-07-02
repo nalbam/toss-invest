@@ -230,6 +230,55 @@ describe("getCandlesCached", () => {
     ]);
   });
 
+  it("extends coverage down through cached candles below the proven range without refetching", async () => {
+    // Repro for the 0167A0 60m report: the cache held far more history than the
+    // recorded coverage (e.g. from earlier sessions), so a long backfill kept
+    // re-fetching every older page below cov.from even though the candles were
+    // cached. An older page whose cursor sits inside coverage but that dips below
+    // cov.from must be trusted and extend coverage down — no Toss call.
+    const db = makeDb();
+    const base = Date.parse("2026-06-18T00:00:00Z");
+    const min = (n: number) => new Date(base + n * 60_000).toISOString();
+    const cacheNow = base + 601 * 60_000;
+    const seeded = Array.from({ length: 600 }, (_, i) => candle(min(1 + i)));
+    putConfirmedCandles("0167A0", "1m", seeded, cacheNow, db); // base+1..600 cached
+    // Coverage proves only the top slice (base+400..now); the lower 399 are cached
+    // but unproven, as if from an earlier session.
+    recordCoverageFetch(
+      "0167A0",
+      "1m",
+      { from: parseTimestampMs(min(400)), to: cacheNow, latest: true },
+      cacheNow,
+      db,
+    );
+    const client = stubClient([]); // no Toss pages — must be served from cache
+
+    // Older page straddling coverage's lower edge (cursor inside, page dips below).
+    const page1 = await getCandlesCached(
+      { symbol: "0167A0", interval: "1m", count: 200, before: min(420) },
+      { client, db, now: () => cacheNow },
+    );
+    expect(client.calls).toHaveLength(0); // trusted cache, no Toss
+    expect(page1.candles).toHaveLength(200);
+
+    // The next older page is now within the extended coverage → still cache.
+    const page2 = await getCandlesCached(
+      {
+        symbol: "0167A0",
+        interval: "1m",
+        count: 200,
+        before: page1.nextBefore ?? undefined,
+      },
+      { client, db, now: () => cacheNow },
+    );
+    expect(client.calls).toHaveLength(0);
+    expect(page2.candles).toHaveLength(200);
+    // Coverage has been pushed down to the bottom of the walked cache.
+    expect(readCoverage("0167A0", "1m", db)?.from).toBeLessThanOrEqual(
+      parseTimestampMs(page2.candles[page2.candles.length - 1].timestamp),
+    );
+  });
+
   it("a contiguous covered walk is served from cache across successive older pages", async () => {
     const db = makeDb();
     putConfirmedCandles(

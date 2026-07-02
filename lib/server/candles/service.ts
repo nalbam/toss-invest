@@ -27,6 +27,12 @@ import {
 /** Page size used for cache-vs-Toss decisions when the caller omits `count`. */
 export const DEFAULT_PAGE_COUNT = 200;
 
+/** A gap between the cursor and the newest cached candle larger than one
+ *  interval but smaller than this is treated as a hole (missing intraday data),
+ *  not a normal trading break (overnight ~17h, weekend ~63h). Used to decide
+ *  whether a cached older page that dips below proven coverage can be trusted. */
+const SESSION_GAP_MS = 6 * 60 * 60 * 1000;
+
 /** Candles fetched on a warm latest refresh: the forming candle plus a few
  *  recent confirmed ones. Deliberately a small FIXED probe, not scaled by
  *  elapsed time — a 1m-sourced chart (e.g. a 60m view) left idle for hours would
@@ -107,14 +113,40 @@ export async function getCandlesCached(
       // this, a hole in the cache would be silently jumped (the query returns
       // `limit` candles from the far side) and never backfilled from Toss.
       const cov = readCoverage(params.symbol, params.interval, db);
-      const oldestMs = parseTimestampMs(cached[cached.length - 1].timestamp);
+      const oldest = cached[cached.length - 1];
+      const oldestMs = parseTimestampMs(oldest.timestamp);
+      const newestCachedMs = parseTimestampMs(cached[0].timestamp);
       const cursorMs = parseTimestampMs(params.before);
-      if (cov && cursorMs <= cov.to && oldestMs >= cov.from) {
-        const oldest = cached[cached.length - 1];
-        return { candles: cached, nextBefore: oldest.timestamp };
+      const step = intervalMs(params.interval);
+      if (cov && cursorMs <= cov.to) {
+        if (oldestMs >= cov.from) {
+          // Whole page is within the proven range → serve from cache.
+          return { candles: cached, nextBefore: oldest.timestamp };
+        }
+        // The cursor is inside proven coverage but the page dips below cov.from.
+        // Trust it (and extend coverage down) only when the newest cached candle
+        // sits right at the cursor — either adjacent (≤ one interval) or across a
+        // full trading-session break (overnight/weekend). That means no intraday
+        // hole was jumped between the cursor and the cached data, so the page
+        // continues the proven walk. Without this a long backfill (a 60m chart
+        // needs ~4800 1m candles, far past the proven window) re-fetches every
+        // page below cov.from on every reload even though they are cached — the
+        // reported "always re-queries". A page that jumped an intraday hole to a
+        // far-side block has a mid-sized gap here and falls through to a gap-fill.
+        const gapToCursor = cursorMs - newestCachedMs;
+        if (gapToCursor <= step || gapToCursor >= SESSION_GAP_MS) {
+          recordCoverageFetch(
+            params.symbol,
+            params.interval,
+            { from: oldestMs, to: cursorMs, latest: false },
+            nowMs,
+            db,
+          );
+          return { candles: cached, nextBefore: oldest.timestamp };
+        }
       }
-      // else: coverage doesn't span this window (hole jumped, or above the
-      // proven range) → fall through to a live fetch that fills the gap.
+      // else: coverage doesn't span this window (cursor above the proven range,
+      // or no coverage yet) → fall through to a live fetch that fills the gap.
     }
   } else {
     // Latest page (no cursor). A cold cache must fetch the whole page, but a warm
