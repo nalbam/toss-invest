@@ -1,0 +1,59 @@
+name: CI
+
+# Run the four quality gates (lint · typecheck · test · build) on every push to
+# main and every pull request, so a regression in the §6 trading-safety
+# invariants (or anything else) is caught before it reaches a release image.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "ci-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+        env:
+          # Dummy values: the build only needs config to load without throwing
+          # (env.ts zod validation, auth module init). No real upstream call is
+          # made, and DRY_RUN stays true so no order path is ever live.
+          TOSS_CLIENT_ID: ci
+          TOSS_CLIENT_SECRET: ci
+          TOSS_ACCOUNT_SEQ: "1"
+          AUTH_DB_PATH: ":memory:"
+          GOOGLE_CLIENT_ID: ci
+          GOOGLE_CLIENT_SECRET: ci
