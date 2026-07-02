@@ -194,6 +194,29 @@ describe("buildMarketAdvisorPrompt", () => {
     }
   });
 
+  it("warns against confirming a signal on the still-forming last candle", () => {
+    const system = buildMarketAdvisorPrompt(request)[0].content;
+    expect(system).toContain("형성 중");
+    expect(system).toMatch(/돌파·반전을 확정하지 마세요/);
+  });
+
+  it("splits decision vocabulary by position: no wait when held, no hold when flat", () => {
+    const system = buildMarketAdvisorPrompt(request)[0].content;
+    expect(system).toContain("wait는 쓰지 마세요");
+    expect(system).toContain("hold는 쓰지 마세요");
+  });
+
+  it("anchors invalidation and target distances on the ATR", () => {
+    const system = buildMarketAdvisorPrompt(request)[0].content;
+    expect(system).toContain("ATR");
+  });
+
+  it("instructs to keep the prior call while its invalidation holds, avoiding flip-flops", () => {
+    const system = buildMarketAdvisorPrompt(request)[0].content;
+    expect(system).toContain("flip-flop");
+    expect(system).toMatch(/무효화 조건이 깨지지 않았다면/);
+  });
+
   it("includes the analysis time only when provided", () => {
     const withTime = buildMarketAdvisorPrompt({
       ...request,
