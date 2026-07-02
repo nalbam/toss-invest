@@ -27,10 +27,14 @@ import {
 /** Page size used for cache-vs-Toss decisions when the caller omits `count`. */
 export const DEFAULT_PAGE_COUNT = 200;
 
-/** Extra candles fetched beyond the elapsed-time estimate on a warm latest
- *  refresh, so a market reopen / boundary can't leave the delta short of the
- *  cache's newest candle (which would open a gap). */
-const REFRESH_BUFFER = 3;
+/** Candles fetched on a warm latest refresh: the forming candle plus a few
+ *  recent confirmed ones. Deliberately a small FIXED probe, not scaled by
+ *  elapsed time — a 1m-sourced chart (e.g. a 60m view) left idle for hours would
+ *  otherwise balloon the delta to a full page and re-download everything. If the
+ *  probe adjoins the cache's newest (no new candles while the market was closed,
+ *  or a short poll gap) the confirmed remainder is served from the local DB; a
+ *  real gap (long intraday idle / market reopen) falls through to a full fetch. */
+const LATEST_PROBE_COUNT = 10;
 
 /** Newest-first merge of the forming candle(s) on top of the cached confirmed
  *  candles, de-duped by timestamp (the live/forming copy wins), capped at
@@ -134,13 +138,9 @@ export async function getCandlesCached(
       const newestCachedMs = parseTimestampMs(cachedLatest[0].timestamp);
       if (cov.to >= newestCachedMs) {
         const step = intervalMs(params.interval);
-        const elapsed = Math.max(0, nowMs - newestCachedMs);
-        // Size the delta by elapsed calendar time (an upper bound on how many
-        // candles could have confirmed), plus a buffer, capped at a full page.
-        const refreshCount = Math.min(
-          limit,
-          Math.ceil(elapsed / step) + REFRESH_BUFFER,
-        );
+        // A small fixed probe — see LATEST_PROBE_COUNT. NOT elapsed-scaled, so a
+        // long idle can't turn this into a full-page re-fetch.
+        const refreshCount = Math.min(limit, LATEST_PROBE_COUNT);
         const live = await deps.client.getCandles({
           symbol: params.symbol,
           interval: params.interval,

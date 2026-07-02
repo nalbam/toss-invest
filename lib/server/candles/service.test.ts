@@ -313,6 +313,51 @@ describe("getCandlesCached", () => {
     expect(page.candles.length).toBeGreaterThan(100);
   });
 
+  it("latest reload after a long market-closed idle still serves from cache (bounded probe)", async () => {
+    // Repro for the 0167A0 60m report: the chart's 1m source means even a few
+    // hours' idle makes an elapsed-based delta balloon to a full page, so every
+    // reload re-downloads everything. A market-closed reload has NO new candles,
+    // so a bounded probe should adjoin the cache and serve from it.
+    const db = makeDb();
+    const base = Date.parse("2026-06-18T00:00:00Z");
+    const min = (n: number) => new Date(base + n * 60_000).toISOString();
+    const cacheNow = base + 201 * 60_000;
+    const seeded = Array.from({ length: 200 }, (_, i) => candle(min(1 + i)));
+    putConfirmedCandles("0167A0", "1m", seeded, cacheNow, db); // newest = base+200
+    recordCoverageFetch(
+      "0167A0",
+      "1m",
+      { from: parseTimestampMs(min(1)), to: cacheNow, latest: true },
+      cacheNow,
+      db,
+    );
+
+    // Reload 5 hours later. Market closed → newest is still base+200; a latest
+    // fetch returns the same recent candles (no new confirmed, no forming).
+    const later = base + (200 + 300) * 60_000;
+    const probePage = {
+      candles: Array.from({ length: 10 }, (_, i) => candle(min(200 - i))),
+      nextBefore: min(190),
+    };
+    const fullPage = {
+      candles: Array.from({ length: 200 }, (_, i) => candle(min(200 - i))),
+      nextBefore: min(0),
+    };
+    const client = stubClient([probePage, fullPage]);
+
+    const page = await getCandlesCached(
+      { symbol: "0167A0", interval: "1m", count: 200 },
+      { client, db, now: () => later },
+    );
+
+    // Must probe with a bounded count, not re-request the whole 200-candle page.
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0].count ?? 200).toBeLessThan(50);
+    // And still return a full page from the cache.
+    expect(page.candles[0].timestamp).toBe(min(200));
+    expect(page.candles.length).toBeGreaterThan(100);
+  });
+
   it("warm latest fetches only a small delta and serves the rest from cache", async () => {
     const db = makeDb();
     const base = Date.parse("2026-06-18T00:00:00Z");
@@ -349,11 +394,11 @@ describe("getCandlesCached", () => {
       { client, db, now: () => later },
     );
 
-    // One live call, sized to the elapsed delta (2 min + buffer 3 = 5) — NOT the
-    // full 200-candle page. The confirmed remainder comes from the local cache.
+    // One live call: a bounded fixed probe (LATEST_PROBE_COUNT) — NOT the full
+    // 200-candle page. The confirmed remainder comes from the local cache.
     expect(client.calls).toHaveLength(1);
     expect(client.calls[0].before).toBeUndefined();
-    expect(client.calls[0].count).toBe(5);
+    expect(client.calls[0].count).toBe(10);
     // A full page is returned, newest-first, topped by the forming candle; the
     // newly-confirmed base+200 candle is now cached too.
     expect(page.candles).toHaveLength(200);
