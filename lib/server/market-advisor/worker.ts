@@ -13,6 +13,23 @@ import { runAdvisorJobsOnce } from "./jobs";
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 
+const DEFAULT_TICK_MS = 60_000;
+const MIN_TICK_MS = 1_000;
+
+/**
+ * Resolve the worker tick interval (ms) from its env string. A missing,
+ * non-numeric, or non-positive value falls back to the default — otherwise a
+ * typo would become `setInterval(fn, NaN)`, which fires as fast as possible and
+ * hammers the DB + LLM every tick. A valid interval is clamped to a sane floor.
+ */
+export function resolveTickMs(raw: string | undefined): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    return DEFAULT_TICK_MS;
+  }
+  return Math.max(value, MIN_TICK_MS);
+}
+
 /**
  * Runs one advisor pass. Exported for tests. A module-scoped `running` guard
  * serializes ticks: if a pass is still in flight (slow LLM / large watchlist)
@@ -56,7 +73,7 @@ export function startAdvisorWorker(): void {
   if (timer !== null) {
     return;
   }
-  const tickMs = Number(process.env.ADVISOR_WORKER_TICK_MS ?? 60_000);
+  const tickMs = resolveTickMs(process.env.ADVISOR_WORKER_TICK_MS);
   timer = setInterval(() => {
     // tick() swallows its own operational errors, but an unexpected throw before
     // the internal try (e.g. a non-LlmNotConfigured provider error) would become

@@ -17,7 +17,31 @@ vi.mock("./jobs", () => ({
   runAdvisorJobsOnce: (...args: unknown[]) => runAdvisorJobsOnce(...args),
 }));
 
-import { tick } from "./worker";
+import { resolveTickMs, tick } from "./worker";
+
+describe("resolveTickMs", () => {
+  it("falls back to the default when the env var is unset", () => {
+    expect(resolveTickMs(undefined)).toBe(60_000);
+  });
+
+  it("falls back to the default for a non-numeric value (guards setInterval(NaN))", () => {
+    expect(resolveTickMs("abc")).toBe(60_000);
+    expect(resolveTickMs("")).toBe(60_000);
+  });
+
+  it("falls back to the default for a non-positive value", () => {
+    expect(resolveTickMs("0")).toBe(60_000);
+    expect(resolveTickMs("-1000")).toBe(60_000);
+  });
+
+  it("clamps a too-small interval up to the floor", () => {
+    expect(resolveTickMs("100")).toBe(1_000);
+  });
+
+  it("accepts a valid interval unchanged", () => {
+    expect(resolveTickMs("30000")).toBe(30_000);
+  });
+});
 
 describe("advisor worker tick re-entrancy", () => {
   afterEach(() => {
