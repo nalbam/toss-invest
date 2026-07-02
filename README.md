@@ -151,7 +151,7 @@ lib/
     market-advisor/    # 차트 어드바이저 + watchlist · jobs · worker(백그라운드)
     news/              # Tavily 심볼 뉴스 검색(ETF 구성종목 인지 · 10분 캐시, 차트 어드바이저와 공유)
     llm/               # provider 추상화 (openai · xai · chat-completions · container)
-    db/                # SQLite(better-sqlite3) sqlite.ts: market_advice · portfolio_advice · advisor_watchlist · favorites · stock_directory · candle_cache · app_settings · trading_audit
+    db/                # SQLite(better-sqlite3) sqlite.ts: market_advice · portfolio_advice · advisor_watchlist · favorites · stock_directory · candle_coverage · candle_cache · app_settings · trading_audit
     candles/           # 캔들 캐시: 확정 캔들 SQLite 저장/조회 + 캐시 백드 페치(미확정은 Toss)
     favorites/         # 즐겨찾기 스토어
     stocks/            # 종목 이름검색 디렉터리
