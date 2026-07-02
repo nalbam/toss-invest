@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { invalidRequest, ok } from "@/lib/server/api/respond";
 import { handleAdvisorError } from "@/lib/server/api/advisor-error";
 import { withAuth } from "@/lib/server/auth/with-auth";
-import { recordMarketAdvice } from "@/lib/server/market-advisor/history";
+import {
+  readMarketAdviceHistory,
+  recordMarketAdvice,
+} from "@/lib/server/market-advisor/history";
 import { getServerLlmProvider } from "@/lib/server/llm/container";
 import { getServerNewsSearch } from "@/lib/server/news/container";
 import {
@@ -39,9 +42,28 @@ export const POST = withAuth(async (request: Request): Promise<Response> => {
 
   try {
     const provider = getServerLlmProvider();
+    // Server-injected context (never trusted from the client body): the analysis
+    // wall-clock time and the recent advice history for this symbol/interval.
+    const history = readMarketAdviceHistory({
+      symbol: parsed.data.symbol,
+      interval: parsed.data.interval,
+      limit: 3,
+    });
     const result = await runMarketAdvisor({
       provider,
-      request: parsed.data,
+      request: {
+        ...parsed.data,
+        analysisTime: new Date().toISOString(),
+        previousAdvice:
+          history.length === 0
+            ? undefined
+            : history.map((record) => ({
+                generatedAt: record.generatedAt,
+                action: record.decision.action,
+                label: record.decision.label,
+                lastPrice: record.lastPrice,
+              })),
+      },
       jsonSchema: marketAdvisorJsonSchema,
       newsSearch: getServerNewsSearch() ?? undefined,
     });

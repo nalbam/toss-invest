@@ -8,7 +8,7 @@ import {
 import type { LlmProvider } from "@/lib/server/llm/types";
 import type { NewsSearch } from "@/lib/server/news/types";
 import type { ServerTossClient } from "@/lib/server/toss/container";
-import { recordMarketAdvice } from "./history";
+import { readMarketAdviceHistory, recordMarketAdvice } from "./history";
 import { runMarketAdvisor } from "./market-advisor";
 import { marketAdvisorJsonSchema } from "./schema";
 import { latestCandleTimestamp } from "./timestamp";
@@ -106,6 +106,8 @@ export async function runAdvisorJobsOnce(
           candles,
           position: positions.get(item.symbol),
           higherTimeframeTrend,
+          analysisTime: new Date(now).toISOString(),
+          previousAdvice: loadPreviousAdvice(item.symbol, item.interval),
         },
         jsonSchema: marketAdvisorJsonSchema,
         newsSearch: deps.newsSearch,
@@ -170,6 +172,25 @@ async function loadHigherTimeframeTrend(
     // Higher-timeframe fetch failed → fall back to lower-timeframe-only analysis.
     return undefined;
   }
+}
+
+/**
+ * Reads the most recent advice records for a symbol/interval so the model can
+ * judge what changed since the last run. `readMarketAdviceHistory` already
+ * returns [] on failure; an empty history is passed as undefined so the prompt
+ * omits the block entirely.
+ */
+function loadPreviousAdvice(symbol: string, interval: string) {
+  const records = readMarketAdviceHistory({ symbol, interval, limit: 3 });
+  if (records.length === 0) {
+    return undefined;
+  }
+  return records.map((record) => ({
+    generatedAt: record.generatedAt,
+    action: record.decision.action,
+    label: record.decision.label,
+    lastPrice: record.lastPrice,
+  }));
 }
 
 /**

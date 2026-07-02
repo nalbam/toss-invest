@@ -55,6 +55,22 @@ export const marketAdvisorRequestSchema = z.object({
     .optional(),
   // Present for sub-daily charts so the advisor sees the higher-timeframe trend.
   higherTimeframeTrend: higherTimeframeTrendSchema.optional(),
+  // Server-injected analysis wall-clock time (ISO), so the model knows how fresh
+  // the latest candle is (e.g. market closed vs. live session).
+  analysisTime: z.string().optional(),
+  // Server-injected recent advice history (newest first), so the model judges
+  // what changed since the last run instead of flip-flopping blindly.
+  previousAdvice: z
+    .array(
+      z.object({
+        generatedAt: z.string(),
+        action: z.enum(["buy", "sell", "hold", "wait"]),
+        label: z.string(),
+        lastPrice: z.string().optional(),
+      }),
+    )
+    .max(3)
+    .optional(),
 });
 
 const annotationLevelSchema = z.object({

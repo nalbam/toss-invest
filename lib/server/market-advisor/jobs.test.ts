@@ -1,19 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, LlmProvider } from "@/lib/server/llm/types";
 import type { ServerTossClient } from "@/lib/server/toss/container";
+import type { MarketAdviceHistoryRecord } from "./history";
 
 // The job now reads candles through the SQLite-backed cache; use an in-memory DB
 // so the test never touches the real data/advisor.db.
 process.env.ADVISOR_DB_PATH = ":memory:";
 
-const { listEnabledWatchlist, touchWatchlistRun, recordMarketAdvice } = vi.hoisted(() => ({
-  listEnabledWatchlist: vi.fn(),
-  touchWatchlistRun: vi.fn(),
-  recordMarketAdvice: vi.fn(),
-}));
+const { listEnabledWatchlist, touchWatchlistRun, recordMarketAdvice, readMarketAdviceHistory } =
+  vi.hoisted(() => ({
+    listEnabledWatchlist: vi.fn(),
+    touchWatchlistRun: vi.fn(),
+    recordMarketAdvice: vi.fn(),
+    readMarketAdviceHistory: vi.fn((): MarketAdviceHistoryRecord[] => []),
+  }));
 
 vi.mock("./watchlist", () => ({ listEnabledWatchlist, touchWatchlistRun }));
-vi.mock("./history", () => ({ recordMarketAdvice }));
+vi.mock("./history", () => ({ recordMarketAdvice, readMarketAdviceHistory }));
 
 import { getDb } from "@/lib/server/db/sqlite";
 import { runAdvisorJobsOnce } from "./jobs";
@@ -180,6 +183,60 @@ describe("runAdvisorJobsOnce", () => {
     // Only the chart fetch — no extra daily request, no higher-timeframe block.
     expect(client.getCandles).toHaveBeenCalledTimes(1);
     expect(userContent(calls[0])).not.toContain("상위 추세");
+  });
+
+  it("injects the analysis time and recent advice history into the prompt", async () => {
+    recordMarketAdvice.mockClear();
+    readMarketAdviceHistory.mockReturnValueOnce([
+      {
+        symbol: "SOXL",
+        interval: "1d",
+        generatedAt: "2026-06-21T00:00:00.000Z",
+        chartTimestamp: null,
+        chartFrom: null,
+        candleCount: null,
+        lastPrice: "104",
+        decision: { action: "buy", label: "지지 반등", reason: "r" },
+        advice: "a",
+        cachedAt: "2026-06-21T00:00:00.000Z",
+      },
+    ]);
+    listEnabledWatchlist.mockReturnValue([item("SOXL", 1)]);
+    const client = {
+      getCandles: vi.fn(async () => ({
+        candles: [candle("2026-06-22T00:00:00+09:00")],
+        nextBefore: null,
+      })),
+    } as unknown as ServerTossClient;
+    const { provider, calls } = capturingProvider();
+
+    await runAdvisorJobsOnce({ client, provider });
+
+    expect(readMarketAdviceHistory).toHaveBeenCalledWith({
+      symbol: "SOXL",
+      interval: "1d",
+      limit: 3,
+    });
+    const user = userContent(calls[0]);
+    expect(user).toContain("분석 시각: ");
+    expect(user).toContain("직전 조언(최신순):");
+    expect(user).toContain('buy "지지 반등" (당시 가격 104)');
+  });
+
+  it("omits the previous-advice block when there is no history", async () => {
+    recordMarketAdvice.mockClear();
+    listEnabledWatchlist.mockReturnValue([item("SOXL", 1)]);
+    const client = {
+      getCandles: vi.fn(async () => ({
+        candles: [candle("2026-06-22T00:00:00+09:00")],
+        nextBefore: null,
+      })),
+    } as unknown as ServerTossClient;
+    const { provider, calls } = capturingProvider();
+
+    await runAdvisorJobsOnce({ client, provider });
+
+    expect(userContent(calls[0])).not.toContain("직전 조언");
   });
 
   it("isolates a per-item failure so others still run", async () => {
