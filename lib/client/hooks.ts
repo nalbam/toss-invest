@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR, { type SWRConfiguration } from "swr";
+import { isErrorEnvelope } from "@/lib/client/envelope";
 import type { TossCandleInterval } from "@/lib/client/candles";
 import type { MarketAdvisorHistoryEvent } from "@/lib/client/market-advisor";
 import { POLLING_INTERVAL_MS } from "@/lib/client/polling";
@@ -55,26 +56,13 @@ interface SuccessEnvelope<T> {
   data: T;
 }
 
-interface ErrorEnvelope {
-  error: { code: string; message: string; requestId?: string };
-}
-
-function isErrorEnvelope(body: unknown): body is ErrorEnvelope {
-  return (
-    typeof body === "object" &&
-    body !== null &&
-    "error" in body &&
-    typeof (body as { error: unknown }).error === "object"
-  );
-}
-
 /**
- * Fetches an `/api/*` route and unwraps the `{ data }` envelope. Any `{ error }`
- * body (or non-JSON failure) is converted into a thrown `ApiClientError`, which
- * SWR surfaces through its `error` field.
+ * Unwraps a JSON `{ data }` envelope from an `/api/*` response. Any `{ error }`
+ * body (or a non-JSON failure) is converted into a thrown `ApiClientError`,
+ * which SWR surfaces through its `error` field. Shared by `fetcher` (GET) and
+ * `postOrderJson` (order POSTs).
  */
-async function fetcher<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+async function unwrapJson<T>(res: Response): Promise<T> {
   let body: unknown;
   try {
     body = await res.json();
@@ -103,6 +91,10 @@ async function fetcher<T>(url: string): Promise<T> {
   }
 
   return (body as SuccessEnvelope<T>).data;
+}
+
+async function fetcher<T>(url: string): Promise<T> {
+  return unwrapJson<T>(await fetch(url));
 }
 
 export interface QueryResult<T> {
@@ -575,35 +567,7 @@ async function postOrderJson<T>(url: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-
-  let payload: unknown;
-  try {
-    payload = await res.json();
-  } catch {
-    throw new ApiClientError({
-      code: "invalid-response",
-      message: "The server returned an unreadable response.",
-      status: res.status,
-    });
-  }
-
-  if (!res.ok || isErrorEnvelope(payload)) {
-    if (isErrorEnvelope(payload)) {
-      throw new ApiClientError({
-        code: payload.error.code,
-        message: payload.error.message,
-        status: res.status,
-        requestId: payload.error.requestId,
-      });
-    }
-    throw new ApiClientError({
-      code: "unexpected-error",
-      message: `Request failed with status ${res.status}.`,
-      status: res.status,
-    });
-  }
-
-  return (payload as SuccessEnvelope<T>).data;
+  return unwrapJson<T>(res);
 }
 
 /**
