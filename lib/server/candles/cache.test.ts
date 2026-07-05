@@ -6,7 +6,7 @@ import {
   isConfirmedCandle,
   putConfirmedCandles,
   readCachedCandles,
-  readCoverage,
+  readCoverageRanges,
   recordCoverageFetch,
 } from "./cache";
 
@@ -181,36 +181,95 @@ describe("putConfirmedCandles / readCachedCandles", () => {
 });
 
 describe("candle_coverage", () => {
-  it("returns null before any coverage is recorded", () => {
+  // Epochs on a one-minute grid, since ranges merge when they overlap or adjoin
+  // within one candle interval.
+  const T0 = Date.parse("2026-06-18T00:00:00Z");
+  const min = (n: number) => T0 + n * 60_000;
+
+  it("returns no ranges before any coverage is recorded", () => {
     const db = makeDb();
-    expect(readCoverage("005930", "1m", db)).toBeNull();
+    expect(readCoverageRanges("005930", "1m", db)).toEqual([]);
   });
 
-  it("a latest fetch below an existing range replaces it (a hole opened above)", () => {
+  it("a detached fetch above an existing range keeps both islands", () => {
     const db = makeDb();
-    recordCoverageFetch("005930", "1m", { from: 100, to: 200, latest: true }, NOW, db);
-    recordCoverageFetch("005930", "1m", { from: 500, to: 600, latest: true }, NOW, db);
-    expect(readCoverage("005930", "1m", db)).toEqual({ from: 500, to: 600 });
+    recordCoverageFetch("005930", "1m", { from: min(0), to: min(100) }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: min(500), to: min(600) }, NOW, db);
+    expect(readCoverageRanges("005930", "1m", db)).toEqual([
+      { from: min(0), to: min(100) },
+      { from: min(500), to: min(600) },
+    ]);
   });
 
-  it("a latest fetch overlapping the range unions it", () => {
+  it("an overlapping fetch unions into one range", () => {
     const db = makeDb();
-    recordCoverageFetch("005930", "1m", { from: 100, to: 300, latest: true }, NOW, db);
-    recordCoverageFetch("005930", "1m", { from: 250, to: 400, latest: true }, NOW, db);
-    expect(readCoverage("005930", "1m", db)).toEqual({ from: 100, to: 400 });
+    recordCoverageFetch("005930", "1m", { from: min(0), to: min(200) }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: min(150), to: min(300) }, NOW, db);
+    expect(readCoverageRanges("005930", "1m", db)).toEqual([
+      { from: min(0), to: min(300) },
+    ]);
   });
 
-  it("an older fetch reaching the anchor bottom extends it down", () => {
+  it("a fetch adjoining within one interval merges (no candle fits in the seam)", () => {
     const db = makeDb();
-    recordCoverageFetch("005930", "1m", { from: 300, to: 600, latest: true }, NOW, db);
-    recordCoverageFetch("005930", "1m", { from: 100, to: 300, latest: false }, NOW, db);
-    expect(readCoverage("005930", "1m", db)).toEqual({ from: 100, to: 600 });
+    recordCoverageFetch("005930", "1m", { from: min(0), to: min(100) }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: min(101), to: min(200) }, NOW, db);
+    expect(readCoverageRanges("005930", "1m", db)).toEqual([
+      { from: min(0), to: min(200) },
+    ]);
   });
 
-  it("a detached older fetch leaves the anchor intact", () => {
+  it("an older fetch whose cursor reaches a range's bottom extends it down", () => {
     const db = makeDb();
-    recordCoverageFetch("005930", "1m", { from: 300, to: 600, latest: true }, NOW, db);
-    recordCoverageFetch("005930", "1m", { from: 100, to: 150, latest: false }, NOW, db);
-    expect(readCoverage("005930", "1m", db)).toEqual({ from: 300, to: 600 });
+    recordCoverageFetch("005930", "1m", { from: min(300), to: min(600) }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: min(100), to: min(300) }, NOW, db);
+    expect(readCoverageRanges("005930", "1m", db)).toEqual([
+      { from: min(100), to: min(600) },
+    ]);
+  });
+
+  it("a fetch bridging two islands merges all into one range", () => {
+    const db = makeDb();
+    recordCoverageFetch("005930", "1m", { from: min(0), to: min(100) }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: min(500), to: min(600) }, NOW, db);
+    recordCoverageFetch("005930", "1m", { from: min(100), to: min(500) }, NOW, db);
+    expect(readCoverageRanges("005930", "1m", db)).toEqual([
+      { from: min(0), to: min(600) },
+    ]);
+  });
+
+  it("isolates ranges by symbol and interval", () => {
+    const db = makeDb();
+    recordCoverageFetch("005930", "1m", { from: min(0), to: min(100) }, NOW, db);
+    recordCoverageFetch("AAPL", "1m", { from: min(0), to: min(100) }, NOW, db);
+    expect(readCoverageRanges("005930", "1m", db)).toHaveLength(1);
+    expect(readCoverageRanges("005930", "1d", db)).toEqual([]);
+    expect(readCoverageRanges("AAPL", "1m", db)).toHaveLength(1);
+  });
+
+  it("migrates a single-range candle_coverage table created with the old PK", () => {
+    const db = new Database(":memory:");
+    // Old shape: one range per (symbol, interval), PK without covered_from_epoch.
+    db.exec(
+      `CREATE TABLE candle_coverage (
+         symbol TEXT NOT NULL,
+         interval TEXT NOT NULL,
+         covered_from_epoch INTEGER NOT NULL,
+         covered_to_epoch INTEGER NOT NULL,
+         updated_at TEXT NOT NULL,
+         PRIMARY KEY (symbol, interval)
+       )`,
+    );
+    db.prepare(
+      `INSERT INTO candle_coverage VALUES (?, ?, ?, ?, ?)`,
+    ).run("005930", "1m", min(0), min(100), new Date(NOW).toISOString());
+    initSchema(db); // rebuilds the table with the multi-range PK, keeping rows
+
+    expect(readCoverageRanges("005930", "1m", db)).toEqual([
+      { from: min(0), to: min(100) },
+    ]);
+    // The new PK admits a second, detached range for the same symbol/interval.
+    recordCoverageFetch("005930", "1m", { from: min(500), to: min(600) }, NOW, db);
+    expect(readCoverageRanges("005930", "1m", db)).toHaveLength(2);
   });
 });

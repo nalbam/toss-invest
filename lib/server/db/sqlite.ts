@@ -90,17 +90,19 @@ CREATE TABLE IF NOT EXISTS candle_cache (
 CREATE INDEX IF NOT EXISTS idx_candle_cache_range
   ON candle_cache (symbol, interval, epoch_ms DESC);
 
--- Tracks the single latest-anchored contiguous window (per symbol/interval) that
--- has actually been fetched from Toss. candle_cache alone cannot distinguish a
--- real hole from a legitimate market-hours gap, so cache reads are only trusted
--- inside this proven range; anything outside falls back to a live fetch.
+-- Disjoint proven-fetched windows (per symbol/interval) that have actually been
+-- fetched from Toss. candle_cache alone cannot distinguish a real hole from a
+-- legitimate market-hours gap, so a cache read is only trusted when its whole
+-- window fits inside ONE proven range; anything outside falls back to a live
+-- fetch. A fetch that overlaps/adjoins existing ranges merges them; detached
+-- ranges persist as separate islands so proven history is never dropped.
 CREATE TABLE IF NOT EXISTS candle_coverage (
   symbol TEXT NOT NULL,
   interval TEXT NOT NULL,
   covered_from_epoch INTEGER NOT NULL,
   covered_to_epoch INTEGER NOT NULL,
   updated_at TEXT NOT NULL,
-  PRIMARY KEY (symbol, interval)
+  PRIMARY KEY (symbol, interval, covered_from_epoch)
 );
 
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -156,6 +158,35 @@ function migrate(db: Database.Database): void {
     db.exec(
       "ALTER TABLE candle_cache ADD COLUMN currency TEXT NOT NULL DEFAULT 'KRW'",
     );
+  }
+
+  // candle_coverage originally held one range per (symbol, interval) with PK
+  // (symbol, interval); it now holds multiple disjoint ranges keyed by
+  // (symbol, interval, covered_from_epoch). SQLite cannot alter a primary key,
+  // so an old-shape table is rebuilt in place, keeping its rows (each becomes
+  // the first range of its symbol/interval).
+  const coveragePkColumns = (
+    db.prepare("PRAGMA table_info(candle_coverage)").all() as {
+      name: string;
+      pk: number;
+    }[]
+  ).filter((column) => column.pk > 0);
+  if (!coveragePkColumns.some((c) => c.name === "covered_from_epoch")) {
+    db.exec(`
+      ALTER TABLE candle_coverage RENAME TO candle_coverage_old;
+      CREATE TABLE candle_coverage (
+        symbol TEXT NOT NULL,
+        interval TEXT NOT NULL,
+        covered_from_epoch INTEGER NOT NULL,
+        covered_to_epoch INTEGER NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (symbol, interval, covered_from_epoch)
+      );
+      INSERT INTO candle_coverage
+        SELECT symbol, interval, covered_from_epoch, covered_to_epoch, updated_at
+        FROM candle_coverage_old;
+      DROP TABLE candle_coverage_old;
+    `);
   }
 
   // market_advice gained the analyzed-window columns after first ship.

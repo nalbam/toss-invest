@@ -7,7 +7,7 @@ import {
   parseTimestampMs,
   putConfirmedCandles,
   readCachedCandles,
-  readCoverage,
+  readCoverageRanges,
   recordCoverageFetch,
 } from "./cache";
 import {
@@ -126,7 +126,7 @@ describe("getCandlesCached", () => {
     recordCoverageFetch(
       "005930",
       "1m",
-      { from: parseTimestampMs("2026-06-18T09:00:00Z"), to: NOW, latest: true },
+      { from: parseTimestampMs("2026-06-18T09:00:00Z"), to: NOW },
       NOW,
       db,
     );
@@ -205,7 +205,7 @@ describe("getCandlesCached", () => {
     recordCoverageFetch(
       "005930",
       "1m",
-      { from: parseTimestampMs("2026-06-18T09:05:00Z"), to: NOW_LATE, latest: true },
+      { from: parseTimestampMs("2026-06-18T09:05:00Z"), to: NOW_LATE },
       NOW_LATE,
       db,
     );
@@ -230,52 +230,48 @@ describe("getCandlesCached", () => {
     ]);
   });
 
-  it("extends coverage down through cached candles below the proven range without refetching", async () => {
-    // Repro for the 0167A0 60m report: the cache held far more history than the
-    // recorded coverage (e.g. from earlier sessions), so a long backfill kept
-    // re-fetching every older page below cov.from even though the candles were
-    // cached. An older page whose cursor sits inside coverage but that dips below
-    // cov.from must be trusted and extend coverage down — no Toss call.
+  it("re-proves cached-but-unproven history with one live fetch, then serves it from cache", async () => {
+    // The cache can hold more history than any proven range vouches for (e.g.
+    // rows from a DB written before coverage tracking). Such a page cannot be
+    // trusted blindly — a hole could hide inside it — so the first walk re-proves
+    // it via a live fetch; the recorded window then merges down and every later
+    // walk over the same pages is cache-only.
     const db = makeDb();
     const base = Date.parse("2026-06-18T00:00:00Z");
     const min = (n: number) => new Date(base + n * 60_000).toISOString();
     const cacheNow = base + 601 * 60_000;
-    const seeded = Array.from({ length: 600 }, (_, i) => candle(min(1 + i)));
-    putConfirmedCandles("0167A0", "1m", seeded, cacheNow, db); // base+1..600 cached
+    const all = Array.from({ length: 600 }, (_, i) => candle(min(1 + i)));
+    putConfirmedCandles("0167A0", "1m", all, cacheNow, db); // base+1..600 cached
     // Coverage proves only the top slice (base+400..now); the lower 399 are cached
     // but unproven, as if from an earlier session.
     recordCoverageFetch(
       "0167A0",
       "1m",
-      { from: parseTimestampMs(min(400)), to: cacheNow, latest: true },
+      { from: parseTimestampMs(min(400)), to: cacheNow },
       cacheNow,
       db,
     );
-    const client = stubClient([]); // no Toss pages — must be served from cache
+    const client = pagedClient(all);
 
-    // Older page straddling coverage's lower edge (cursor inside, page dips below).
+    // Older page straddling coverage's lower edge (cursor inside, page dips
+    // below) → one live fetch re-proves the window and merges coverage down.
     const page1 = await getCandlesCached(
       { symbol: "0167A0", interval: "1m", count: 200, before: min(420) },
       { client, db, now: () => cacheNow },
     );
-    expect(client.calls).toHaveLength(0); // trusted cache, no Toss
+    expect(client.count).toBe(1);
     expect(page1.candles).toHaveLength(200);
 
-    // The next older page is now within the extended coverage → still cache.
-    const page2 = await getCandlesCached(
-      {
-        symbol: "0167A0",
-        interval: "1m",
-        count: 200,
-        before: page1.nextBefore ?? undefined,
-      },
+    // The identical page is now within the merged coverage → cache, no re-fetch.
+    const again = await getCandlesCached(
+      { symbol: "0167A0", interval: "1m", count: 200, before: min(420) },
       { client, db, now: () => cacheNow },
     );
-    expect(client.calls).toHaveLength(0);
-    expect(page2.candles).toHaveLength(200);
-    // Coverage has been pushed down to the bottom of the walked cache.
-    expect(readCoverage("0167A0", "1m", db)?.from).toBeLessThanOrEqual(
-      parseTimestampMs(page2.candles[page2.candles.length - 1].timestamp),
+    expect(client.count).toBe(1);
+    expect(again.candles).toHaveLength(200);
+    // Coverage has been pushed down to the bottom of the fetched page.
+    expect(readCoverageRanges("0167A0", "1m", db)[0].from).toBeLessThanOrEqual(
+      parseTimestampMs(page1.candles[page1.candles.length - 1].timestamp),
     );
   });
 
@@ -298,7 +294,7 @@ describe("getCandlesCached", () => {
     recordCoverageFetch(
       "005930",
       "1m",
-      { from: parseTimestampMs("2026-06-18T09:00:00Z"), to: NOW_LATE, latest: true },
+      { from: parseTimestampMs("2026-06-18T09:00:00Z"), to: NOW_LATE },
       NOW_LATE,
       db,
     );
@@ -376,7 +372,7 @@ describe("getCandlesCached", () => {
     recordCoverageFetch(
       "0167A0",
       "1m",
-      { from: parseTimestampMs(min(1)), to: cacheNow, latest: true },
+      { from: parseTimestampMs(min(1)), to: cacheNow },
       cacheNow,
       db,
     );
@@ -420,7 +416,7 @@ describe("getCandlesCached", () => {
     recordCoverageFetch(
       "005930",
       "1m",
-      { from: base, to: cacheNow, latest: true },
+      { from: base, to: cacheNow },
       cacheNow,
       db,
     );
@@ -473,7 +469,7 @@ describe("getCandlesCached", () => {
     recordCoverageFetch(
       "005930",
       "1m",
-      { from: base, to: cacheNow, latest: true },
+      { from: base, to: cacheNow },
       cacheNow,
       db,
     );
@@ -522,7 +518,7 @@ describe("getCandlesCached", () => {
     recordCoverageFetch(
       "005930",
       "1m",
-      { from: parseTimestampMs("2026-06-18T09:05:00Z"), to: NOW_LATE, latest: true },
+      { from: parseTimestampMs("2026-06-18T09:05:00Z"), to: NOW_LATE },
       NOW_LATE,
       db,
     );
@@ -550,9 +546,10 @@ describe("getCandlesCached", () => {
     );
     expect(cachedTs).toContain("2026-06-18T09:03:00Z");
     expect(cachedTs).toContain("2026-06-18T09:04:00Z");
-    expect(readCoverage("005930", "1m", db)?.from).toBe(
-      parseTimestampMs("2026-06-18T09:03:00Z"),
-    );
+    // The fill window [09:03, 09:05] adjoins the upper range → merged into one.
+    expect(readCoverageRanges("005930", "1m", db)).toEqual([
+      { from: parseTimestampMs("2026-06-18T09:03:00Z"), to: NOW_LATE },
+    ]);
 
     // The heal persists: the identical request now serves from cache, no new fetch.
     await getCandlesCached(
@@ -560,6 +557,120 @@ describe("getCandlesCached", () => {
       { client, db, now: nowLate },
     );
     expect(client.count).toBe(1);
+  });
+
+  it("backfills candles that traded while the app was closed instead of skipping them", async () => {
+    // Two proven islands with sessions missing between them (the app was closed
+    // while the market traded): island A (old session) and island B (current).
+    // Walking older pages below B's bottom must LIVE-FETCH the in-between
+    // candles — never jump the seam to A's cached far side, which would lose the
+    // middle data permanently.
+    const db = makeDb();
+    const base = Date.parse("2026-06-18T00:00:00Z");
+    const min = (n: number) => new Date(base + n * 60_000).toISOString();
+    const nowMs = base + 600 * 60_000;
+    const all = Array.from({ length: 600 }, (_, i) => candle(min(i))); // upstream truth
+    // Island A: candles 0..299 cached and proven.
+    putConfirmedCandles("005930", "1m", all.slice(0, 300), nowMs, db);
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: base, to: parseTimestampMs(min(300)) },
+      nowMs,
+      db,
+    );
+    // Island B: candles 500..599 cached and proven; 300..499 never fetched.
+    putConfirmedCandles("005930", "1m", all.slice(500, 600), nowMs, db);
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: parseTimestampMs(min(500)), to: nowMs },
+      nowMs,
+      db,
+    );
+    const client = pagedClient(all);
+
+    // Older page below B's bottom. The cache query alone would answer with 200
+    // far-side candles (299..100 from island A) — but no single proven range
+    // spans [oldest, cursor], so the seam is fetched live instead.
+    const page = await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 200, before: min(500) },
+      { client, db, now: () => nowMs },
+    );
+    expect(client.count).toBe(1);
+    expect(page.candles[0].timestamp).toBe(min(499));
+    expect(page.candles[page.candles.length - 1].timestamp).toBe(min(300));
+    // The fill bridged both islands into one proven range — nothing left unproven.
+    expect(readCoverageRanges("005930", "1m", db)).toEqual([
+      { from: base, to: nowMs },
+    ]);
+    // And the identical request is now served from cache.
+    await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 200, before: min(500) },
+      { client, db, now: () => nowMs },
+    );
+    expect(client.count).toBe(1);
+  });
+
+  it("the latest page truncates at its proven range's bottom instead of spanning a seam", async () => {
+    // The cache holds a detached older island below the latest anchor range. A
+    // warm latest page must not silently include the island across the unproven
+    // seam — it stops at the anchor's bottom and lets `before` pagination fetch
+    // (and prove) the seam.
+    const db = makeDb();
+    const base = Date.parse("2026-06-18T00:00:00Z");
+    const min = (n: number) => new Date(base + n * 60_000).toISOString();
+    const nowMs = base + 600 * 60_000 + 30_000; // candle 600 is forming
+    // Detached older island: candles 200..299.
+    putConfirmedCandles(
+      "005930",
+      "1m",
+      Array.from({ length: 100 }, (_, i) => candle(min(200 + i))),
+      nowMs,
+      db,
+    );
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: parseTimestampMs(min(200)), to: parseTimestampMs(min(300)) },
+      nowMs,
+      db,
+    );
+    // Anchor range: candles 500..599.
+    putConfirmedCandles(
+      "005930",
+      "1m",
+      Array.from({ length: 100 }, (_, i) => candle(min(500 + i))),
+      nowMs,
+      db,
+    );
+    recordCoverageFetch(
+      "005930",
+      "1m",
+      { from: parseTimestampMs(min(500)), to: base + 600 * 60_000 },
+      nowMs,
+      db,
+    );
+    // Warm-latest probe: forming candle 600 plus a few recent confirmed ones.
+    const client = stubClient([
+      {
+        candles: Array.from({ length: 10 }, (_, i) => candle(min(600 - i))),
+        nextBefore: min(590),
+      },
+    ]);
+
+    const page = await getCandlesCached(
+      { symbol: "005930", interval: "1m", count: 200 },
+      { client, db, now: () => nowMs },
+    );
+
+    expect(client.calls).toHaveLength(1);
+    // Forming candle on top, then only anchor-range candles — 101 rows, not a
+    // 200-row page that jumps the 300..499 seam into the older island.
+    expect(page.candles[0].timestamp).toBe(min(600));
+    expect(page.candles).toHaveLength(101);
+    expect(page.candles[page.candles.length - 1].timestamp).toBe(min(500));
+    expect(page.nextBefore).toBe(min(500));
   });
 });
 

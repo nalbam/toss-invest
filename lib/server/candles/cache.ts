@@ -167,8 +167,9 @@ export function readCachedCandles(
   return (rows as CandleRow[]).map(rowToCandle);
 }
 
-/** Proven-fetched epoch window (inclusive) for a symbol/interval — the only range
- *  in which cached candles are trusted as gap-free. See `candle_coverage`. */
+/** A proven-fetched epoch window (inclusive) for a symbol/interval — cached
+ *  candles are trusted as gap-free only inside one such range. See
+ *  `candle_coverage`. */
 export interface Coverage {
   from: number;
   to: number;
@@ -179,70 +180,67 @@ interface CoverageRow {
   covered_to_epoch: number;
 }
 
-/** Reads the recorded coverage range, or `null` when none has been fetched yet. */
-export function readCoverage(
+/** Reads all proven coverage ranges, ascending by `from` (disjoint by
+ *  construction — `recordCoverageFetch` merges overlapping/adjoining ranges). */
+export function readCoverageRanges(
   symbol: string,
   interval: SourceInterval,
   db: Database.Database = getDb(),
-): Coverage | null {
-  const row = db
+): Coverage[] {
+  const rows = db
     .prepare(
       `SELECT covered_from_epoch, covered_to_epoch FROM candle_coverage
-       WHERE symbol = ? AND interval = ?`,
+       WHERE symbol = ? AND interval = ?
+       ORDER BY covered_from_epoch ASC`,
     )
-    .get(symbol, interval) as CoverageRow | undefined;
-  if (row === undefined) {
-    return null;
-  }
-  return { from: row.covered_from_epoch, to: row.covered_to_epoch };
+    .all(symbol, interval) as CoverageRow[];
+  return rows.map((row) => ({
+    from: row.covered_from_epoch,
+    to: row.covered_to_epoch,
+  }));
 }
 
 /**
- * Merges a real Toss fetch's window into the single latest-anchored coverage
- * range. `fetched.to` is `nowMs` for a latest fetch (before undefined — proves
- * every confirmed candle up to now is held) or the request cursor for an older
- * fetch. Merge is driven by the cursor, not epoch adjacency, so a legitimate
- * weekend/holiday gap inside a contiguous walk still counts as covered:
- *   - latest: overlaps/touches the anchor => union; a gap below the new latest
- *     means a hole opened above the old range => REPLACE (drop the stale island).
- *   - older: cursor reaches the anchor's bottom (`to >= existing.from`) => extend
- *     down; a fully-detached older fetch leaves the anchor intact.
- * Never called from `putConfirmedCandles` — coverage is only ever established by
- * an actual upstream fetch.
+ * Records a real Toss fetch's proven window `[from, to]` into the coverage set.
+ * `to` is `nowMs` for a latest fetch (before undefined — proves every confirmed
+ * candle up to now is held) or the request cursor for an older fetch; `from` is
+ * always a fetched candle's epoch. Any existing range the window overlaps or
+ * adjoins (within one candle interval — candle starts are interval-aligned, so
+ * no candle can hide in a sub-interval seam) is absorbed into one merged range;
+ * detached ranges stay as separate islands, so proven history is never dropped
+ * when a fresh fetch opens a gap above it. Never called from
+ * `putConfirmedCandles` — coverage is only ever established by an actual
+ * upstream fetch.
  */
 export function recordCoverageFetch(
   symbol: string,
   interval: SourceInterval,
-  fetched: { from: number; to: number; latest: boolean },
+  fetched: { from: number; to: number },
   nowMs: number,
   db: Database.Database = getDb(),
 ): void {
-  const existing = readCoverage(symbol, interval, db);
-  let next: Coverage;
-  if (fetched.latest) {
-    if (existing === null || fetched.from <= existing.to) {
-      next = existing === null ? fetched : merge(existing, fetched);
-    } else {
-      next = fetched;
+  const step = INTERVAL_MS[interval];
+  const write = db.transaction(() => {
+    let { from, to } = fetched;
+    const absorbed = readCoverageRanges(symbol, interval, db).filter(
+      (range) => from <= range.to + step && to >= range.from - step,
+    );
+    for (const range of absorbed) {
+      from = Math.min(from, range.from);
+      to = Math.max(to, range.to);
+      db.prepare(
+        `DELETE FROM candle_coverage
+         WHERE symbol = ? AND interval = ? AND covered_from_epoch = ?`,
+      ).run(symbol, interval, range.from);
     }
-  } else if (existing === null) {
-    next = fetched;
-  } else if (fetched.to >= existing.from) {
-    next = merge(existing, fetched);
-  } else {
-    next = existing;
-  }
-  db.prepare(
-    `INSERT INTO candle_coverage
-       (symbol, interval, covered_from_epoch, covered_to_epoch, updated_at)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(symbol, interval) DO UPDATE SET
-       covered_from_epoch = excluded.covered_from_epoch,
-       covered_to_epoch = excluded.covered_to_epoch,
-       updated_at = excluded.updated_at`,
-  ).run(symbol, interval, next.from, next.to, new Date(nowMs).toISOString());
-}
-
-function merge(a: Coverage, b: Coverage): Coverage {
-  return { from: Math.min(a.from, b.from), to: Math.max(a.to, b.to) };
+    db.prepare(
+      `INSERT INTO candle_coverage
+         (symbol, interval, covered_from_epoch, covered_to_epoch, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(symbol, interval, covered_from_epoch) DO UPDATE SET
+         covered_to_epoch = excluded.covered_to_epoch,
+         updated_at = excluded.updated_at`,
+    ).run(symbol, interval, from, to, new Date(nowMs).toISOString());
+  });
+  write();
 }
