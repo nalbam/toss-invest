@@ -65,7 +65,8 @@ Base: `https://openapi.tossinvest.com` · **REST only** · 시장: 국내(KR) + 
 | `/api/stocks/search` | GET(`?q=&limit=`) | 이름/코드 부분검색(로컬 `stock_directory`) |
 | `/api/advisor-watchlist` | GET·POST·PATCH·DELETE(`?id=`) | 자동분석 watchlist CRUD(종목·인터벌·분석주기) |
 | `/api/advisor-jobs/run` | POST(Bearer `ADVISOR_JOBS_TOKEN`) | 백그라운드 어드바이저 잡 1회 실행(due 항목만) |
-| `/api/advisor` | POST | 포트폴리오 어드바이저(스냅샷→LLM→검증 제안) |
+| `/api/advisor` | POST | 포트폴리오 어드바이저(스냅샷→LLM→검증 제안, SQLite 기록) |
+| `/api/advisor/history` | GET(`?accountSeq=&limit=`) | 포트폴리오 조언 히스토리(어드바이저 카드 복원용) |
 | `/api/market-advisor` | POST | 차트 어드바이저(캔들→LLM→조언, SQLite 기록) |
 | `/api/market-advisor/history` | GET(`?symbol=&interval=`) | 조언 히스토리(차트 오버레이용) |
 

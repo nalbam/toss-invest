@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 import { ApiClientError } from "./hooks";
-import { fetchAdvisor } from "./advisor";
+import { fetchAdvisor, fetchLatestAdvisorResult } from "./advisor";
 
 type FetchMock = Mock<(url: string, init?: RequestInit) => Promise<Response>>;
 
@@ -74,5 +74,50 @@ describe("fetchAdvisor", () => {
   it("throws ApiClientError on a non-ok response without an error envelope", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ unexpected: true }, 500)));
     await expect(fetchAdvisor()).rejects.toBeInstanceOf(ApiClientError);
+  });
+});
+
+describe("fetchLatestAdvisorResult", () => {
+  it("GETs the history and maps the newest event to an AdvisorResult", async () => {
+    const event = { ...data, accountSeq: 7, cachedAt: "2026-06-19T00:00:01Z" };
+    const fetchMock: FetchMock = vi.fn(async () =>
+      jsonResponse({ data: { events: [event] } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchLatestAdvisorResult(7);
+    expect(result).toEqual(data);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/advisor/history?limit=1&accountSeq=7");
+    expect(init?.method).toBeUndefined();
+  });
+
+  it("omits accountSeq from the query when not provided", async () => {
+    const fetchMock: FetchMock = vi.fn(async () =>
+      jsonResponse({ data: { events: [] } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchLatestAdvisorResult();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/advisor/history?limit=1");
+  });
+
+  it("resolves null when no advice has been recorded", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ data: { events: [] } })),
+    );
+    await expect(fetchLatestAdvisorResult()).resolves.toBeNull();
+  });
+
+  it("throws ApiClientError on an error envelope", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({ error: { code: "invalid-request", message: "bad" } }, 400),
+      ),
+    );
+    await expect(fetchLatestAdvisorResult()).rejects.toBeInstanceOf(ApiClientError);
   });
 });

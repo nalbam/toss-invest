@@ -31,6 +31,12 @@ export interface UseAdvisorRunOptions<T> {
   errorMessage: string;
   /** Notified on mount restore, success, and failure. */
   onResult?: (result: T | undefined) => void;
+  /**
+   * Loads a server-persisted result when sessionStorage has no cache (new tab,
+   * browser restart, account switch). Wrap in useCallback; resolve null for
+   * "no result". Best-effort — a failure leaves the card idle.
+   */
+  restoreFallback?: () => Promise<T | null>;
 }
 
 export function useAdvisorRun<T>({
@@ -39,6 +45,7 @@ export function useAdvisorRun<T>({
   fetcher,
   errorMessage,
   onResult,
+  restoreFallback,
 }: UseAdvisorRunOptions<T>): {
   state: AdvisorRunState<T>;
   run: () => Promise<void>;
@@ -51,11 +58,28 @@ export function useAdvisorRun<T>({
   }, [onResult]);
 
   useEffect(() => {
-    requestSeqRef.current += 1;
+    const seq = ++requestSeqRef.current;
     const stored = readSessionJson(storageKey, isResult);
     setState(stored ? { status: "loaded", result: stored } : { status: "idle" });
     onResultRef.current?.(stored ?? undefined);
-  }, [storageKey, isResult]);
+    if (stored || !restoreFallback) {
+      return;
+    }
+    // No per-tab cache: restore the last server-persisted result. The seq guard
+    // drops the restore if a manual run (or a storageKey change) started since.
+    void restoreFallback()
+      .then((result) => {
+        if (result === null || seq !== requestSeqRef.current) {
+          return;
+        }
+        writeSessionJson(storageKey, result);
+        setState({ status: "loaded", result });
+        onResultRef.current?.(result);
+      })
+      .catch(() => {
+        // Best-effort restore: stay idle so a manual run remains available.
+      });
+  }, [storageKey, isResult, restoreFallback]);
 
   const run = useCallback(async () => {
     const seq = ++requestSeqRef.current;

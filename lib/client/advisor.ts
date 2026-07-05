@@ -31,15 +31,15 @@ export interface AdvisorResult {
   generatedAt: string;
 }
 
-/**
- * Triggers one advisor run via `POST /api/advisor`. Resolves to the advice +
- * validated proposals, or throws `ApiClientError` ({ error } envelope, including
- * `advisor-not-configured`, or a non-JSON/unexpected failure).
- */
-export async function fetchAdvisor(accountSeq?: number): Promise<AdvisorResult> {
-  const url =
-    accountSeq === undefined ? "/api/advisor" : `/api/advisor?accountSeq=${accountSeq}`;
-  const res = await fetch(url, { method: "POST" });
+/** One persisted advisor run as returned by `GET /api/advisor/history`. */
+export interface AdvisorHistoryEvent extends AdvisorResult {
+  accountSeq?: number;
+  cachedAt: string;
+}
+
+/** Fetches and unwraps a `{ data }` envelope, throwing `ApiClientError` otherwise. */
+async function requestData<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
 
   let body: unknown;
   try {
@@ -68,7 +68,7 @@ export async function fetchAdvisor(accountSeq?: number): Promise<AdvisorResult> 
     });
   }
 
-  if (!isSuccessEnvelope<AdvisorResult>(body)) {
+  if (!isSuccessEnvelope<T>(body)) {
     throw new ApiClientError({
       code: "invalid-response",
       message: "The server returned an unexpected response shape.",
@@ -76,4 +76,41 @@ export async function fetchAdvisor(accountSeq?: number): Promise<AdvisorResult> 
     });
   }
   return body.data;
+}
+
+/**
+ * Triggers one advisor run via `POST /api/advisor`. Resolves to the advice +
+ * validated proposals, or throws `ApiClientError` ({ error } envelope, including
+ * `advisor-not-configured`, or a non-JSON/unexpected failure).
+ */
+export function fetchAdvisor(accountSeq?: number): Promise<AdvisorResult> {
+  const url =
+    accountSeq === undefined ? "/api/advisor" : `/api/advisor?accountSeq=${accountSeq}`;
+  return requestData<AdvisorResult>(url, { method: "POST" });
+}
+
+/**
+ * Loads the most recent persisted advisor result via `GET /api/advisor/history`
+ * (no LLM call). Resolves to null when no advice has been recorded yet.
+ */
+export async function fetchLatestAdvisorResult(
+  accountSeq?: number,
+): Promise<AdvisorResult | null> {
+  const params = new URLSearchParams({ limit: "1" });
+  if (accountSeq !== undefined) {
+    params.set("accountSeq", String(accountSeq));
+  }
+  const { events } = await requestData<{ events: AdvisorHistoryEvent[] }>(
+    `/api/advisor/history?${params.toString()}`,
+  );
+  const latest = events[0];
+  if (!latest) {
+    return null;
+  }
+  return {
+    advice: latest.advice,
+    proposals: latest.proposals,
+    model: latest.model,
+    generatedAt: latest.generatedAt,
+  };
 }

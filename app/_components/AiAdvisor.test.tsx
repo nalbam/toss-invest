@@ -1,13 +1,21 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ApiClientError } from "@/lib/client/hooks";
 import type { AdvisorResult } from "@/lib/client/advisor";
 import { AiAdvisor } from "./AiAdvisor";
 import { __resetSettingsStore, __seedSettings } from "./settingsStore";
 
-const { fetchAdvisor } = vi.hoisted(() => ({ fetchAdvisor: vi.fn() }));
-vi.mock("@/lib/client/advisor", () => ({ fetchAdvisor }));
+const { fetchAdvisor, fetchLatestAdvisorResult } = vi.hoisted(() => ({
+  fetchAdvisor: vi.fn(),
+  fetchLatestAdvisorResult: vi.fn(),
+}));
+vi.mock("@/lib/client/advisor", () => ({ fetchAdvisor, fetchLatestAdvisorResult }));
+
+beforeEach(() => {
+  // Default: no server-persisted advice to restore.
+  fetchLatestAdvisorResult.mockResolvedValue(null);
+});
 
 afterEach(() => {
   cleanup();
@@ -116,6 +124,40 @@ describe("AiAdvisor", () => {
 
     expect(await screen.findByText(/분산을 고려하세요/)).toBeInTheDocument();
     expect(fetchAdvisor).not.toHaveBeenCalled();
+    expect(fetchLatestAdvisorResult).not.toHaveBeenCalled();
+  });
+
+  it("restores the latest persisted advice when the session cache is empty", async () => {
+    fetchLatestAdvisorResult.mockResolvedValue(result);
+
+    render(<AiAdvisor accountSeq={7} />);
+
+    expect(await screen.findByText(/분산을 고려하세요/)).toBeInTheDocument();
+    expect(fetchLatestAdvisorResult).toHaveBeenCalledWith(7);
+    expect(fetchAdvisor).not.toHaveBeenCalled();
+    expect(
+      window.sessionStorage.getItem("toss-invest:ai-advisor-result:7"),
+    ).toBe(JSON.stringify(result));
+  });
+
+  it("stays idle when the server has no persisted advice", async () => {
+    render(<AiAdvisor accountSeq={7} />);
+
+    await waitFor(() => expect(fetchLatestAdvisorResult).toHaveBeenCalledWith(7));
+    expect(screen.queryByText(/분산을 고려하세요/)).not.toBeInTheDocument();
+    expect(fetchAdvisor).not.toHaveBeenCalled();
+  });
+
+  it("stays idle when the history restore fails", async () => {
+    fetchLatestAdvisorResult.mockRejectedValue(
+      new ApiClientError({ code: "unexpected-error", message: "boom", status: 500 }),
+    );
+
+    render(<AiAdvisor accountSeq={7} />);
+
+    await waitFor(() => expect(fetchLatestAdvisorResult).toHaveBeenCalled());
+    expect(screen.queryByText(/불러오지 못했습니다/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /조언 받기/ })).toBeEnabled();
   });
 
   it("offers prefill only for valid proposals; invalid ones show reasons", async () => {

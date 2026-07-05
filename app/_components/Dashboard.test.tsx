@@ -41,9 +41,11 @@ const useCashBalances = vi.fn();
 const fetchAdvisor = vi.fn();
 
 // The AI advisor card triggers a paid LLM fetch; stub it so a proposal can be
-// applied deterministically.
+// applied deterministically. The mount-time history restore resolves to null
+// (nothing persisted) so cards start idle.
 vi.mock("@/lib/client/advisor", () => ({
   fetchAdvisor: () => fetchAdvisor(),
+  fetchLatestAdvisorResult: async () => null,
 }));
 
 vi.mock("@/lib/client/hooks", () => ({

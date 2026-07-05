@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import {
   fetchAdvisor,
+  fetchLatestAdvisorResult,
   type AdvisorProposal,
   type AdvisorResult,
   type ValidatedProposal,
@@ -110,7 +111,9 @@ function ProposalRow({
  * result is narrative advice plus validated proposals. Valid proposals can be
  * prefilled into the order form via `onSelectProposal` — the user still confirms
  * and passes the §6 gate. Invalid (hallucinated/oversell) proposals are shown
- * with their reasons but cannot be prefilled.
+ * with their reasons but cannot be prefilled. When the per-tab cache is empty
+ * (new tab, restart), the latest persisted advice is restored from the server
+ * history — no LLM call.
  */
 export function AiAdvisor({
   accountSeq,
@@ -120,11 +123,16 @@ export function AiAdvisor({
   onSelectProposal?: (proposal: AdvisorProposal, name?: string) => void;
 }) {
   const fetcher = useCallback(() => fetchAdvisor(accountSeq), [accountSeq]);
+  const restoreFallback = useCallback(
+    () => fetchLatestAdvisorResult(accountSeq),
+    [accountSeq],
+  );
   const { state, run } = useAdvisorRun<AdvisorResult>({
     storageKey: storageKey(accountSeq),
     isResult: isAdvisorResult,
     fetcher,
     errorMessage: "조언을 불러오지 못했습니다.",
+    restoreFallback,
   });
   const {
     autoEnabled,
