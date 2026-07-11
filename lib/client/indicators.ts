@@ -175,7 +175,9 @@ function averageTrueRange(
 export function computeIndicators(candles: Candle[]): Indicators {
   // Drop candles with an unparseable OHLCV field up front so a single bad bar
   // cannot turn every downstream indicator (MA/RSI/ATR/recentHigh) into NaN —
-  // mirrors the finite-check `toChartSeries` applies for the same reason.
+  // mirrors the finite-check `toChartSeries` applies for the same reason. A
+  // dropped mid-series bar makes its neighbors read as consecutive (a small
+  // discontinuity), which is preferable to NaN propagation.
   const usable = candles.filter(
     (c) =>
       Number.isFinite(Number(c.closePrice)) &&
