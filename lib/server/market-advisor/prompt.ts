@@ -170,7 +170,7 @@ function previousAdviceLines(
  */
 function sanitizeNewsText(text: string): string {
   return text
-    .replace(/\r?\n+/g, " ")
+    .replace(/[\r\n\u0085\u2028\u2029]+/g, " ")
     .replace(/<<<\s*NEWS/gi, "< NEWS")
     .replace(/NEWS\s*>>>/gi, "NEWS >");
 }

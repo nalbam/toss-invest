@@ -204,6 +204,21 @@ describe("buildMarketAdvisorPrompt", () => {
     expect(user).toContain("line one line two");
   });
 
+  it("collapses non-LF line separators (CR, NEL, LS, PS) in article text", () => {
+    const user = buildMarketAdvisorPrompt(request, [
+      {
+        title: "제목",
+        url: "https://news.example.com/1",
+        content: "line one\rline two\u0085line three\u2028line four\u2029line five",
+      },
+    ])[1].content;
+    expect(user).not.toContain("line one\rline two");
+    expect(user).not.toContain("line two\u0085line three");
+    expect(user).not.toContain("line three\u2028line four");
+    expect(user).not.toContain("line four\u2029line five");
+    expect(user).toContain("line one line two line three line four line five");
+  });
+
   it("states the setup/trigger/invalidation frame in the system message", () => {
     const system = buildMarketAdvisorPrompt(request)[0].content;
     for (const keyword of ["셋업", "트리거", "무효화"]) {
