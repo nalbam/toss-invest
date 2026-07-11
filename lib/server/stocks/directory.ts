@@ -58,6 +58,12 @@ export function upsertStockDirectory(
   insertMany(stocks);
 }
 
+/** Escapes LIKE wildcards (`%`, `_`) and the escape character itself so a
+ * user's query is matched literally instead of as a pattern. */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
 /**
  * Substring match on name or symbol (case-insensitive), newest-updated first,
  * capped at `limit`. Returns [] for a blank query.
@@ -71,11 +77,11 @@ export function searchStockDirectory(
   if (trimmed === "") {
     return [];
   }
-  const like = `%${trimmed}%`;
+  const like = `%${escapeLikePattern(trimmed)}%`;
   const rows = db
     .prepare(
       `SELECT symbol, name, market, currency FROM stock_directory
-       WHERE name LIKE ? COLLATE NOCASE OR symbol LIKE ? COLLATE NOCASE
+       WHERE name LIKE ? ESCAPE '\\' COLLATE NOCASE OR symbol LIKE ? ESCAPE '\\' COLLATE NOCASE
        ORDER BY updated_at DESC
        LIMIT ?`,
     )

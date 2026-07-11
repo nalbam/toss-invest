@@ -59,4 +59,30 @@ describe("stock directory", () => {
     );
     expect(searchStockDirectory("Test", 2, db)).toHaveLength(2);
   });
+
+  it("treats a literal % in the query as a character, not a wildcard", () => {
+    const db = makeDb();
+    upsertStockDirectory(
+      [
+        { symbol: "A1", name: "50% Off Fund" },
+        { symbol: "A2", name: "Regular Fund" },
+      ],
+      db,
+    );
+    // A naive `%${query}%` LIKE pattern would treat this "%" as a wildcard and
+    // match every row; escaped, it must match only the literal "50% Off Fund".
+    expect(searchStockDirectory("50%", 20, db).map((s) => s.symbol)).toEqual(["A1"]);
+  });
+
+  it("treats a literal _ in the query as a character, not a single-char wildcard", () => {
+    const db = makeDb();
+    upsertStockDirectory(
+      [
+        { symbol: "A1", name: "AB_CD" },
+        { symbol: "A2", name: "ABXCD" },
+      ],
+      db,
+    );
+    expect(searchStockDirectory("AB_CD", 20, db).map((s) => s.symbol)).toEqual(["A1"]);
+  });
 });
