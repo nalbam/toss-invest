@@ -4,13 +4,15 @@ import { getServerTossClient } from "@/lib/server/toss/container";
 
 export const dynamic = "force-dynamic";
 
+const symbolPattern = /^[A-Za-z0-9.\-]+$/;
+
 export const GET = withAuth(async (
   _request: Request,
   context: { params: Promise<{ symbol: string }> },
 ): Promise<Response> => {
   const { symbol } = await context.params;
-  if (symbol.length === 0) {
-    return invalidRequest("Missing symbol");
+  if (!symbolPattern.test(symbol)) {
+    return invalidRequest("Invalid symbol");
   }
 
   try {
