@@ -122,6 +122,31 @@ export function setWatchlistRunEvery(
 }
 
 /**
+ * Atomically claims an item for this analysis pass: sets `last_run_at` to
+ * `at`, but only if the row's `last_run_at` still matches `expectedLastRunAt`
+ * (the value read when the caller decided the item was due). Returns whether
+ * the claim succeeded.
+ *
+ * This guards against the in-process background worker and an external
+ * `POST /api/advisor-jobs/run` trigger racing each other: both read the
+ * watchlist, both see the same item as due (its `last_run_at` only advances
+ * once the LLM call finishes), and without this compare-and-set both would
+ * analyze it and record duplicate advice. Whichever pass claims first wins;
+ * the other observes 0 rows changed (the value moved) and skips the item.
+ */
+export function claimWatchlistRun(
+  id: number,
+  expectedLastRunAt: string | null,
+  at: string,
+  db: Database.Database = getDb(),
+): boolean {
+  const result = db
+    .prepare("UPDATE advisor_watchlist SET last_run_at = ? WHERE id = ? AND last_run_at IS ?")
+    .run(at, id, expectedLastRunAt);
+  return result.changes > 0;
+}
+
+/**
  * Records when an item was last analyzed (drives the due check) and the newest
  * candle timestamp seen (drives the "no new candle → skip" check). Pass the
  * unchanged chart timestamp when skipping so only `last_run_at` advances.

@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { initSchema } from "@/lib/server/db/sqlite";
 import {
   addWatchlist,
+  claimWatchlistRun,
   listEnabledWatchlist,
   listWatchlist,
   removeWatchlist,
@@ -71,5 +72,26 @@ describe("advisor watchlist", () => {
     const a = addWatchlist({ symbol: "AAA", interval: "1d" }, db);
     removeWatchlist(a.id, db);
     expect(listWatchlist(db)).toHaveLength(0);
+  });
+
+  describe("claimWatchlistRun", () => {
+    it("claims the item and advances last_run_at when it matches the expected value", () => {
+      const db = makeDb();
+      const a = addWatchlist({ symbol: "AAA", interval: "1d" }, db); // lastRunAt: null
+      const claimed = claimWatchlistRun(a.id, null, "2026-06-23T00:00:00.000Z", db);
+      expect(claimed).toBe(true);
+      expect(listWatchlist(db)[0].lastRunAt).toBe("2026-06-23T00:00:00.000Z");
+    });
+
+    it("fails the claim when last_run_at no longer matches (a concurrent pass already claimed it)", () => {
+      const db = makeDb();
+      const a = addWatchlist({ symbol: "AAA", interval: "1d" }, db);
+      expect(claimWatchlistRun(a.id, null, "2026-06-23T00:00:00.000Z", db)).toBe(true);
+
+      // A second pass reading the stale (pre-claim) `null` value must lose the race.
+      const secondClaim = claimWatchlistRun(a.id, null, "2026-06-23T00:00:05.000Z", db);
+      expect(secondClaim).toBe(false);
+      expect(listWatchlist(db)[0].lastRunAt).toBe("2026-06-23T00:00:00.000Z");
+    });
   });
 });
