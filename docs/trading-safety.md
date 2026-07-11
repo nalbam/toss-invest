@@ -13,7 +13,7 @@
 3. **하드 리밋**(환경변수): 1회 최대 주문금액(`MAX_ORDER_AMOUNT`, 미설정 시 실주문 차단=fail-safe)을 `evaluateOrderGate`가 집행한다. *후속(아직 게이트 미집행)*: 일일 손실 한도(`DAILY_LOSS_LIMIT`는 config에 로드되나 `safety.ts`에서 미집행), 종목당 최대 포지션 비중(현재 SELL 전략 생성기에만 존재하며 §6 게이트가 아님).
 4. **Kill switch**(`KILL_SWITCH`): ON이면 모든 실주문 경로 즉시 차단(자동거래·취소 포함). 테스트로 증명.
 5. **고액 주문**: 1억원 이상은 명시적 `confirmHighValueOrder=true` 없이는 전송 금지.
-6. **멱등성**: `clientOrderId`로 중복 주문 방지(`request-in-progress`/`already-*` 처리). **dry-run으로 강등된 시도는 `clientOrderId`를 발급·소비하지 않는다**(이후 실주문 재시도 시 오판 방지).
+6. **멱등성**: `clientOrderId`는 재시도 시 그대로 보존해 전달하고, 중복 주문 판정 자체는 Toss가 `request-in-progress`/`already-*` 응답으로 수행한다(로컬에 별도 dedup 저장소는 없음). **dry-run으로 강등된 시도는 `clientOrderId`를 발급·소비하지 않는다**(이후 실주문 재시도 시 오판 방지).
 7. **감사 로그**: 모든 주문 시도(전송/강등/거부)를 입력·사유와 함께 콘솔 + `trading_audit` SQLite 테이블에 secret-free 요약으로 영속한다(`lib/server/trading/audit-store.ts`). 단, 시크릿·PII 제외.
 
 ### 주문 결과 판정
@@ -27,7 +27,7 @@
 
 ### 통화-인지 notional
 
-notional 한도 검사는 통화를 추론한다 — KRX 심볼(`^\d{6}$`)=KRW, 그 외=USD. USD 주문은 `fxRate`로 KRW 환산하며, **USD인데 fxRate가 없으면 BLOCK(fail-safe)**. (notional 계산 불가 시에도 BLOCK.)
+notional 한도 검사는 통화를 추론한다 — KRX 심볼(`^\d[0-9A-Z]{5}$`, 즉 숫자로 시작하는 6자리: 신형 영문 내장 코드 `0167A0` 등 포함)=KRW, 그 외=USD. USD 주문은 `fxRate`로 KRW 환산하며, **USD인데 fxRate가 없으면 BLOCK(fail-safe)**. (notional 계산 불가 시에도 BLOCK.)
 
 ### 구현 위치
 
