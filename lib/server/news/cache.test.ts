@@ -43,6 +43,30 @@ describe("createCachedNewsSearch", () => {
     expect(inner).toHaveBeenCalledTimes(2);
   });
 
+  it("caches per (query, topic) — the same query with a different topic is not shared", async () => {
+    const clock = 1_000_000;
+    const newsResult: NewsItem[] = [
+      { title: "news topic", url: "https://news.example.com/news", content: "" },
+    ];
+    const generalResult: NewsItem[] = [
+      { title: "general topic", url: "https://news.example.com/general", content: "" },
+    ];
+    const inner = vi
+      .fn<() => Promise<NewsItem[]>>()
+      .mockResolvedValueOnce(newsResult)
+      .mockResolvedValueOnce(generalResult);
+    const search = createCachedNewsSearch(inner, { now: () => clock });
+
+    // Same query string, different topic (e.g. the ETF-aware decorator falling
+    // back to "general" after an earlier "news" lookup for the same name).
+    const first = await search({ query: "TIGER 200", topic: "news" });
+    const second = await search({ query: "TIGER 200", topic: "general" });
+
+    expect(inner).toHaveBeenCalledTimes(2);
+    expect(first).toBe(newsResult);
+    expect(second).toBe(generalResult);
+  });
+
   it("does not cache a throw (the next call retries)", async () => {
     const clock = 1_000_000;
     const inner = vi
