@@ -300,6 +300,83 @@ describe("createTossClient 401 token recovery", () => {
   });
 });
 
+describe("createTossClient POST 401 token recovery", () => {
+  it("re-issues the token once and retries a POST on a 401, then succeeds", async () => {
+    const invalidate = vi.fn();
+    let issued = 0;
+    const tp: TokenProvider = {
+      getAccessToken: async () => `tok-${issued++}`,
+      invalidate,
+    };
+    const { client, fetchFn } = harness(
+      [
+        jsonResponse(
+          { error: { requestId: "r", code: "invalid-token", message: "bad token" } },
+          { status: 401 },
+        ),
+        jsonResponse({ result: { value: "ok" } }),
+      ],
+      { tokenProvider: tp },
+    );
+
+    const result = await client.post("/api/v1/orders", resultSchema, {
+      group: "ORDER",
+      body: { clientOrderId: "abc-123" },
+    });
+
+    expect(result).toEqual({ value: "ok" });
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    // The identical body (same clientOrderId) is replayed, not regenerated.
+    const bodies = fetchFn.mock.calls.map((call) => (call[1] as RequestInit).body);
+    expect(bodies[0]).toBe(bodies[1]);
+  });
+
+  it("recovers a POST from a 401 only once, then surfaces the error", async () => {
+    const invalidate = vi.fn();
+    const tp: TokenProvider = { getAccessToken: async () => "tok", invalidate };
+    const { client, fetchFn } = harness(
+      [
+        jsonResponse(
+          { error: { requestId: "r", code: "invalid-token", message: "bad" } },
+          { status: 401 },
+        ),
+        jsonResponse(
+          { error: { requestId: "r", code: "invalid-token", message: "bad" } },
+          { status: 401 },
+        ),
+      ],
+      { tokenProvider: tp },
+    );
+
+    const error = (await client
+      .post("/api/v1/orders", resultSchema, { group: "ORDER", body: {} })
+      .catch((e: unknown) => e)) as TossApiError;
+
+    expect(error).toBeInstanceOf(TossApiError);
+    expect(error.status).toBe(401);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("still does not retry a POST on a 429 (unchanged)", async () => {
+    const { client, fetchFn } = harness([
+      jsonResponse(
+        { error: { requestId: "r", code: "rate-limited", message: "slow" } },
+        { status: 429 },
+      ),
+    ]);
+
+    const error = (await client
+      .post("/api/v1/orders", resultSchema, { group: "ORDER", body: {} })
+      .catch((e: unknown) => e)) as TossApiError;
+
+    expect(error).toBeInstanceOf(TossApiError);
+    expect(error.status).toBe(429);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("createTossClient rate-limit headers", () => {
   it("captures X-RateLimit-* values from the response", async () => {
     const { client } = harness([
