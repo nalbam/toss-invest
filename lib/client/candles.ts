@@ -249,14 +249,28 @@ function mergeCandles(bucket: number, candles: Candle[]): Candle {
   };
 }
 
+// Number.isFinite guards below matter for the running accumulator, not just
+// each candidate: with a plain `Number(value) > Number(max)` comparison, an
+// unparseable first candle would seed `max`/`min` with NaN, and since any
+// comparison against NaN is false, no later (valid) candle could ever replace
+// it — the merged high/low would silently stay wrong for the whole bucket.
+
 function maxDecimal(values: string[]): string {
-  return values.reduce((max, value) =>
-    Number(value) > Number(max) ? value : max,
-  );
+  return values.reduce((max, value) => {
+    const parsedValue = Number(value);
+    if (!Number.isFinite(parsedValue)) return max;
+    const parsedMax = Number(max);
+    if (!Number.isFinite(parsedMax)) return value;
+    return parsedValue > parsedMax ? value : max;
+  });
 }
 
 function minDecimal(values: string[]): string {
-  return values.reduce((min, value) =>
-    Number(value) < Number(min) ? value : min,
-  );
+  return values.reduce((min, value) => {
+    const parsedValue = Number(value);
+    if (!Number.isFinite(parsedValue)) return min;
+    const parsedMin = Number(min);
+    if (!Number.isFinite(parsedMin)) return value;
+    return parsedValue < parsedMin ? value : min;
+  });
 }

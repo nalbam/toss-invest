@@ -133,6 +133,24 @@ describe("aggregateCandles", () => {
     expect(result[1].timestamp).toBe("2026-06-19T09:05:00.000Z");
     expect(result[1]).toMatchObject({ openPrice: "103", closePrice: "107" });
   });
+
+  it("does not let an unparseable high/low poison the whole bucket's merge", () => {
+    // The first bar's high/low fail to parse; a naive Number(a) > Number(b)
+    // reduce would seed the accumulator with NaN and never recover, since any
+    // comparison against NaN is false — the bucket would keep the bad value
+    // instead of the later bars' real high/low.
+    const result = aggregateCandles(
+      [
+        candle("2026-06-19T09:00:00Z", { highPrice: "n/a", lowPrice: "n/a" }),
+        candle("2026-06-19T09:01:00Z", { highPrice: "108", lowPrice: "97" }),
+        candle("2026-06-19T09:02:00Z", { highPrice: "104", lowPrice: "99" }),
+      ],
+      "5m",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ highPrice: "108", lowPrice: "97" });
+  });
 });
 
 describe("advisor candle window", () => {
