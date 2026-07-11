@@ -77,7 +77,8 @@ export async function runAdvisorJobsOnce(
     // a concurrent pass (worker tick vs. an external /api/advisor-jobs/run
     // trigger) reading the same stale `last_run_at` cannot also process it —
     // see claimWatchlistRun's doc comment.
-    if (!claimWatchlistRun(item.id, item.lastRunAt, new Date(now).toISOString())) {
+    const claimToken = claimWatchlistRun(item.id, item.lastRunAt, new Date(now).toISOString());
+    if (claimToken === null) {
       continue;
     }
     try {
@@ -93,7 +94,7 @@ export async function runAdvisorJobsOnce(
         // `item.lastChartTimestamp` is also null, so without this check a
         // permanently broken symbol would silently report ok:true/skipped:true
         // forever instead of surfacing as a failure.
-        touchWatchlistRun(item.id, new Date(now).toISOString(), item.lastChartTimestamp);
+        touchWatchlistRun(item.id, claimToken, new Date(now).toISOString(), item.lastChartTimestamp);
         results.push({
           symbol: item.symbol,
           interval: item.interval,
@@ -105,7 +106,7 @@ export async function runAdvisorJobsOnce(
       if (latest === item.lastChartTimestamp) {
         // No new candle since the last analysis (e.g. market closed) — skip the
         // duplicate LLM call and only advance last_run_at.
-        touchWatchlistRun(item.id, new Date(now).toISOString(), item.lastChartTimestamp);
+        touchWatchlistRun(item.id, claimToken, new Date(now).toISOString(), item.lastChartTimestamp);
         results.push({
           symbol: item.symbol,
           interval: item.interval,
@@ -152,7 +153,7 @@ export async function runAdvisorJobsOnce(
         advice: result.advice,
         annotations: result.annotations,
       });
-      touchWatchlistRun(item.id, new Date(now).toISOString(), latest);
+      touchWatchlistRun(item.id, claimToken, new Date(now).toISOString(), latest);
 
       results.push({
         symbol: item.symbol,

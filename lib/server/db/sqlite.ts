@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS advisor_watchlist (
   run_every_minutes INTEGER NOT NULL DEFAULT 60,
   last_run_at TEXT,
   last_chart_timestamp TEXT,
+  run_token TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(symbol, interval)
 );
@@ -152,6 +153,9 @@ function migrateInner(db: Database.Database): void {
   }
   if (!columns.includes("last_chart_timestamp")) {
     db.exec("ALTER TABLE advisor_watchlist ADD COLUMN last_chart_timestamp TEXT");
+  }
+  if (!columns.includes("run_token")) {
+    db.exec("ALTER TABLE advisor_watchlist ADD COLUMN run_token TEXT");
   }
 
   // candle_cache.currency was added after the table first shipped. A NOT NULL

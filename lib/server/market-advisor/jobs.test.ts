@@ -18,7 +18,7 @@ const {
   touchWatchlistRun: vi.fn(),
   // Defaults to "claim always succeeds" so existing tests exercise the same
   // path as before claiming was introduced; concurrency tests override this.
-  claimWatchlistRun: vi.fn(() => true),
+  claimWatchlistRun: vi.fn((): string | null => "token"),
   recordMarketAdvice: vi.fn(),
   readMarketAdviceHistory: vi.fn((): MarketAdviceHistoryRecord[] => []),
 }));
@@ -168,7 +168,7 @@ describe("runAdvisorJobsOnce", () => {
 
   it("does not process an item that another concurrent pass already claimed", async () => {
     recordMarketAdvice.mockClear();
-    claimWatchlistRun.mockReturnValueOnce(false);
+    claimWatchlistRun.mockReturnValueOnce(null);
     listEnabledWatchlist.mockReturnValue([item("SOXL", 1)]);
     const client = {
       getCandles: vi.fn(),

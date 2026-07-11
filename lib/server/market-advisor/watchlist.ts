@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import { getDb } from "@/lib/server/db/sqlite";
 
@@ -123,9 +124,11 @@ export function setWatchlistRunEvery(
 
 /**
  * Atomically claims an item for this analysis pass: sets `last_run_at` to
- * `at`, but only if the row's `last_run_at` still matches `expectedLastRunAt`
- * (the value read when the caller decided the item was due). Returns whether
- * the claim succeeded.
+ * `at` and stamps a fresh, single-use `run_token`, but only if the row's
+ * `last_run_at` still matches `expectedLastRunAt` (the value read when the
+ * caller decided the item was due). Returns the claim token on success — pass
+ * it to `touchWatchlistRun` to complete the run — or null if the claim was
+ * lost.
  *
  * This guards against the in-process background worker and an external
  * `POST /api/advisor-jobs/run` trigger racing each other: both read the
@@ -133,31 +136,48 @@ export function setWatchlistRunEvery(
  * once the LLM call finishes), and without this compare-and-set both would
  * analyze it and record duplicate advice. Whichever pass claims first wins;
  * the other observes 0 rows changed (the value moved) and skips the item.
+ *
+ * A later pass can still win a *subsequent* claim on the same row if this
+ * pass's analysis outlives the item's `run_every_minutes` window — by then
+ * `last_run_at` already holds this pass's claim time, so a later reader sees
+ * it as due again before this pass reaches `touchWatchlistRun`. `run_token`
+ * guards the fallout of that: the completion write only applies while this
+ * pass's token still owns the row, so a stale pass that lost a later claim
+ * cannot overwrite state the newer pass already wrote.
  */
 export function claimWatchlistRun(
   id: number,
   expectedLastRunAt: string | null,
   at: string,
   db: Database.Database = getDb(),
-): boolean {
+): string | null {
+  const token = randomUUID();
   const result = db
-    .prepare("UPDATE advisor_watchlist SET last_run_at = ? WHERE id = ? AND last_run_at IS ?")
-    .run(at, id, expectedLastRunAt);
-  return result.changes > 0;
+    .prepare(
+      "UPDATE advisor_watchlist SET last_run_at = ?, run_token = ? WHERE id = ? AND last_run_at IS ?",
+    )
+    .run(at, token, id, expectedLastRunAt);
+  return result.changes > 0 ? token : null;
 }
 
 /**
  * Records when an item was last analyzed (drives the due check) and the newest
  * candle timestamp seen (drives the "no new candle → skip" check). Pass the
  * unchanged chart timestamp when skipping so only `last_run_at` advances.
+ *
+ * Only applies while `token` (from the matching `claimWatchlistRun`) still
+ * owns the row: if a later pass has since re-claimed the item, `run_token`
+ * has moved on and this write is silently skipped instead of overwriting the
+ * newer pass's state. Clears `run_token` on success, releasing the claim.
  */
 export function touchWatchlistRun(
   id: number,
+  token: string,
   at: string,
   chartTimestamp: string | null,
   db: Database.Database = getDb(),
 ): void {
   db.prepare(
-    "UPDATE advisor_watchlist SET last_run_at = ?, last_chart_timestamp = ? WHERE id = ?",
-  ).run(at, chartTimestamp, id);
+    "UPDATE advisor_watchlist SET last_run_at = ?, last_chart_timestamp = ?, run_token = NULL WHERE id = ? AND run_token = ?",
+  ).run(at, chartTimestamp, id, token);
 }
