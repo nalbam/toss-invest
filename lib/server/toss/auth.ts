@@ -14,12 +14,21 @@ export interface TokenProviderConfig {
 export interface TokenProvider {
   getAccessToken(): Promise<string>;
   /**
-   * Drops the cached token so the next `getAccessToken` re-issues. Used to
-   * recover when the API rejects the current token as invalid (a 401) even
-   * though it has not locally expired — e.g. another client sharing the same
-   * credentials issued a new token and the Toss API invalidated this one.
+   * Drops the cached token so the next `getAccessToken` re-issues — but only
+   * if the cache still holds `staleToken`. Used to recover when the API
+   * rejects the current token as invalid (a 401) even though it has not
+   * locally expired — e.g. another client sharing the same credentials issued
+   * a new token and the Toss API invalidated this one.
+   *
+   * Callers must pass the exact token that was rejected. Without this check,
+   * concurrent requests that all got a 401 on the same stale token would race:
+   * the first 401 handler reissues a fresh token, but a second, slower 401
+   * handler (rejected on the OLD token) would then unconditionally clear that
+   * fresh token too, forcing needless re-issuance and re-triggering the same
+   * cascade. Comparing against the caller's token makes this a no-op once
+   * someone else has already rotated the cache.
    */
-  invalidate(): void;
+  invalidate(staleToken: string): void;
 }
 
 interface ParsedToken {
@@ -108,8 +117,10 @@ export function createTokenProvider(config: TokenProviderConfig): TokenProvider 
       });
       return inFlight;
     },
-    invalidate(): void {
-      cached = null;
+    invalidate(staleToken: string): void {
+      if (cached?.accessToken === staleToken) {
+        cached = null;
+      }
     },
   };
 }

@@ -203,7 +203,7 @@ export function createTossClient(config: TossClientConfig): TossClient {
       // the 429 backoff budget.
       if (response.status === 401 && !reauthed) {
         reauthed = true;
-        config.tokenProvider.invalidate();
+        config.tokenProvider.invalidate(token);
         attempt -= 1;
         continue;
       }

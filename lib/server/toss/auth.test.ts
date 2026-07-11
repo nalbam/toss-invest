@@ -133,11 +133,32 @@ describe("createTokenProvider", () => {
     const provider = createTokenProvider({ ...config, fetchFn, now: () => 0 });
 
     const first = await provider.getAccessToken();
-    provider.invalidate();
+    provider.invalidate(first);
     const second = await provider.getAccessToken(); // still within 3600s, cache cleared
 
     expect(first).toBe("tok-1");
     expect(second).toBe("tok-2");
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores invalidate for a token that is no longer cached (already rotated)", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(tokenResponse("tok-1", 3600))
+      .mockResolvedValueOnce(tokenResponse("tok-2", 3600));
+    const provider = createTokenProvider({ ...config, fetchFn, now: () => 0 });
+
+    const first = await provider.getAccessToken();
+    provider.invalidate(first); // rotates the cache to tok-2
+    const second = await provider.getAccessToken();
+
+    // A second, slower 401 handler still holding the stale "tok-1" must not
+    // clear the cache now that it holds "tok-2" — otherwise every concurrent
+    // 401 on the same stale token forces another needless re-issue.
+    provider.invalidate(first);
+    const third = await provider.getAccessToken();
+
+    expect([first, second, third]).toEqual(["tok-1", "tok-2", "tok-2"]);
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 });
