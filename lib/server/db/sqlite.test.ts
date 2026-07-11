@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
-import { initSchema } from "./sqlite";
+import { initSchema, startWalCheckpointTimer } from "./sqlite";
 
 describe("initSchema / migrate", () => {
   it("is idempotent — calling it twice does not throw", () => {
@@ -75,5 +75,17 @@ describe("initSchema / migrate", () => {
     );
     expect(columns).not.toContain("run_every_minutes");
     expect(columns).not.toContain("last_run_at");
+  });
+});
+
+describe("startWalCheckpointTimer", () => {
+  it("schedules exactly one interval even when called more than once", () => {
+    // A long interval so the real (unref'd) timer never actually fires during
+    // this test run; only the scheduling call count is under test.
+    const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+    startWalCheckpointTimer(60 * 60_000);
+    startWalCheckpointTimer(60 * 60_000);
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    setIntervalSpy.mockRestore();
   });
 });

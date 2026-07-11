@@ -254,3 +254,24 @@ export function checkpointWal(): void {
     // Checkpointing is a maintenance nicety, not correctness-critical.
   }
 }
+
+const DEFAULT_CHECKPOINT_INTERVAL_MS = 5 * 60_000;
+let checkpointTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Starts a standing periodic WAL checkpoint, independent of the advisor
+ * worker. The worker already checkpoints after each tick, but that only runs
+ * when ADVISOR_WORKER_ENABLED — a deployment running the dashboard without
+ * the worker (read/manual-trade only) would otherwise never checkpoint at
+ * all and the WAL file could grow unbounded. Idempotent and unref'd so it
+ * never blocks process exit.
+ */
+export function startWalCheckpointTimer(
+  intervalMs: number = DEFAULT_CHECKPOINT_INTERVAL_MS,
+): void {
+  if (checkpointTimer !== null) {
+    return;
+  }
+  checkpointTimer = setInterval(checkpointWal, intervalMs);
+  checkpointTimer.unref?.();
+}
