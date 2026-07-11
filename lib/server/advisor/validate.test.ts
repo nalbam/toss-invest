@@ -67,6 +67,19 @@ describe("validateProposals", () => {
     expect(validateOne({ quantity: -2 }).valid).toBe(false);
   });
 
+  it("rejects a SELL when the held position's sellable quantity is NaN (fail-closed)", () => {
+    const nanContext: ValidationContext = {
+      holdings: [{ symbol: "005930", sellableQuantity: Number("not-a-number") }],
+      knownSymbols: new Set(["005930"]),
+    };
+    const result = validateProposals(
+      [proposal({ side: "SELL", kind: "trim", quantity: 5 })],
+      nanContext,
+    )[0];
+    expect(result.valid).toBe(false);
+    expect(result.reasons.join(" ")).toMatch(/sellable/i);
+  });
+
   it("flags each proposal independently in a mixed batch", () => {
     const results = validateProposals(
       [

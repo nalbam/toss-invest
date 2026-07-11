@@ -130,8 +130,15 @@ CREATE INDEX IF NOT EXISTS idx_trading_audit_lookup
 `;
 
 // Additive migrations for DBs created before a column existed. SQLite lacks
-// "ADD COLUMN IF NOT EXISTS", so each column is checked via PRAGMA first.
+// "ADD COLUMN IF NOT EXISTS", so each column is checked via PRAGMA first. The
+// whole pass runs in one transaction so a mid-migration failure (e.g. during
+// the candle_coverage rebuild below) rolls back instead of leaving the schema
+// half-migrated (a dropped old table alongside a partially populated new one).
 function migrate(db: Database.Database): void {
+  db.transaction(() => migrateInner(db))();
+}
+
+function migrateInner(db: Database.Database): void {
   const columns = (
     db.prepare("PRAGMA table_info(advisor_watchlist)").all() as { name: string }[]
   ).map((column) => column.name);
