@@ -20,6 +20,10 @@ describe("dashboard polling intervals", () => {
     const selectedSymbolMarketDataRps =
       rps(POLLING_INTERVAL_MS.prices) +
       rps(POLLING_INTERVAL_MS.orderbook) +
+      // useTrades shares the orderbook's cadence (see hooks.ts) — counted
+      // here too so this sum reflects the real request load for a selected
+      // symbol, not just three of its four MARKET_DATA pollers.
+      rps(POLLING_INTERVAL_MS.orderbook) +
       rps(POLLING_INTERVAL_MS.priceLimits);
     expect(selectedSymbolMarketDataRps).toBeLessThanOrEqual(
       API_GROUP_TPS.MARKET_DATA,

@@ -360,9 +360,9 @@ export function MarketQuote({
     ],
   );
 
-  function setInterval(interval: ChartInterval) {
-    setIntervalState(interval);
-    writeStoredInterval(interval);
+  function changeInterval(nextInterval: ChartInterval) {
+    setIntervalState(nextInterval);
+    writeStoredInterval(nextInterval);
   }
 
   const toggleOverlay = useCallback((key: keyof ChartOverlayState) => {
@@ -427,7 +427,7 @@ export function MarketQuote({
           className={`${page.select} ${isMinuteInterval(interval) ? styles.activeControl : ""}`}
           aria-label="분봉 단위"
           value={isMinuteInterval(interval) ? interval : ""}
-          onChange={(event) => setInterval(event.target.value as ChartInterval)}
+          onChange={(event) => changeInterval(event.target.value as ChartInterval)}
         >
           <option value="" disabled>
             분
@@ -444,7 +444,7 @@ export function MarketQuote({
             type="button"
             className={`${page.select} ${interval === item.value ? styles.activeControl : ""}`}
             aria-pressed={interval === item.value}
-            onClick={() => setInterval(item.value)}
+            onClick={() => changeInterval(item.value)}
           >
             {item.label}
           </button>
