@@ -14,9 +14,15 @@ import { z } from "zod";
  */
 export const proposalKindSchema = z.enum(["buy", "trim", "exit", "rebalance"]);
 
+// Mirrors the symbolPattern every API route already validates path/query
+// symbols against (and lib/server/market-advisor/schema.ts) — without it, an
+// LLM hallucination containing spaces/punctuation would still pass this shape
+// check and reach the Toss lookup in resolveSymbol (§6.A-4) as a raw string.
+const symbolPattern = /^[A-Za-z0-9.\-]+$/;
+
 export const advisorProposalSchema = z.object({
   kind: proposalKindSchema,
-  symbol: z.string().min(1),
+  symbol: z.string().min(1).regex(symbolPattern),
   side: z.enum(["BUY", "SELL"]),
   quantity: z.number().int().positive(),
   rationale: z.string().min(1),

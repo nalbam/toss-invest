@@ -12,6 +12,11 @@ export async function register(): Promise<void> {
     const { runAuthMigrations } = await import("@/lib/auth-migrate");
     await runAuthMigrations();
 
+    // Independent of the advisor worker below, so a deployment running
+    // without it (ADVISOR_WORKER_ENABLED unset) still bounds the WAL file.
+    const { startWalCheckpointTimer } = await import("@/lib/server/db/sqlite");
+    startWalCheckpointTimer();
+
     if (process.env.ADVISOR_WORKER_ENABLED === "true") {
       const { startAdvisorWorker } = await import(
         "@/lib/server/market-advisor/worker"

@@ -22,6 +22,12 @@ const FORBIDDEN = [
   "XAI_API_KEY",
   "process.env.OPENAI",
   "process.env.XAI",
+  // News search (lib/server/news/**) and Google OAuth (lib/auth.ts) secrets —
+  // also server-only, must never reach the client bundle.
+  "TAVILY_API_KEY",
+  "process.env.TAVILY",
+  "GOOGLE_CLIENT_SECRET",
+  "process.env.GOOGLE_CLIENT_SECRET",
 ];
 
 async function collectJsFiles(dir) {

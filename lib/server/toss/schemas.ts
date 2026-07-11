@@ -55,7 +55,10 @@ export function apiResponse<T extends z.ZodTypeAny>(resultSchema: T) {
 /** Error envelope: `{ error: { requestId, code, message, data? } }`. */
 export const errorResponseSchema = z.object({
   error: z.object({
-    requestId: z.string(),
+    // Optional: an upstream error body missing requestId must not fail
+    // safeParse and discard code/message — the caller already falls back to
+    // the X-Request-Id response header when this is absent.
+    requestId: z.string().optional(),
     code: z.string(),
     message: z.string(),
     data: z.record(z.string(), z.unknown()).nullable().optional(),

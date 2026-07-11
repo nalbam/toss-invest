@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS advisor_watchlist (
   run_every_minutes INTEGER NOT NULL DEFAULT 60,
   last_run_at TEXT,
   last_chart_timestamp TEXT,
+  run_token TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(symbol, interval)
 );
@@ -130,8 +131,15 @@ CREATE INDEX IF NOT EXISTS idx_trading_audit_lookup
 `;
 
 // Additive migrations for DBs created before a column existed. SQLite lacks
-// "ADD COLUMN IF NOT EXISTS", so each column is checked via PRAGMA first.
+// "ADD COLUMN IF NOT EXISTS", so each column is checked via PRAGMA first. The
+// whole pass runs in one transaction so a mid-migration failure (e.g. during
+// the candle_coverage rebuild below) rolls back instead of leaving the schema
+// half-migrated (a dropped old table alongside a partially populated new one).
 function migrate(db: Database.Database): void {
+  db.transaction(() => migrateInner(db))();
+}
+
+function migrateInner(db: Database.Database): void {
   const columns = (
     db.prepare("PRAGMA table_info(advisor_watchlist)").all() as { name: string }[]
   ).map((column) => column.name);
@@ -145,6 +153,9 @@ function migrate(db: Database.Database): void {
   }
   if (!columns.includes("last_chart_timestamp")) {
     db.exec("ALTER TABLE advisor_watchlist ADD COLUMN last_chart_timestamp TEXT");
+  }
+  if (!columns.includes("run_token")) {
+    db.exec("ALTER TABLE advisor_watchlist ADD COLUMN run_token TEXT");
   }
 
   // candle_cache.currency was added after the table first shipped. A NOT NULL
@@ -246,4 +257,25 @@ export function checkpointWal(): void {
   } catch {
     // Checkpointing is a maintenance nicety, not correctness-critical.
   }
+}
+
+const DEFAULT_CHECKPOINT_INTERVAL_MS = 5 * 60_000;
+let checkpointTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Starts a standing periodic WAL checkpoint, independent of the advisor
+ * worker. The worker already checkpoints after each tick, but that only runs
+ * when ADVISOR_WORKER_ENABLED — a deployment running the dashboard without
+ * the worker (read/manual-trade only) would otherwise never checkpoint at
+ * all and the WAL file could grow unbounded. Idempotent and unref'd so it
+ * never blocks process exit.
+ */
+export function startWalCheckpointTimer(
+  intervalMs: number = DEFAULT_CHECKPOINT_INTERVAL_MS,
+): void {
+  if (checkpointTimer !== null) {
+    return;
+  }
+  checkpointTimer = setInterval(checkpointWal, intervalMs);
+  checkpointTimer.unref?.();
 }

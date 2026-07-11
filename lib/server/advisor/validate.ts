@@ -69,6 +69,8 @@ function validateOne(
     const position = context.holdings.find((h) => h.symbol === proposal.symbol);
     if (!position) {
       reasons.push("symbol is not held, cannot sell");
+    } else if (!Number.isFinite(position.sellableQuantity)) {
+      reasons.push("sellable quantity is unavailable or invalid");
     } else if (proposal.quantity > position.sellableQuantity) {
       reasons.push("quantity exceeds sellable quantity");
     }

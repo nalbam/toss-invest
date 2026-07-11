@@ -203,7 +203,7 @@ export function createTossClient(config: TossClientConfig): TossClient {
       // the 429 backoff budget.
       if (response.status === 401 && !reauthed) {
         reauthed = true;
-        config.tokenProvider.invalidate();
+        config.tokenProvider.invalidate(token);
         attempt -= 1;
         continue;
       }
@@ -254,30 +254,46 @@ export function createTossClient(config: TossClientConfig): TossClient {
   ): Promise<Response> {
     const url = buildUrl(config.baseUrl, path, options.query);
 
-    await config.rateLimiter.acquire(options.group);
+    let reauthed = false;
+    for (;;) {
+      await config.rateLimiter.acquire(options.group);
 
-    const token = await config.tokenProvider.getAccessToken();
-    const headers: Record<string, string> = {
-      authorization: `Bearer ${token}`,
-      accept: "application/json",
-      "content-type": "application/json",
-    };
-    if (options.accountSeq !== undefined) {
-      headers["x-tossinvest-account"] = String(options.accountSeq);
+      const token = await config.tokenProvider.getAccessToken();
+      const headers: Record<string, string> = {
+        authorization: `Bearer ${token}`,
+        accept: "application/json",
+        "content-type": "application/json",
+      };
+      if (options.accountSeq !== undefined) {
+        headers["x-tossinvest-account"] = String(options.accountSeq);
+      }
+
+      const response = await config.fetchFn(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(options.body),
+      });
+
+      const snapshot = readRateLimit(response);
+      if (snapshot) {
+        snapshots.set(options.group, snapshot);
+      }
+
+      // Mirrors `execute`'s 401 recovery (see its comment): an externally
+      // invalidated token can surface as a 401 the local cache (still within
+      // expiry) can't detect. Limited to once so a genuinely bad credential
+      // fails fast. Safe to retry the identical body/clientOrderId — a 401
+      // means Toss rejected the request at the auth layer, before any order
+      // could have been created, so this is not the "maybe it already went
+      // through" ambiguity a 429/timeout retry would risk.
+      if (response.status === 401 && !reauthed) {
+        reauthed = true;
+        config.tokenProvider.invalidate(token);
+        continue;
+      }
+
+      return response;
     }
-
-    const response = await config.fetchFn(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(options.body),
-    });
-
-    const snapshot = readRateLimit(response);
-    if (snapshot) {
-      snapshots.set(options.group, snapshot);
-    }
-
-    return response;
   }
 
   return {

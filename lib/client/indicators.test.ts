@@ -87,6 +87,17 @@ describe("computeIndicators", () => {
     expect(ind.rsi14).toBeUndefined();
     expect(ind.recentHigh).toBeUndefined();
   });
+
+  it("drops a candle with an unparseable price instead of propagating NaN", () => {
+    const bad = { ...candle(100, 105, 95, 1000, rising.length), closePrice: "not-a-number" };
+    const withBadBar = [...rising, bad];
+    const ind = computeIndicators(withBadBar);
+    expect(Number.isFinite(ind.lastPrice)).toBe(true);
+    expect(Number.isFinite(ind.recentHigh)).toBe(true);
+    expect(Number.isFinite(ind.recentLow)).toBe(true);
+    // Identical to the all-clean series since the bad bar is excluded entirely.
+    expect(ind).toEqual(computeIndicators(rising));
+  });
 });
 
 describe("summarizeTrend", () => {

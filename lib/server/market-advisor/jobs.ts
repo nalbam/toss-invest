@@ -12,7 +12,12 @@ import { readMarketAdviceHistory, recordMarketAdvice } from "./history";
 import { runMarketAdvisor } from "./market-advisor";
 import { marketAdvisorJsonSchema } from "./schema";
 import { latestCandleTimestamp } from "./timestamp";
-import { listEnabledWatchlist, touchWatchlistRun, type WatchlistItem } from "./watchlist";
+import {
+  claimWatchlistRun,
+  listEnabledWatchlist,
+  touchWatchlistRun,
+  type WatchlistItem,
+} from "./watchlist";
 
 // Single-pass background job: analyze every enabled watchlist entry once. The
 // server fetches candles itself (no client involvement), runs the market
@@ -68,6 +73,14 @@ export async function runAdvisorJobsOnce(
   const positions = await loadPositions(deps.client);
 
   for (const item of due) {
+    // Claim the item before doing any async work (candle fetch / LLM call) so
+    // a concurrent pass (worker tick vs. an external /api/advisor-jobs/run
+    // trigger) reading the same stale `last_run_at` cannot also process it —
+    // see claimWatchlistRun's doc comment.
+    const claimToken = claimWatchlistRun(item.id, item.lastRunAt, new Date(now).toISOString());
+    if (claimToken === null) {
+      continue;
+    }
     try {
       const interval = item.interval as ChartInterval;
       const candles = await collectAdvisorCandles(item.symbol, interval, {
@@ -75,10 +88,25 @@ export async function runAdvisorJobsOnce(
         now: () => now,
       });
       const latest = latestCandleTimestamp({ candles });
+      if (latest === null) {
+        // No usable candle at all (empty fetch / every timestamp unparseable).
+        // Distinct from the "no new candle" skip below: on a first-ever run
+        // `item.lastChartTimestamp` is also null, so without this check a
+        // permanently broken symbol would silently report ok:true/skipped:true
+        // forever instead of surfacing as a failure.
+        touchWatchlistRun(item.id, claimToken, new Date(now).toISOString(), item.lastChartTimestamp);
+        results.push({
+          symbol: item.symbol,
+          interval: item.interval,
+          ok: false,
+          error: "no usable candle data",
+        });
+        continue;
+      }
       if (latest === item.lastChartTimestamp) {
         // No new candle since the last analysis (e.g. market closed) — skip the
         // duplicate LLM call and only advance last_run_at.
-        touchWatchlistRun(item.id, new Date(now).toISOString(), item.lastChartTimestamp);
+        touchWatchlistRun(item.id, claimToken, new Date(now).toISOString(), item.lastChartTimestamp);
         results.push({
           symbol: item.symbol,
           interval: item.interval,
@@ -125,7 +153,7 @@ export async function runAdvisorJobsOnce(
         advice: result.advice,
         annotations: result.annotations,
       });
-      touchWatchlistRun(item.id, new Date(now).toISOString(), latest);
+      touchWatchlistRun(item.id, claimToken, new Date(now).toISOString(), latest);
 
       results.push({
         symbol: item.symbol,

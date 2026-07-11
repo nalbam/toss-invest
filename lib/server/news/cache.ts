@@ -33,7 +33,12 @@ export function createCachedNewsSearch(
   const cache = new Map<string, CacheEntry>();
 
   return async (input) => {
-    const key = input.query;
+    // Keyed on (query, topic): the ETF-aware decorator can call the same query
+    // with a different topic depending on a security-type lookup that isn't
+    // itself deterministic (a transient failure falls back to "general"
+    // instead of "news") — keying on query alone would let one topic's cached
+    // result leak into a request for the other.
+    const key = `${input.query}::${input.topic ?? "news"}`;
     const at = now();
     const hit = cache.get(key);
     if (hit !== undefined && at - hit.fetchedAt < ttlMs) {

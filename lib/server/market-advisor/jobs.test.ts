@@ -7,15 +7,23 @@ import type { MarketAdviceHistoryRecord } from "./history";
 // so the test never touches the real data/advisor.db.
 process.env.ADVISOR_DB_PATH = ":memory:";
 
-const { listEnabledWatchlist, touchWatchlistRun, recordMarketAdvice, readMarketAdviceHistory } =
-  vi.hoisted(() => ({
-    listEnabledWatchlist: vi.fn(),
-    touchWatchlistRun: vi.fn(),
-    recordMarketAdvice: vi.fn(),
-    readMarketAdviceHistory: vi.fn((): MarketAdviceHistoryRecord[] => []),
-  }));
+const {
+  listEnabledWatchlist,
+  touchWatchlistRun,
+  claimWatchlistRun,
+  recordMarketAdvice,
+  readMarketAdviceHistory,
+} = vi.hoisted(() => ({
+  listEnabledWatchlist: vi.fn(),
+  touchWatchlistRun: vi.fn(),
+  // Defaults to "claim always succeeds" so existing tests exercise the same
+  // path as before claiming was introduced; concurrency tests override this.
+  claimWatchlistRun: vi.fn((): string | null => "token"),
+  recordMarketAdvice: vi.fn(),
+  readMarketAdviceHistory: vi.fn((): MarketAdviceHistoryRecord[] => []),
+}));
 
-vi.mock("./watchlist", () => ({ listEnabledWatchlist, touchWatchlistRun }));
+vi.mock("./watchlist", () => ({ listEnabledWatchlist, touchWatchlistRun, claimWatchlistRun }));
 vi.mock("./history", () => ({ recordMarketAdvice, readMarketAdviceHistory }));
 
 import { getDb } from "@/lib/server/db/sqlite";
@@ -140,6 +148,37 @@ describe("runAdvisorJobsOnce", () => {
     expect(summary.analyzed).toBe(0);
     expect(summary.results[0]).toMatchObject({ symbol: "SOXL", skipped: true });
     expect(recordMarketAdvice).not.toHaveBeenCalled();
+  });
+
+  it("reports a failure (not a silent skip) when no candle parses at all", async () => {
+    recordMarketAdvice.mockClear();
+    listEnabledWatchlist.mockReturnValue([item("SOXL", 1)]); // lastChartTimestamp: null (first run)
+    const client = {
+      getCandles: vi.fn(async () => ({ candles: [], nextBefore: null })),
+    } as unknown as ServerTossClient;
+
+    const summary = await runAdvisorJobsOnce({ client, provider: stubProvider() });
+
+    // Without this distinction, latest (null) === lastChartTimestamp (null)
+    // would masquerade as a normal "no new candle" skip forever.
+    expect(summary.results[0]).toMatchObject({ symbol: "SOXL", ok: false });
+    expect(summary.results[0].skipped).toBeUndefined();
+    expect(recordMarketAdvice).not.toHaveBeenCalled();
+  });
+
+  it("does not process an item that another concurrent pass already claimed", async () => {
+    recordMarketAdvice.mockClear();
+    claimWatchlistRun.mockReturnValueOnce(null);
+    listEnabledWatchlist.mockReturnValue([item("SOXL", 1)]);
+    const client = {
+      getCandles: vi.fn(),
+    } as unknown as ServerTossClient;
+
+    const summary = await runAdvisorJobsOnce({ client, provider: stubProvider() });
+
+    expect(client.getCandles).not.toHaveBeenCalled();
+    expect(recordMarketAdvice).not.toHaveBeenCalled();
+    expect(summary.results).toEqual([]);
   });
 
   it("fetches daily candles and injects a higher-timeframe trend for a minute item", async () => {

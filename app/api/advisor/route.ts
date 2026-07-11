@@ -13,6 +13,7 @@ import { buildAdvisorSnapshot } from "@/lib/server/advisor/snapshot";
 import type { ValidationContext } from "@/lib/server/advisor/validate";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const querySchema = z.object({
   // `?accountSeq=` yields "" which z.coerce.number() turns into 0; map empty to

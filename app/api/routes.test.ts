@@ -1328,6 +1328,16 @@ describe("GET /api/stocks/[symbol]/warnings", () => {
     const body = await res.json();
     expect(body.error.code).toBe("symbol-not-found");
   });
+
+  it("returns 400 for a symbol containing characters outside the allowed pattern", async () => {
+    const res = await stockWarningsGET(
+      req("http://localhost/api/stocks/AB%20CD/warnings"),
+      warningsContext("AB CD"),
+    );
+
+    expect(res.status).toBe(400);
+    expect(facade.getStockWarnings).not.toHaveBeenCalled();
+  });
 });
 
 // --- market-calendar/KR -----------------------------------------------------

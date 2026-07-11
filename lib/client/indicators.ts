@@ -173,10 +173,22 @@ function averageTrueRange(
  * field (rather than emitting a misleading value).
  */
 export function computeIndicators(candles: Candle[]): Indicators {
-  const closes = candles.map((c) => Number(c.closePrice));
-  const highs = candles.map((c) => Number(c.highPrice));
-  const lows = candles.map((c) => Number(c.lowPrice));
-  const volumes = candles.map((c) => Number(c.volume));
+  // Drop candles with an unparseable OHLCV field up front so a single bad bar
+  // cannot turn every downstream indicator (MA/RSI/ATR/recentHigh) into NaN —
+  // mirrors the finite-check `toChartSeries` applies for the same reason. A
+  // dropped mid-series bar makes its neighbors read as consecutive (a small
+  // discontinuity), which is preferable to NaN propagation.
+  const usable = candles.filter(
+    (c) =>
+      Number.isFinite(Number(c.closePrice)) &&
+      Number.isFinite(Number(c.highPrice)) &&
+      Number.isFinite(Number(c.lowPrice)) &&
+      Number.isFinite(Number(c.volume)),
+  );
+  const closes = usable.map((c) => Number(c.closePrice));
+  const highs = usable.map((c) => Number(c.highPrice));
+  const lows = usable.map((c) => Number(c.lowPrice));
+  const volumes = usable.map((c) => Number(c.volume));
 
   if (closes.length === 0) {
     return { movingAverages: [] };
@@ -188,7 +200,7 @@ export function computeIndicators(candles: Candle[]): Indicators {
     movingAveragePoint(closes, period, lastClose),
   ).filter((point): point is MovingAveragePoint => point !== null);
 
-  const recentBars = Math.min(RECENT_WINDOW, candles.length);
+  const recentBars = Math.min(RECENT_WINDOW, usable.length);
   const recentHigh = round(Math.max(...highs.slice(-recentBars)), 2);
   const recentLow = round(Math.min(...lows.slice(-recentBars)), 2);
 
