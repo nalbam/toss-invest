@@ -112,6 +112,24 @@ describe("createTossClient error handling", () => {
     expect(apiError.message).toBe("계좌를 찾을 수 없습니다");
   });
 
+  it("preserves code/message from an error envelope missing requestId, falling back to the header", async () => {
+    const { client } = harness([
+      jsonResponse(
+        { error: { code: "account-not-found", message: "no requestId in body" } },
+        { status: 404, headers: { "x-request-id": "header-req-id" } },
+      ),
+    ]);
+
+    const error = (await client
+      .get("/api/v1/thing", resultSchema, { group: "ACCOUNT" })
+      .catch((e: unknown) => e)) as TossApiError;
+
+    expect(error).toBeInstanceOf(TossApiError);
+    expect(error.code).toBe("account-not-found");
+    expect(error.message).toBe("no requestId in body");
+    expect(error.requestId).toBe("header-req-id");
+  });
+
   it("falls back to a generic error when the body is not an error envelope", async () => {
     const { client } = harness([
       new Response("upstream boom", {

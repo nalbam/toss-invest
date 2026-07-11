@@ -82,6 +82,16 @@ describe("advisorResultSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects a symbol with characters outside the allowed pattern", () => {
+    for (const symbol of ["005930 ", "AAPL; DROP", "한글종목", "AB/CD"]) {
+      const result = advisorResultSchema.safeParse({
+        advice: "x",
+        proposals: [{ ...validProposal, symbol }],
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
   it("rejects a missing advice", () => {
     const result = advisorResultSchema.safeParse({ proposals: [] });
     expect(result.success).toBe(false);
